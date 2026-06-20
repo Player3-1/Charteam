@@ -3,6 +3,7 @@ import { UserData } from "@/types";
 import { findOrCreateMatch, cancelMatchmaking } from "@/lib/matchmaking";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/firebase";
+import { makeOpponentTrophies } from "@/lib/battle";
 
 export const MatchmakingModal = ({ 
   user,
@@ -71,7 +72,7 @@ export const MatchmakingModal = ({
           <button 
             onClick={() => {
               cancelMatchmaking(user.username);
-              onMatchFound({name: "Bot", trophies: 100});
+              onMatchFound({name: "Bot", trophies: makeOpponentTrophies(user.trophies)});
             }} 
             className="mt-4 rounded bg-emerald-600 px-4 py-3 font-bold text-white block w-full"
           >

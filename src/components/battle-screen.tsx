@@ -93,8 +93,9 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
        if (placeTimer > 0) rerender();
     }
 
-    if (placeTimer === 0) {
+    if (placeTimer === 0 && !isReady) {
        // Timer is up!
+       setIsReady(true);
        // Auto fill player's missing cards
        playerCards.forEach(c => {
          if (!stateRef.current.units.some(u => u.side === "player" && u.card.id === c.id)) {
@@ -127,7 +128,6 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
          }
          startFight();
        } else {
-         setIsReady(true);
          const placements = stateRef.current.units.filter(u => u.side === "player").map(u => ({
            cardId: u.card.id,
            col: u.col,
@@ -136,7 +136,7 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
          submitPlacements(battleId, isPlayer1!, placements);
        }
     }
-  }, [placeTimer, phase, battleId, botDeck, isPlayer1, playerCards]);
+  }, [placeTimer, phase, battleId, botDeck, isPlayer1, playerCards, isReady]);
 
   const [isReady, setIsReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
