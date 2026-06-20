@@ -43,8 +43,8 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
     () => deck.map((id) => CARDS.find((c) => c.id === id)!).filter(Boolean),
     [deck],
   );
-  const botTrophies = useMemo(() => makeOpponentTrophies(trophies), [trophies]);
-  const botDeck = useMemo(() => makeBotDeck(arena), [arena]);
+  const [botTrophies] = useState(() => makeOpponentTrophies(trophies));
+  const [botDeck] = useState(() => makeBotDeck(arena));
 
   const [phase, setPhase] = useState<Phase>("placing");
   const [selected, setSelected] = useState(0);
@@ -77,13 +77,27 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
           const targetPlaced = Math.min(4, Math.floor((PLACE_SECONDS - next) / Math.max(1, Math.floor(PLACE_SECONDS / 4))));
           while (placedBotRef.current < targetPlaced) {
             const i = placedBotRef.current;
-            const positions: [number, number][] = [
-              [Math.floor(COLS * 0.15), 3],
-              [Math.floor(COLS * 0.75), 3],
-              [Math.floor(COLS * 0.3), 8],
-              [Math.floor(COLS * 0.65), 8]
-            ];
-            const [c, r] = positions[i] ?? [Math.floor(Math.random() * COLS), 2 + Math.floor(Math.random() * (RIVER_ROW - 2))];
+            const card = botDeck[i];
+            let c: number;
+            let r: number;
+            let attempts = 0;
+            do {
+              c = Math.floor(Math.random() * COLS);
+              // if madenci, can spawn anywhere except river
+              if (card.id === "madenci") {
+                r = Math.floor(Math.random() * ROWS);
+                if (r === RIVER_ROW) r = RIVER_ROW - 1;
+              } else {
+                r = Math.floor(Math.random() * RIVER_ROW); // 0 to RIVER_ROW - 1
+              }
+              attempts++;
+            } while (
+              attempts < 20 &&
+              Array.from(stateRef.current.unitMatrix.keys()).some(
+                k => parseInt(k.split(',')[0]) === r && parseInt(k.split(',')[1]) === c
+              )
+            );
+
             spawnUnit(stateRef.current, botDeck[i], "bot", c, r);
             placedBotRef.current++;
             rerender();
@@ -92,7 +106,10 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
             // ensure remaining bot units spawn
             while (placedBotRef.current < 4) {
               const i = placedBotRef.current;
-              spawnUnit(stateRef.current, botDeck[i], "bot", Math.floor(COLS * 0.15) + i * Math.floor(COLS * 0.2), 4);
+              const card = botDeck[i];
+              let c = Math.floor(Math.random() * COLS);
+              let r = Math.floor(Math.random() * RIVER_ROW);
+              spawnUnit(stateRef.current, botDeck[i], "bot", c, r);
               placedBotRef.current++;
             }
             startFight();

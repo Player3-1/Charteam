@@ -1,5 +1,5 @@
 import { CARDS, dmgValue, pickCardByRarity, type CardDef, type Rarity } from "./cards";
-import type { Arena } from "./arenas";
+import { type Arena, ARENAS } from "./arenas";
 
 export const COLS = 12;
 export const ROWS = 25;
@@ -342,8 +342,12 @@ export function tickBattle(state: BattleState, dt: number) {
     // Filter targetable enemies
     const enemies = state.units.filter((e) => {
       if (e.side === u.side || e.hp <= 0 || e.underground) return false;
-      // Ghost is invisible unless within 4 units distance
-      if (e.card.id === "hayalet" && dist(u, e) > 4.0) return false;
+      // Ghost is invisible unless within 3x3 grid (dist <= 1.5)
+      // Ghost is also completely invisible and untargetable if its ability is active
+      if (e.card.id === "hayalet") {
+        if (e.immuneTimeLeft && e.immuneTimeLeft > 0) return false;
+        if (Math.abs(u.col - e.col) > 1.5 || Math.abs(u.row - e.row) > 1.5) return false;
+      }
       return true;
     });
 
@@ -600,8 +604,17 @@ export function makeBotDeck(arena: Arena): CardDef[] {
 }
 
 export function makeOpponentTrophies(playerTrophies: number): number {
-  const drift = Math.floor((Math.random() - 0.5) * 80);
-  return Math.max(0, playerTrophies + drift);
+  const arena = ARENAS.find((a) => playerTrophies >= a.min && playerTrophies < a.max) ?? ARENAS[ARENAS.length - 1];
+  
+  // Drift randomly inside the same arena range (+- up to half the arena span, but clamped to arena bounds)
+  const span = arena.max - arena.min;
+  const drift = (Math.random() - 0.5) * (span * 0.4); 
+  let botTrophies = Math.floor(playerTrophies + drift);
+
+  if (botTrophies < arena.min) botTrophies = arena.min;
+  if (botTrophies > arena.max - 1) botTrophies = arena.max - 1;
+
+  return botTrophies;
 }
 
 export function computeRewards(

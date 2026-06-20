@@ -199,13 +199,27 @@ export function ArenaView({ arena, state, onPlace, selectedCardId }: Props) {
         const hasAura = u.card.id === "bira-varili" && u.barrelAuraBoostTimeLeft !== undefined && u.barrelAuraBoostTimeLeft > 0;
 
         const isBird = u.card.id.startsWith("kus-ordusu");
+        
+        let isInvisibleHayalet = false;
+        if (u.card.id === "hayalet") {
+          // If ability is active, completely invisible.
+          // Otherwise, invisible unless an enemy is within 1.5 grid distance.
+          if (isImmune) {
+            isInvisibleHayalet = true;
+          } else {
+            const hasEnemyClose = state.units.some(e => e.side !== u.side && e.hp > 0 && Math.abs(u.col - e.col) <= 1.5 && Math.abs(u.row - e.row) <= 1.5);
+            if (!hasEnemyClose) isInvisibleHayalet = true;
+          }
+        }
 
         return (
           <div
             key={u.uid}
             className={cn(
               "pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 select-none",
-              isEmerging && "opacity-40 scale-110 animate-pulse" // transparently visible and pulsing when emerging!
+              isEmerging && "opacity-40 scale-110 animate-pulse", // transparently visible and pulsing when emerging!
+              isInvisibleHayalet && u.side !== "player" && "opacity-0",
+              isInvisibleHayalet && u.side === "player" && "opacity-40 grayscale"
             )}
             style={{
               left: `${cx(u.col)}%`,

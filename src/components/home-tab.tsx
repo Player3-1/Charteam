@@ -33,14 +33,28 @@ export function Home({ user }: { user: UserData }) {
   const [showMatchmaking, setShowMatchmaking] = useState(false);
 
   useEffect(() => {
-    const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
+    const handleFullscreenChange = () => {
+      const isFull = !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
+      setIsFullscreen(isFull);
+    };
     document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+    };
   }, []);
 
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(console.error);
-    else document.exitFullscreen().catch(console.error);
+    const doc = document.documentElement as any;
+    const isFull = !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
+    if (!isFull) {
+      if (doc.requestFullscreen) doc.requestFullscreen().catch(console.error);
+      else if (doc.webkitRequestFullscreen) doc.webkitRequestFullscreen();
+    } else {
+      if (document.exitFullscreen) document.exitFullscreen().catch(console.error);
+      else if ((document as any).webkitExitFullscreen) (document as any).webkitExitFullscreen();
+    }
   };
 
   if (!hydrated || !state) {
@@ -96,7 +110,14 @@ export function Home({ user }: { user: UserData }) {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col">
-      <header className="sticky top-0 z-20 panel-3d px-3 pb-3 pt-4 flex items-center justify-between gap-3">
+      <header className="sticky top-0 z-20 panel-3d px-3 pb-3 pt-8 flex items-center justify-between gap-3 relative">
+        <button
+          onClick={toggleFullscreen}
+          className="absolute top-2 right-2 p-1.5 rounded-full bg-slate-800/80 text-white hover:bg-slate-700/80 shrink-0"
+          aria-label="Toggle Fullscreen"
+        >
+          {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+        </button>
         <div className="flex items-center gap-2">
           <div className="grid h-10 w-10 place-items-center rounded-full border-2 border-black/40 bg-gradient-to-br from-amber-300 to-amber-600 text-lg font-display text-amber-950 shadow-inner shrink-0">
             {state.username[0]}
@@ -111,18 +132,9 @@ export function Home({ user }: { user: UserData }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex flex-col items-end gap-1">
-            <Stat icon="🏆" value={state.trophies} color="from-amber-300 to-orange-500" />
-            <Stat icon="🪙" value={state.gold} color="from-yellow-200 to-amber-500" />
-          </div>
-          <button
-            onClick={toggleFullscreen}
-            className="p-1.5 rounded-full bg-slate-800/80 text-white hover:bg-slate-700/80 shrink-0"
-            aria-label="Toggle Fullscreen"
-          >
-            {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-          </button>
+        <div className="flex flex-col items-end gap-1">
+          <Stat icon="🏆" value={state.trophies} color="from-amber-300 to-orange-500" />
+          <Stat icon="🪙" value={state.gold} color="from-yellow-200 to-amber-500" />
         </div>
       </header>
 
