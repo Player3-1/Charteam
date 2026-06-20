@@ -93,9 +93,7 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
               attempts++;
             } while (
               attempts < 20 &&
-              Array.from(stateRef.current.unitMatrix.keys()).some(
-                k => parseInt(k.split(',')[0]) === r && parseInt(k.split(',')[1]) === c
-              )
+              stateRef.current.units.some(u => Math.round(u.col) === c && Math.round(u.row) === r)
             );
 
             spawnUnit(stateRef.current, botDeck[i], "bot", c, r);
@@ -107,8 +105,17 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
             while (placedBotRef.current < 4) {
               const i = placedBotRef.current;
               const card = botDeck[i];
-              let c = Math.floor(Math.random() * COLS);
-              let r = Math.floor(Math.random() * RIVER_ROW);
+              let c: number;
+              let r: number;
+              let attempts = 0;
+              do {
+                c = Math.floor(Math.random() * COLS);
+                r = Math.floor(Math.random() * RIVER_ROW);
+                attempts++;
+              } while (
+                attempts < 20 &&
+                stateRef.current.units.some(u => Math.round(u.col) === c && Math.round(u.row) === r)
+              );
               spawnUnit(stateRef.current, botDeck[i], "bot", c, r);
               placedBotRef.current++;
             }
