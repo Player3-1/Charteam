@@ -96,32 +96,33 @@ export function Home({ user }: { user: UserData }) {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col">
-      <header className="sticky top-0 z-20 panel-3d px-3 pb-3 pt-4 flex items-center gap-3">
-        <button
-          onClick={toggleFullscreen}
-          className="p-1.5 rounded-full bg-slate-800/80 text-white hover:bg-slate-700/80 shrink-0"
-          aria-label="Toggle Fullscreen"
-        >
-          {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-        </button>
-        <div className="flex items-center justify-between gap-2 flex-grow">
-          <div className="flex items-center gap-2">
-            <div className="grid h-10 w-10 place-items-center rounded-full border-2 border-black/40 bg-gradient-to-br from-amber-300 to-amber-600 text-lg font-display text-amber-950 shadow-inner">
-              {state.username[0]}
+      <header className="sticky top-0 z-20 panel-3d px-3 pb-3 pt-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <div className="grid h-10 w-10 place-items-center rounded-full border-2 border-black/40 bg-gradient-to-br from-amber-300 to-amber-600 text-lg font-display text-amber-950 shadow-inner shrink-0">
+            {state.username[0]}
+          </div>
+          <div>
+            <div className="font-display text-lg leading-none text-stroke text-white">
+              {state.username}
             </div>
-            <div>
-              <div className="font-display text-lg leading-none text-stroke text-white">
-                {state.username}
-              </div>
-              <div className="mt-0.5 text-xs text-amber-200/90">
-                Arena {arena.id} · {arena.name}
-              </div>
+            <div className="mt-0.5 text-xs text-amber-200/90">
+              Arena {arena.id} · {arena.name}
             </div>
           </div>
+        </div>
+
+        <div className="flex items-center gap-3">
           <div className="flex flex-col items-end gap-1">
             <Stat icon="🏆" value={state.trophies} color="from-amber-300 to-orange-500" />
             <Stat icon="🪙" value={state.gold} color="from-yellow-200 to-amber-500" />
           </div>
+          <button
+            onClick={toggleFullscreen}
+            className="p-1.5 rounded-full bg-slate-800/80 text-white hover:bg-slate-700/80 shrink-0"
+            aria-label="Toggle Fullscreen"
+          >
+            {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          </button>
         </div>
       </header>
 
