@@ -59,6 +59,9 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
   const [isReady, setIsReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
 
+  const opponentDeckRef = useRef<string[]>([]);
+  const opponentPlacementsRef = useRef<any[]>([]);
+
   const [placeTimer, setPlaceTimer] = useState(PLACE_SECONDS);
   const placedBotRef = useRef(0);
 
@@ -137,6 +140,70 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
            row: u.row
          }));
          submitPlacements(battleId, isPlayer1!, placements);
+
+         if (!startedRef.current) {
+           startedRef.current = true;
+
+           // Clear any partially loaded opponent units
+           stateRef.current.units = stateRef.current.units.filter(u => u.side !== "bot");
+
+           // Spawn actual placements from the opponent
+           const actualOppPlacements = opponentPlacementsRef.current || [];
+           actualOppPlacements.forEach((p: any) => {
+             const card = CARDS.find(c => c.id === p.cardId)!;
+             if (card) {
+               const r = ROWS - 1 - p.row;
+               const c = COLS - 1 - p.col;
+               spawnUnit(stateRef.current, card, "bot", c, r);
+             }
+           });
+
+           // Auto-fill remainder using opponent's deck
+           let spawnedBotCount = actualOppPlacements.length;
+           const spawnedBotCardIds = new Set(actualOppPlacements.map(p => p.cardId));
+
+           const oppDeckList = opponentDeckRef.current && opponentDeckRef.current.length > 0
+             ? opponentDeckRef.current
+             : deck;
+
+           oppDeckList.forEach(cardId => {
+             if (spawnedBotCount >= 4) return;
+             if (spawnedBotCardIds.has(cardId)) return;
+
+             const card = CARDS.find(c => c.id === cardId);
+             if (!card) return;
+
+             let c: number; let r: number; let attempts = 0;
+             do {
+               c = Math.floor(Math.random() * COLS);
+               r = Math.floor(Math.random() * RIVER_ROW);
+               attempts++;
+             } while (attempts < 20 && stateRef.current.units.some(u => Math.round(u.col) === c && Math.round(u.row) === r));
+
+             spawnUnit(stateRef.current, card, "bot", c, r);
+             spawnedBotCardIds.add(card.id);
+             spawnedBotCount++;
+           });
+
+           // Fallback fill to exactly 4 units
+           while (spawnedBotCount < 4) {
+             const card = CARDS[Math.floor(Math.random() * CARDS.length)];
+             if (spawnedBotCardIds.has(card.id)) continue;
+
+             let c: number; let r: number; let attempts = 0;
+             do {
+               c = Math.floor(Math.random() * COLS);
+               r = Math.floor(Math.random() * RIVER_ROW);
+               attempts++;
+             } while (attempts < 20 && stateRef.current.units.some(u => Math.round(u.col) === c && Math.round(u.row) === r));
+
+             spawnUnit(stateRef.current, card, "bot", c, r);
+             spawnedBotCardIds.add(card.id);
+             spawnedBotCount++;
+           }
+
+           startFight();
+         }
        }
     }
   }, [placeTimer, phase, battleId, botDeck, isPlayer1, playerCards, isReady]);
@@ -151,8 +218,16 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
         const myPlacements = isPlayer1 ? data.player1Placements : data.player2Placements;
         const oppPlacements = isPlayer1 ? data.player2Placements : data.player1Placements;
         
-        if (oppPlacements && oppPlacements.length === 4) {
-          setOpponentReady(true);
+        const oppData = isPlayer1 ? data.player2 : data.player1;
+        if (oppData && oppData.deck) {
+          opponentDeckRef.current = oppData.deck;
+        }
+
+        if (oppPlacements) {
+          opponentPlacementsRef.current = oppPlacements;
+          if (oppPlacements.length === 4) {
+            setOpponentReady(true);
+          }
         }
 
         if (myPlacements?.length === 4 && oppPlacements?.length === 4) {
@@ -240,7 +315,7 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
     <div className="fixed inset-y-0 left-1/2 -translate-x-1/2 z-40 flex flex-col bg-black w-full max-w-md shadow-2xl border-x border-slate-900">
       {/* header */}
       <div className="flex items-center justify-between gap-2 bg-black/70 px-3 py-2 text-white">
-        <button onClick={onExit} className="rounded-lg bg-black/40 px-3 py-1 text-sm">← Çık</button>
+        <div className="w-[50px] flex items-center justify-start text-lg opacity-60">⚔️</div>
         <div className="text-center font-display">
           <div className="text-stroke text-base leading-none">{arena.name}</div>
           <div className="text-[10px] opacity-80">{trophies}🏆 vs {opponentName} ({opponentTrophies}🏆)</div>
