@@ -1,0 +1,160 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-gold: var(--gold);
+  --color-gold-foreground: var(--gold-foreground);
+  --color-trophy: var(--trophy);
+  --color-gem: var(--gem);
+  --color-wood: var(--wood);
+  --color-wood-dark: var(--wood-dark);
+
+  --color-rarity-common: var(--rarity-common);
+  --color-rarity-rare: var(--rarity-rare);
+  --color-rarity-epic: var(--rarity-epic);
+  --color-rarity-legendary: var(--rarity-legendary);
+
+  --font-display: "Lilita One", "Fredoka", system-ui, sans-serif;
+  --font-body: "Fredoka", system-ui, sans-serif;
+}
+
+:root {
+  --radius: 0.875rem;
+
+  /* Arena sky/grass */
+  --background: oklch(0.32 0.09 250);
+  --foreground: oklch(0.98 0.02 90);
+
+  --card: oklch(0.42 0.10 250);
+  --card-foreground: oklch(0.98 0.02 90);
+
+  --popover: oklch(0.30 0.09 250);
+  --popover-foreground: oklch(0.98 0.02 90);
+
+  --primary: oklch(0.70 0.18 45); /* warm orange */
+  --primary-foreground: oklch(0.18 0.05 250);
+
+  --secondary: oklch(0.45 0.12 255);
+  --secondary-foreground: oklch(0.98 0.02 90);
+
+  --muted: oklch(0.38 0.07 250);
+  --muted-foreground: oklch(0.82 0.04 90);
+
+  --accent: oklch(0.55 0.15 200);
+  --accent-foreground: oklch(0.15 0.05 250);
+
+  --destructive: oklch(0.62 0.24 27);
+  --destructive-foreground: oklch(0.98 0.02 90);
+
+  --border: oklch(0.22 0.08 250);
+  --input: oklch(0.38 0.07 250);
+  --ring: oklch(0.80 0.18 80);
+
+  /* Game tokens */
+  --gold: oklch(0.84 0.17 85);
+  --gold-foreground: oklch(0.22 0.08 60);
+  --trophy: oklch(0.82 0.17 70);
+  --gem: oklch(0.72 0.22 155);
+  --wood: oklch(0.50 0.12 55);
+  --wood-dark: oklch(0.32 0.08 50);
+
+  /* Rarity colors */
+  --rarity-common: oklch(0.70 0.04 250);
+  --rarity-rare: oklch(0.70 0.18 50);
+  --rarity-epic: oklch(0.62 0.22 310);
+  --rarity-legendary: oklch(0.78 0.18 90);
+
+  --sidebar: oklch(0.30 0.09 250);
+  --sidebar-foreground: oklch(0.98 0.02 90);
+  --sidebar-primary: oklch(0.70 0.18 45);
+  --sidebar-primary-foreground: oklch(0.18 0.05 250);
+  --sidebar-accent: oklch(0.45 0.12 255);
+  --sidebar-accent-foreground: oklch(0.98 0.02 90);
+  --sidebar-border: oklch(0.22 0.08 250);
+  --sidebar-ring: oklch(0.80 0.18 80);
+
+  --chart-1: var(--rarity-common);
+  --chart-2: var(--rarity-rare);
+  --chart-3: var(--rarity-epic);
+  --chart-4: var(--rarity-legendary);
+  --chart-5: var(--gold);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html, body {
+    background:
+      radial-gradient(ellipse at top, oklch(0.42 0.12 245) 0%, oklch(0.22 0.08 255) 70%);
+    color: var(--color-foreground);
+    font-family: var(--font-body);
+    min-height: 100vh;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: 0.01em;
+  }
+}
+
+@utility text-stroke {
+  -webkit-text-stroke: 2px oklch(0.18 0.05 250);
+  paint-order: stroke fill;
+}
+
+@utility panel-3d {
+  background: linear-gradient(180deg, oklch(0.50 0.11 250) 0%, oklch(0.34 0.10 255) 100%);
+  border: 2px solid oklch(0.22 0.08 250);
+  box-shadow:
+    inset 0 2px 0 oklch(0.70 0.10 245 / 0.6),
+    inset 0 -4px 0 oklch(0.18 0.06 250),
+    0 6px 0 oklch(0.16 0.05 250),
+    0 10px 24px oklch(0 0 0 / 0.35);
+}
+
+@utility btn-pop {
+  background: linear-gradient(180deg, oklch(0.82 0.18 50) 0%, oklch(0.62 0.20 40) 100%);
+  border: 2px solid oklch(0.30 0.10 40);
+  box-shadow:
+    inset 0 2px 0 oklch(0.95 0.10 90 / 0.7),
+    inset 0 -4px 0 oklch(0.40 0.16 35),
+    0 5px 0 oklch(0.28 0.10 35),
+    0 8px 16px oklch(0 0 0 / 0.35);
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+@utility btn-pop-active {
+  transform: translateY(3px);
+  box-shadow:
+    inset 0 2px 0 oklch(0.95 0.10 90 / 0.5),
+    inset 0 -2px 0 oklch(0.40 0.16 35),
+    0 2px 0 oklch(0.28 0.10 35),
+    0 4px 10px oklch(0 0 0 / 0.35);
+}

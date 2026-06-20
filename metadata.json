@@ -1,0 +1,6 @@
+{
+  "name": "Kupa Savaşı",
+  "description": "Kartlarını topla, destesini kur ve arenada savaş! Kupa kazan, sandık aç.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
