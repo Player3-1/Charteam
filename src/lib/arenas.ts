@@ -62,3 +62,17 @@ export function arenaForTrophies(trophies: number): Arena {
   const t = Math.max(0, Math.min(MAX_TROPHIES, trophies));
   return ARENAS.find((a) => t >= a.min && t < a.max) ?? ARENAS[ARENAS.length - 1];
 }
+
+export function makeOpponentTrophies(playerTrophies: number): number {
+  const arena = ARENAS.find((a) => playerTrophies >= a.min && playerTrophies < a.max) ?? ARENAS[ARENAS.length - 1];
+  
+  // Drift randomly inside the same arena range (+- up to half the arena span, but clamped to arena bounds)
+  const span = arena.max - arena.min;
+  const drift = (Math.random() - 0.5) * (span * 0.4); 
+  let botTrophies = Math.floor(playerTrophies + drift);
+
+  if (botTrophies < arena.min) botTrophies = arena.min;
+  if (botTrophies > arena.max - 1) botTrophies = arena.max - 1;
+
+  return botTrophies;
+}

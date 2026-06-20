@@ -56,6 +56,9 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
   const [rewards, setRewards] = useState<{ gold: number; trophy: number } | null>(null);
   const [winner, setWinner] = useState<"player" | "bot" | null>(null);
 
+  const [isReady, setIsReady] = useState(false);
+  const [opponentReady, setOpponentReady] = useState(false);
+
   const [placeTimer, setPlaceTimer] = useState(PLACE_SECONDS);
   const placedBotRef = useRef(0);
 
@@ -137,9 +140,6 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
        }
     }
   }, [placeTimer, phase, battleId, botDeck, isPlayer1, playerCards, isReady]);
-
-  const [isReady, setIsReady] = useState(false);
-  const [opponentReady, setOpponentReady] = useState(false);
 
   const startedRef = useRef(false);
 

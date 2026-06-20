@@ -3,7 +3,7 @@ import { UserData } from "@/types";
 import { findOrCreateMatch, cancelMatchmaking } from "@/lib/matchmaking";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/firebase";
-import { makeOpponentTrophies } from "@/lib/battle";
+import { makeOpponentTrophies } from "@/lib/arenas";
 
 export const MatchmakingModal = ({ 
   user,

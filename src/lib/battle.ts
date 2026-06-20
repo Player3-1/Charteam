@@ -603,19 +603,7 @@ export function makeBotDeck(arena: Arena): CardDef[] {
   return allowed.slice(0, 4);
 }
 
-export function makeOpponentTrophies(playerTrophies: number): number {
-  const arena = ARENAS.find((a) => playerTrophies >= a.min && playerTrophies < a.max) ?? ARENAS[ARENAS.length - 1];
-  
-  // Drift randomly inside the same arena range (+- up to half the arena span, but clamped to arena bounds)
-  const span = arena.max - arena.min;
-  const drift = (Math.random() - 0.5) * (span * 0.4); 
-  let botTrophies = Math.floor(playerTrophies + drift);
-
-  if (botTrophies < arena.min) botTrophies = arena.min;
-  if (botTrophies > arena.max - 1) botTrophies = arena.max - 1;
-
-  return botTrophies;
-}
+export { makeOpponentTrophies } from "./arenas";
 
 export function computeRewards(
   win: boolean,
