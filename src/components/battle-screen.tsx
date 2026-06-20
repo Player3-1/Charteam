@@ -59,75 +59,84 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
   const [placeTimer, setPlaceTimer] = useState(PLACE_SECONDS);
   const placedBotRef = useRef(0);
 
-  // bot places units gradually during placement countdown
+  // simple interval for placement timer
   useEffect(() => {
     if (phase !== "placing") return;
-    if (battleId) {
-      // Multiplayer matchmaking wait
-      const id = setInterval(() => {
-        setPlaceTimer((t) => Math.max(0, t - 1));
-      }, 1000);
-      return () => clearInterval(id);
-    } else {
-      // Bot behavior
-      const id = setInterval(() => {
-        setPlaceTimer((t) => {
-          const next = t - 1;
-          // bot drops a unit roughly every ~3-4s
-          const targetPlaced = Math.min(4, Math.floor((PLACE_SECONDS - next) / Math.max(1, Math.floor(PLACE_SECONDS / 4))));
-          while (placedBotRef.current < targetPlaced) {
-            const i = placedBotRef.current;
-            const card = botDeck[i];
-            let c: number;
-            let r: number;
-            let attempts = 0;
-            do {
-              c = Math.floor(Math.random() * COLS);
-              // if madenci, can spawn anywhere except river
-              if (card.id === "madenci") {
-                r = Math.floor(Math.random() * ROWS);
-                if (r === RIVER_ROW) r = RIVER_ROW - 1;
-              } else {
-                r = Math.floor(Math.random() * RIVER_ROW); // 0 to RIVER_ROW - 1
-              }
-              attempts++;
-            } while (
-              attempts < 20 &&
-              stateRef.current.units.some(u => Math.round(u.col) === c && Math.round(u.row) === r)
-            );
+    const id = setInterval(() => {
+      setPlaceTimer(t => Math.max(0, t - 1));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [phase]);
 
-            spawnUnit(stateRef.current, botDeck[i], "bot", c, r);
-            placedBotRef.current++;
-            rerender();
-          }
-          if (next <= 0) {
-            // ensure remaining bot units spawn
-            while (placedBotRef.current < 4) {
-              const i = placedBotRef.current;
-              const card = botDeck[i];
-              let c: number;
-              let r: number;
-              let attempts = 0;
-              do {
+  // Handle timer ticks and auto-placement
+  useEffect(() => {
+    if (phase !== "placing") return;
+
+    if (!battleId) {
+       // Auto place bot units progressively
+       const elapsed = PLACE_SECONDS - placeTimer;
+       const targetPlaced = Math.min(4, Math.floor(elapsed / Math.max(1, Math.floor(PLACE_SECONDS / 4))));
+       while (placedBotRef.current < targetPlaced) {
+         const i = placedBotRef.current;
+         const card = botDeck[i];
+         let c: number; let r: number; let attempts = 0;
+         do {
+            c = Math.floor(Math.random() * COLS);
+            if (card.id === "madenci") { r = Math.floor(Math.random() * ROWS); if (r === RIVER_ROW) r = RIVER_ROW - 1; }
+            else { r = Math.floor(Math.random() * RIVER_ROW); }
+            attempts++;
+         } while (attempts < 20 && stateRef.current.units.some(u => Math.round(u.col) === c && Math.round(u.row) === r));
+         spawnUnit(stateRef.current, card, "bot", c, r);
+         placedBotRef.current++;
+       }
+       // Update UI after bot places
+       if (placeTimer > 0) rerender();
+    }
+
+    if (placeTimer === 0) {
+       // Timer is up!
+       // Auto fill player's missing cards
+       playerCards.forEach(c => {
+         if (!stateRef.current.units.some(u => u.side === "player" && u.card.id === c.id)) {
+            let cCol: number; let rCol: number; let attempts = 0;
+            do {
+              cCol = Math.floor(Math.random() * COLS);
+              if (c.id === "madenci") { rCol = Math.floor(Math.random() * ROWS); if (rCol === RIVER_ROW) rCol = RIVER_ROW + 1; }
+              else { rCol = RIVER_ROW + 1 + Math.floor(Math.random() * (ROWS - RIVER_ROW - 1)); }
+              attempts++;
+            } while (attempts < 20 && stateRef.current.units.some(u => Math.round(u.col) === cCol && Math.round(u.row) === rCol));
+            spawnUnit(stateRef.current, c, "player", cCol, rCol);
+         }
+       });
+       setPlacedIds(new Set(playerCards.map(c => c.id)));
+       rerender();
+
+       if (!battleId) {
+         // Auto fill remaining bot cards just in case
+         while (placedBotRef.current < 4) {
+             const i = placedBotRef.current;
+             const card = botDeck[i];
+             let c: number; let r: number; let attempts = 0;
+             do {
                 c = Math.floor(Math.random() * COLS);
                 r = Math.floor(Math.random() * RIVER_ROW);
                 attempts++;
-              } while (
-                attempts < 20 &&
-                stateRef.current.units.some(u => Math.round(u.col) === c && Math.round(u.row) === r)
-              );
-              spawnUnit(stateRef.current, botDeck[i], "bot", c, r);
-              placedBotRef.current++;
-            }
-            startFight();
-            return 0;
-          }
-          return next;
-        });
-      }, 1000);
-      return () => clearInterval(id);
+             } while (attempts < 20 && stateRef.current.units.some(u => Math.round(u.col) === c && Math.round(u.row) === r));
+             spawnUnit(stateRef.current, card, "bot", c, r);
+             placedBotRef.current++;
+         }
+         startFight();
+       } else {
+         setIsReady(true);
+         const placements = stateRef.current.units.filter(u => u.side === "player").map(u => ({
+           cardId: u.card.id,
+           col: u.col,
+           row: u.row
+         }));
+         submitPlacements(battleId, isPlayer1!, placements);
+       }
     }
-  }, [phase, battleId, botDeck]);
+  }, [placeTimer, phase, battleId, botDeck, isPlayer1, playerCards]);
 
   const [isReady, setIsReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
@@ -165,21 +174,16 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
     return unsub;
   }, [battleId, phase, isPlayer1]);
 
-  const handleReady = () => {
-    if (!battleId) return;
-    setIsReady(true);
-    const placements = stateRef.current.units.filter(u => u.side === "player").map(u => ({
-      cardId: u.card.id,
-      col: u.col,
-      row: u.row
-    }));
-    submitPlacements(battleId, isPlayer1!, placements);
-  };
-
   const placeAt = (col: number, row: number) => {
     if (phase !== "placing") return;
     const card = playerCards[selected];
     if (!card || placedIds.has(card.id)) return;
+    
+    // Prevent stacking cards
+    if (stateRef.current.units.some(u => Math.round(u.col) === col && Math.round(u.row) === row)) {
+      return; 
+    }
+
     spawnUnit(stateRef.current, card, "player", col, row);
     const next = new Set(placedIds);
     next.add(card.id);
@@ -265,7 +269,7 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
         <div className="bg-black/80 p-2">
           {battleId && isReady ? (
             <div className="flex flex-col items-center justify-center p-4">
-              <div className="text-amber-300 font-bold mb-2">Hazırsın! Rakip bekleniyor...</div>
+              <div className="text-amber-300 font-bold mb-2">Süre doldu, rakip bekleniyor...</div>
               {opponentReady && <div className="text-emerald-400 text-sm">Rakip hazır! Savaş başlıyor...</div>}
             </div>
           ) : (
@@ -274,36 +278,27 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
                 Kart seç ve kendi alanına dokun ({placedIds.size}/4) — {battleId ? (opponentReady ? "Rakip hazır!" : "Rakip yerleştiriyor!") : "Bot yerleştiriyor!"}
               </div>
               
-              {battleId && placedIds.size === 4 ? (
-                <button 
-                  onClick={handleReady}
-                  className="w-full bg-emerald-600 active:bg-emerald-700 text-white font-bold py-3 rounded-xl btn-pop"
-                >
-                  Hazırım!
-                </button>
-              ) : (
-                <div className="grid grid-cols-4 gap-2">
-                  {playerCards.map((c, i) => {
-                    const isPlaced = placedIds.has(c.id);
-                    return (
-                      <button
-                        key={c.id}
-                        disabled={isPlaced}
-                        onClick={() => setSelected(i)}
-                        className={cn(
-                          "relative aspect-[3/4] overflow-hidden rounded-lg border-2",
-                          selected === i && !isPlaced ? "border-amber-300 ring-2 ring-amber-300" : "border-black/40",
-                          isPlaced && "opacity-30",
-                        )}
-                        style={{ background: "linear-gradient(180deg,#3b4a72,#1f2940)" }}
-                      >
-                        <span className="flex items-center justify-center text-3xl">{c.emoji}</span>
-                        <span className="absolute inset-x-0 bottom-0 bg-black/60 text-center text-[9px] text-white">{c.name}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              <div className="grid grid-cols-4 gap-2">
+                {playerCards.map((c, i) => {
+                  const isPlaced = placedIds.has(c.id);
+                  return (
+                    <button
+                      key={c.id}
+                      disabled={isPlaced}
+                      onClick={() => setSelected(i)}
+                      className={cn(
+                        "relative aspect-[3/4] overflow-hidden rounded-lg border-2",
+                        selected === i && !isPlaced ? "border-amber-300 ring-2 ring-amber-300" : "border-black/40",
+                        isPlaced && "opacity-30",
+                      )}
+                      style={{ background: "linear-gradient(180deg,#3b4a72,#1f2940)" }}
+                    >
+                      <span className="flex items-center justify-center text-3xl">{c.emoji}</span>
+                      <span className="absolute inset-x-0 bottom-0 bg-black/60 text-center text-[9px] text-white">{c.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </>
           )}
         </div>
