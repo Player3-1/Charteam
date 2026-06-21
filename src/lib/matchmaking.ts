@@ -1,5 +1,5 @@
 import { db } from "@/firebase";
-import { collection, doc, getDoc, getDocs, query, setDoc, deleteDoc, onSnapshot, serverTimestamp, where, orderBy, limit, updateDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, setDoc, deleteDoc, onSnapshot, serverTimestamp, where, orderBy, limit, updateDoc, arrayUnion } from "firebase/firestore";
 import { UserData } from "@/types";
 
 export interface BattlePlacement {
@@ -8,12 +8,19 @@ export interface BattlePlacement {
   row: number;
 }
 
+export interface BattleAbilityTrigger {
+  cardId: string;
+  simTime: number;
+}
+
 export interface BattleDoc {
   id: string;
   player1: { username: string; trophies: number; deck: string[] };
   player2: { username: string; trophies: number; deck: string[] };
   player1Placements: BattlePlacement[];
   player2Placements: BattlePlacement[];
+  player1Abilities?: BattleAbilityTrigger[];
+  player2Abilities?: BattleAbilityTrigger[];
   status: "placing" | "fighting" | "finished";
   createdAt: any;
 }
@@ -41,6 +48,8 @@ export async function findOrCreateMatch(user: UserData): Promise<string> {
         player2: { username: user.username, trophies: user.trophies, deck: user.deck },
         player1Placements: [],
         player2Placements: [],
+        player1Abilities: [],
+        player2Abilities: [],
         status: "placing",
         createdAt: serverTimestamp(),
       });
@@ -93,4 +102,12 @@ export async function submitPlacements(battleId: string, isPlayer1: boolean, pla
   } else {
     await updateDoc(bRef, { player2Placements: placements });
   }
+}
+
+export async function submitAbilityTrigger(battleId: string, isPlayer1: boolean, cardId: string, simTime: number) {
+  const bRef = doc(db, "battles", battleId);
+  const abilityField = isPlayer1 ? "player1Abilities" : "player2Abilities";
+  await updateDoc(bRef, {
+    [abilityField]: arrayUnion({ cardId, simTime })
+  });
 }

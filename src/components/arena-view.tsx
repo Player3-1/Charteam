@@ -189,8 +189,10 @@ export function ArenaView({ arena, state, onPlace, selectedCardId }: Props) {
 
       {/* units */}
       {state.units.map((u) => {
-        // If miner is underground, hide it completely! "gözükmez direkt"
-        if (u.underground) return null;
+        // If miner is underground or still emerging, hide it completely!
+        if (u.underground || (u.card.id === "madenci" && u.emergingTimeLeft !== undefined && u.emergingTimeLeft > 0)) {
+          return null;
+        }
 
         const isEmerging = u.emergingTimeLeft !== undefined && u.emergingTimeLeft > 0;
         const isImmune = u.immuneTimeLeft !== undefined && u.immuneTimeLeft > 0;
@@ -200,6 +202,13 @@ export function ArenaView({ arena, state, onPlace, selectedCardId }: Props) {
 
         const isBird = u.card.id.startsWith("kus-ordusu");
         
+        const isBuffedByBarrel = state.units.some(
+          (o) => o.side === u.side && o.hp > 0 && o.card.id === "bira-varili"
+        );
+        const hasBarrelAuraSuperBoost = state.units.some(
+          (o) => o.side === u.side && o.hp > 0 && o.card.id === "bira-varili" && o.barrelAuraBoostTimeLeft !== undefined && o.barrelAuraBoostTimeLeft > 0
+        );
+
         let isInvisibleHayalet = false;
         if (u.card.id === "hayalet") {
           // If ability is active, completely invisible.
@@ -235,6 +244,9 @@ export function ArenaView({ arena, state, onPlace, selectedCardId }: Props) {
               {isDefending && (
                 <div className="absolute inset-0 -m-1 rounded-full border-2 border-indigo-400 animate-pulse bg-indigo-500/25" />
               )}
+              {isBuffedByBarrel && u.card.id !== "bira-varili" && (
+                <div className="absolute inset-0 -m-1.5 rounded-full border-2 border-yellow-400 bg-yellow-400/15 shadow-[0_0_10px_2px_rgba(234,179,8,0.65)] animate-pulse" />
+              )}
               {isFleeing && (
                 <div className="absolute -top-4 left-1/2 -translate-x-1/2 text-[10px] bg-red-600 text-white rounded px-1 scale-90 font-display font-medium leading-none whitespace-nowrap">KAÇIYOR! 💨</div>
               )}
@@ -245,7 +257,9 @@ export function ArenaView({ arena, state, onPlace, selectedCardId }: Props) {
               <span className={cn(
                 "grid place-items-center rounded-full border-2 drop-shadow-[0_2px_3px_rgba(0,0,0,0.5)]",
                 isBird ? "h-6.5 w-6.5 text-[15px] border-amber-200" : "h-9 w-9 text-2xl",
-                u.side === "player" ? "border-blue-300 bg-blue-500/30" : "border-red-300 bg-red-500/30"
+                u.side === "player" 
+                  ? (isBuffedByBarrel ? "border-yellow-300 bg-yellow-500/30" : "border-blue-300 bg-blue-500/30") 
+                  : (isBuffedByBarrel ? "border-yellow-300 bg-yellow-500/30" : "border-red-300 bg-red-500/30")
               )}>
                 {u.card.emoji}
               </span>

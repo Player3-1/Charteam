@@ -28,7 +28,7 @@ export const CARDS: CardDef[] = [
   { id: "madenci", name: "Madenci", emoji: "⛏️", rarity: "legendary", hp: 140, dmg: 25, cd: 0.9, range: "yakın", description: "İstenen yere kazıp çıkar.", ability: "Konum seç ve çık" },
   { id: "doktor", name: "Doktor", emoji: "⚕️", rarity: "legendary", hp: 25, dmg: 0, cd: 0, range: "yakın", description: "Müttefiklere +40 can. Hasar alınca kaçar.", ability: "3x3 iyileştirme" },
   { id: "bira-varili", name: "Bira Varili", emoji: "🍺", rarity: "legendary", hp: 1, dmg: 0, cd: 0, range: "yakın", description: "Müttefik hasarı 1.3x. 30sn dayanır.", ability: "10sn 1.7x hasar" },
-  { id: "bombalama-ucagi", name: "Bombalama Uçağı", emoji: "✈️", rarity: "legendary", hp: 80, dmg: 30, cd: 7.5, range: "hava", description: "7.5sn'de bir 4x4 alana 30 hasar.", ability: "6x6 alana 50 hasar süper bomba" },
+  { id: "bombalama-ucagi", name: "Bombalama Uçağı", emoji: "✈️", rarity: "legendary", hp: 80, dmg: 30, cd: 3.6, range: "hava", description: "3.6sn'de bir 4x4 alana 30 hasar.", ability: "6x6 alana 50 hasar süper bomba" },
   { id: "zirhli", name: "Zırhlı", emoji: "🛡️", rarity: "epic", hp: 300, dmg: 40, cd: 1.5, range: "yakın", description: "Tank. 8sn savunma duruşu hasarın %40'ını emer.", ability: "8sn savunma" },
 ];
 

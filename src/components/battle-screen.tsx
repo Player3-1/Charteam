@@ -5,7 +5,7 @@ import { arenaForTrophies } from "@/lib/arenas";
 import { ArenaView } from "./arena-view";
 import { db } from "@/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
-import { submitPlacements, BattlePlacement } from "@/lib/matchmaking";
+import { submitPlacements, submitAbilityTrigger, BattlePlacement } from "@/lib/matchmaking";
 import {
   computeRewards,
   makeBotDeck,
@@ -61,9 +61,61 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
 
   const opponentDeckRef = useRef<string[]>([]);
   const opponentPlacementsRef = useRef<any[]>([]);
+  const triggeredOpponentAbilitiesRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    stateRef.current.battleId = battleId || undefined;
+    stateRef.current.isPlayer1 = isPlayer1;
+  }, [battleId, isPlayer1]);
 
   const [placeTimer, setPlaceTimer] = useState(PLACE_SECONDS);
   const placedBotRef = useRef(0);
+
+  const handleReadyUp = () => {
+    if (isReady) return;
+    setIsReady(true);
+
+    // Auto-fill player's missing cards if any are unplaced
+    playerCards.forEach(c => {
+      const isPlaced = stateRef.current.units.some(u => u.side === "player" && (u.card.id === c.id || (c.id === "kus-ordusu" && u.card.id.startsWith("kus-ordusu"))));
+      if (!isPlaced) {
+        let cCol: number; let rCol: number; let attempts = 0;
+        do {
+          cCol = Math.floor(Math.random() * COLS);
+          if (c.id === "madenci") { rCol = Math.floor(Math.random() * ROWS); if (rCol === RIVER_ROW) rCol = RIVER_ROW + 1; }
+          else { rCol = RIVER_ROW + 1 + Math.floor(Math.random() * (ROWS - RIVER_ROW - 1)); }
+          attempts++;
+        } while (attempts < 20 && stateRef.current.units.some(u => Math.round(u.col) === cCol && Math.round(u.row) === rCol));
+        spawnUnit(stateRef.current, c, "player", cCol, rCol);
+      }
+    });
+    setPlacedIds(new Set(playerCards.map(c => c.id)));
+    rerender();
+
+    if (!battleId) {
+      // Auto fill remaining bot cards just in case
+      while (placedBotRef.current < 4) {
+        const i = placedBotRef.current;
+        const card = botDeck[i];
+        let c: number; let r: number; let attempts = 0;
+        do {
+          c = Math.floor(Math.random() * COLS);
+          r = Math.floor(Math.random() * RIVER_ROW);
+          attempts++;
+        } while (attempts < 20 && stateRef.current.units.some(u => Math.round(u.col) === c && Math.round(u.row) === r));
+        spawnUnit(stateRef.current, card, "bot", c, r);
+        placedBotRef.current++;
+      }
+      startFight();
+    } else {
+      const placements = stateRef.current.units.filter(u => u.side === "player" && (!u.card.id.startsWith("kus-ordusu") || u.card.id === "kus-ordusu-bird-0")).map(u => ({
+        cardId: u.card.id.startsWith("kus-ordusu") ? "kus-ordusu" : u.card.id,
+        col: u.col,
+        row: u.row
+      }));
+      submitPlacements(battleId, isPlayer1!, placements);
+    }
+  };
 
   // simple interval for placement timer
   useEffect(() => {
@@ -100,113 +152,10 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
     }
 
     if (placeTimer === 0 && !isReady) {
-       // Timer is up!
-       setIsReady(true);
-       // Auto fill player's missing cards
-       playerCards.forEach(c => {
-         if (!stateRef.current.units.some(u => u.side === "player" && u.card.id === c.id)) {
-            let cCol: number; let rCol: number; let attempts = 0;
-            do {
-              cCol = Math.floor(Math.random() * COLS);
-              if (c.id === "madenci") { rCol = Math.floor(Math.random() * ROWS); if (rCol === RIVER_ROW) rCol = RIVER_ROW + 1; }
-              else { rCol = RIVER_ROW + 1 + Math.floor(Math.random() * (ROWS - RIVER_ROW - 1)); }
-              attempts++;
-            } while (attempts < 20 && stateRef.current.units.some(u => Math.round(u.col) === cCol && Math.round(u.row) === rCol));
-            spawnUnit(stateRef.current, c, "player", cCol, rCol);
-         }
-       });
-       setPlacedIds(new Set(playerCards.map(c => c.id)));
-       rerender();
-
-       if (!battleId) {
-         // Auto fill remaining bot cards just in case
-         while (placedBotRef.current < 4) {
-             const i = placedBotRef.current;
-             const card = botDeck[i];
-             let c: number; let r: number; let attempts = 0;
-             do {
-                c = Math.floor(Math.random() * COLS);
-                r = Math.floor(Math.random() * RIVER_ROW);
-                attempts++;
-             } while (attempts < 20 && stateRef.current.units.some(u => Math.round(u.col) === c && Math.round(u.row) === r));
-             spawnUnit(stateRef.current, card, "bot", c, r);
-             placedBotRef.current++;
-         }
-         startFight();
-       } else {
-         const placements = stateRef.current.units.filter(u => u.side === "player").map(u => ({
-           cardId: u.card.id,
-           col: u.col,
-           row: u.row
-         }));
-         submitPlacements(battleId, isPlayer1!, placements);
-
-         if (!startedRef.current) {
-           startedRef.current = true;
-
-           // Clear any partially loaded opponent units
-           stateRef.current.units = stateRef.current.units.filter(u => u.side !== "bot");
-
-           // Spawn actual placements from the opponent
-           const actualOppPlacements = opponentPlacementsRef.current || [];
-           actualOppPlacements.forEach((p: any) => {
-             const card = CARDS.find(c => c.id === p.cardId)!;
-             if (card) {
-               const r = ROWS - 1 - p.row;
-               const c = COLS - 1 - p.col;
-               spawnUnit(stateRef.current, card, "bot", c, r);
-             }
-           });
-
-           // Auto-fill remainder using opponent's deck
-           let spawnedBotCount = actualOppPlacements.length;
-           const spawnedBotCardIds = new Set(actualOppPlacements.map(p => p.cardId));
-
-           const oppDeckList = opponentDeckRef.current && opponentDeckRef.current.length > 0
-             ? opponentDeckRef.current
-             : deck;
-
-           oppDeckList.forEach(cardId => {
-             if (spawnedBotCount >= 4) return;
-             if (spawnedBotCardIds.has(cardId)) return;
-
-             const card = CARDS.find(c => c.id === cardId);
-             if (!card) return;
-
-             let c: number; let r: number; let attempts = 0;
-             do {
-               c = Math.floor(Math.random() * COLS);
-               r = Math.floor(Math.random() * RIVER_ROW);
-               attempts++;
-             } while (attempts < 20 && stateRef.current.units.some(u => Math.round(u.col) === c && Math.round(u.row) === r));
-
-             spawnUnit(stateRef.current, card, "bot", c, r);
-             spawnedBotCardIds.add(card.id);
-             spawnedBotCount++;
-           });
-
-           // Fallback fill to exactly 4 units
-           while (spawnedBotCount < 4) {
-             const card = CARDS[Math.floor(Math.random() * CARDS.length)];
-             if (spawnedBotCardIds.has(card.id)) continue;
-
-             let c: number; let r: number; let attempts = 0;
-             do {
-               c = Math.floor(Math.random() * COLS);
-               r = Math.floor(Math.random() * RIVER_ROW);
-               attempts++;
-             } while (attempts < 20 && stateRef.current.units.some(u => Math.round(u.col) === c && Math.round(u.row) === r));
-
-             spawnUnit(stateRef.current, card, "bot", c, r);
-             spawnedBotCardIds.add(card.id);
-             spawnedBotCount++;
-           }
-
-           startFight();
-         }
-       }
+       // Timer is up! Auto-ready up
+       handleReadyUp();
     }
-  }, [placeTimer, phase, battleId, botDeck, isPlayer1, playerCards, isReady]);
+  }, [placeTimer, phase, battleId, botDeck, isReady]);
 
   const startedRef = useRef(false);
 
@@ -215,6 +164,20 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
     const unsub = onSnapshot(doc(db, "battles", battleId), (d) => {
       if (d.exists()) {
         const data = d.data();
+
+        // Sync real-time opponent ability clicks
+        const oppAbilities: any[] = isPlayer1 ? (data.player2Abilities || []) : (data.player1Abilities || []);
+        oppAbilities.forEach((item: any) => {
+          const { cardId, simTime } = item;
+          const key = `${cardId}_${simTime}`;
+          if (!triggeredOpponentAbilitiesRef.current.has(key)) {
+            triggeredOpponentAbilitiesRef.current.add(key);
+            if (stateRef.current.pendingOpponentAbilities) {
+              stateRef.current.pendingOpponentAbilities.set(cardId, simTime);
+            }
+          }
+        });
+
         const myPlacements = isPlayer1 ? data.player1Placements : data.player2Placements;
         const oppPlacements = isPlayer1 ? data.player2Placements : data.player1Placements;
         
@@ -268,6 +231,15 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
       if (!next.has(playerCards[idx].id)) { setSelected(idx); break; }
     }
     rerender();
+
+    if (battleId) {
+      const placements = stateRef.current.units.filter(u => u.side === "player" && (!u.card.id.startsWith("kus-ordusu") || u.card.id === "kus-ordusu-bird-0")).map(u => ({
+        cardId: u.card.id.startsWith("kus-ordusu") ? "kus-ordusu" : u.card.id,
+        col: u.col,
+        row: u.row
+      }));
+      submitPlacements(battleId, isPlayer1!, placements);
+    }
   };
 
   const startFight = () => {
@@ -344,13 +316,15 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
         <div className="bg-black/80 p-2">
           {battleId && isReady ? (
             <div className="flex flex-col items-center justify-center p-4">
-              <div className="text-amber-300 font-bold mb-2">Süre doldu, rakip bekleniyor...</div>
-              {opponentReady && <div className="text-emerald-400 text-sm">Rakip hazır! Savaş başlıyor...</div>}
+              <div className="text-amber-300 font-bold mb-2 animate-pulse">
+                {placeTimer > 0 ? "Hazırsınız! Rakip bekleniyor..." : "Süre doldu, rakip bekleniyor..."}
+              </div>
+              {opponentReady && <div className="text-emerald-400 text-sm font-semibold">Rakip hazır! Savaş başlıyor...</div>}
             </div>
           ) : (
             <>
-              <div className="text-center text-[11px] text-amber-200/90 mb-1">
-                Kart seç ve kendi alanına dokun ({placedIds.size}/4) — {battleId ? (opponentReady ? "Rakip hazır!" : "Rakip yerleştiriyor!") : "Bot yerleştiriyor!"}
+              <div className="text-center text-[11.5px] text-amber-200/90 mb-1.5 font-medium leading-none">
+                Kart seç ve kendi alanına dokun ({placedIds.size}/4) — {battleId ? (opponentReady ? "Rakip hazır! 👍" : "Rakip yerleştiriyor... ⏳") : "Bot yerleştiriyor..."}
               </div>
               
               <div className="grid grid-cols-4 gap-2">
@@ -362,18 +336,27 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
                       disabled={isPlaced}
                       onClick={() => setSelected(i)}
                       className={cn(
-                        "relative aspect-[3/4] overflow-hidden rounded-lg border-2",
-                        selected === i && !isPlaced ? "border-amber-300 ring-2 ring-amber-300" : "border-black/40",
-                        isPlaced && "opacity-30",
+                        "relative aspect-[3/4] overflow-hidden rounded-lg border-2 transition-all duration-200",
+                        selected === i && !isPlaced ? "border-amber-300 scale-102 shadow-[0_0_10px_rgba(251,191,36,0.5)] ring-2 ring-amber-400/40" : "border-black/40",
+                        isPlaced && "opacity-30 scale-95 grayscale",
                       )}
                       style={{ background: "linear-gradient(180deg,#3b4a72,#1f2940)" }}
                     >
-                      <span className="flex items-center justify-center text-3xl">{c.emoji}</span>
-                      <span className="absolute inset-x-0 bottom-0 bg-black/60 text-center text-[9px] text-white">{c.name}</span>
+                      <span className="flex items-center justify-center text-3.5xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]">{c.emoji}</span>
+                      <span className="absolute inset-x-0 bottom-0 bg-black/60 text-center text-[9px] text-white py-0.5 leading-none font-display font-medium">{c.name}</span>
                     </button>
                   );
                 })}
               </div>
+
+              {placedIds.size === 4 && (
+                <button
+                  onClick={handleReadyUp}
+                  className="mt-3.5 w-full py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-display font-bold text-white text-sm shadow-[0_0_15px_rgba(16,185,129,0.4)] border border-emerald-400/30 transition-all duration-200 active:scale-98 animate-bounce"
+                >
+                  Savaşa Başla! ⚔️
+                </button>
+              )}
             </>
           )}
         </div>
@@ -453,9 +436,13 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
                       statusText = "Öfke Ver!";
                     }
                   } else if (u.card.id === "bombalama-ucagi") {
-                    // bomber active drop: uses standard cdLeft as cooldown tracker or lets them click once per flight
-                    const isCooldown = u.cdLeft > 0; 
-                    statusText = "Mega Bomba";
+                    const uses = u.bomberUsesLeft ?? 0;
+                    if (uses <= 0) {
+                      statusText = "Kullanıldı";
+                      isDisabled = true;
+                    } else {
+                      statusText = "Mega Bomba";
+                    }
                   }
 
                   return (
@@ -465,6 +452,10 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
                       onClick={() => {
                         triggerUnitAbility(u, stateRef.current);
                         rerender();
+                        if (battleId) {
+                          submitAbilityTrigger(battleId, !!isPlayer1, u.card.id, stateRef.current.time)
+                            .catch(console.error);
+                        }
                       }}
                       className={cn(
                         "flex flex-row items-center justify-between rounded-lg px-2 py-1.5 border gap-1 text-left text-white transition-all",

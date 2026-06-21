@@ -30,6 +30,7 @@ export interface Unit {
   barrelAge?: number;
   zirhliDefendingTimeLeft?: number;
   fleeTimeLeft?: number;
+  bomberUsesLeft?: number;
 }
 
 export interface Projectile {
@@ -52,13 +53,39 @@ export interface BattleState {
   projectiles: Projectile[];
   time: number;
   winner: Side | null;
+  isPlayer1?: boolean;
+  battleId?: string;
+  pendingOpponentAbilities?: Map<string, number>;
 }
 
 let _uid = 1;
 const nextUid = () => _uid++;
 
+export function sortUnitsSymmetrically(units: Unit[], isPlayer1: boolean) {
+  units.sort((a, b) => {
+    const isP1_UnitA = (isPlayer1 && a.side === "player") || (!isPlayer1 && a.side === "bot");
+    const rA = isP1_UnitA ? a.row : ROWS - 1 - a.row;
+    const cA = isP1_UnitA ? a.col : COLS - 1 - a.col;
+
+    const isP1_UnitB = (isPlayer1 && b.side === "player") || (!isPlayer1 && b.side === "bot");
+    const rB = isP1_UnitB ? b.row : ROWS - 1 - b.row;
+    const cB = isP1_UnitB ? b.col : COLS - 1 - b.col;
+
+    if (Math.abs(rA - rB) > 0.001) return rA - rB;
+    if (Math.abs(cA - cB) > 0.001) return cA - cB;
+    return a.card.id.localeCompare(b.card.id);
+  });
+}
+
+export function isUnitTargetable(u: Unit): boolean {
+  if (u.hp <= 0) return false;
+  if (u.underground) return false;
+  if (u.emergingTimeLeft !== undefined && u.emergingTimeLeft > 0) return false;
+  return true;
+}
+
 export function makeInitialState(): BattleState {
-  return { units: [], projectiles: [], time: 0, winner: null };
+  return { units: [], projectiles: [], time: 0, winner: null, pendingOpponentAbilities: new Map() };
 }
 
 export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: number, row: number) {
@@ -71,6 +98,7 @@ export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: nu
       [-0.3, 0.4],
       [0.3, 0.4]
     ];
+    const mult = side === "bot" ? -1 : 1;
     offsets.forEach(([dc, dr], index) => {
       state.units.push({
         uid: nextUid(),
@@ -83,8 +111,8 @@ export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: nu
           cd: 1.0,
         },
         side,
-        col: Math.max(0, Math.min(COLS - 1, col + dc)),
-        row: Math.max(0, Math.min(ROWS - 1, row + dr)),
+        col: Math.max(0, Math.min(COLS - 1, col + dc * mult)),
+        row: Math.max(0, Math.min(ROWS - 1, row + dr * mult)),
         hp: 20,
         maxHp: 20,
         cdLeft: 1.0,
@@ -115,6 +143,7 @@ export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: nu
     doktorAbilityCd: isDoktor ? 0 : undefined,
     chargeTime: card.id === "atli" ? 0 : undefined,
     isCharging: card.id === "atli" ? true : undefined,
+    bomberUsesLeft: card.id === "bombalama-ucagi" ? 1 : undefined,
   });
 }
 
@@ -163,7 +192,7 @@ function handleProjectileImpact(p: Projectile, state: BattleState) {
   
   if (p.aoeRange) {
     state.units.forEach((targetUnit) => {
-      if (targetUnit.side !== p.side && targetUnit.hp > 0 && !targetUnit.underground) {
+      if (targetUnit.side !== p.side && isUnitTargetable(targetUnit)) {
         if (Math.abs(targetUnit.col - p.toCol) <= p.aoeRange! && Math.abs(targetUnit.row - p.toRow) <= p.aoeRange!) {
           applyCombatDamage(targetUnit, p.damage, attacker);
         }
@@ -174,7 +203,7 @@ function handleProjectileImpact(p: Projectile, state: BattleState) {
     let best = null;
     let bestDist = 1.0; 
     for(const u of state.units) {
-      if (u.side !== p.side && u.hp > 0 && !u.underground) {
+      if (u.side !== p.side && isUnitTargetable(u)) {
         const d = dist(u, {col: p.toCol, row: p.toRow});
         if (d <= bestDist) {
            bestDist = d;
@@ -188,6 +217,27 @@ function handleProjectileImpact(p: Projectile, state: BattleState) {
 
 export function tickBattle(state: BattleState, dt: number) {
   if (state.winner) return;
+
+  // 1. Force deterministic sort every tick in multiplayer to prevent any divergence
+  if (state.battleId && state.isPlayer1 !== undefined) {
+    sortUnitsSymmetrically(state.units, state.isPlayer1);
+  }
+
+  // 2. Process real-time synced opponent ability triggers if in multiplayer
+  if (state.battleId && state.pendingOpponentAbilities) {
+    for (const [cardId, simTime] of Array.from(state.pendingOpponentAbilities.entries())) {
+      if (state.time >= simTime) {
+        const oppUnit = state.units.find(
+          (u) => u.side === "bot" && (u.card.id === cardId || (cardId === "kus-ordusu" && u.card.id.startsWith("kus-ordusu")))
+        );
+        if (oppUnit && oppUnit.hp > 0) {
+          triggerUnitAbility(oppUnit, state);
+        }
+        state.pendingOpponentAbilities.delete(cardId);
+      }
+    }
+  }
+
   state.time += dt;
 
   // projectiles
@@ -262,6 +312,9 @@ export function tickBattle(state: BattleState, dt: number) {
   // BOT AI trigger of active abilities on opportunity
   for (const u of state.units) {
     if (u.side === "bot" && u.hp > 0) {
+      if (state.battleId) {
+        continue; // Multiplayer uses direct human click-synchronization! Skip AI.
+      }
       // Ghost auto invul on low health or when first targeted
       if (u.card.id === "hayalet" && u.hp < u.maxHp * 0.7 && u.immuneTimeLeft === undefined) {
         u.immuneTimeLeft = 2.5; 
@@ -277,7 +330,7 @@ export function tickBattle(state: BattleState, dt: number) {
       // Doktor heal if allies are injured
       if (u.card.id === "doktor" && (u.doktorUsesLeft || 0) > 0 && (u.doktorAbilityCd || 0) <= 0) {
         const injuredNearby = state.units.some(
-          (o) => o.side === "bot" && o.hp > 0 && o.hp < o.maxHp * 0.75 && dist(u, o) <= 3.0
+          (o) => o.side === u.side && o.hp > 0 && o.hp < o.maxHp * 0.75 && dist(u, o) <= 3.0
         );
         if (injuredNearby) {
           triggerUnitAbility(u, state);
@@ -286,7 +339,7 @@ export function tickBattle(state: BattleState, dt: number) {
       // Bomber drops mega bomb when entering combat
       if (u.card.id === "bombalama-ucagi" && u.cdLeft <= 0) {
         // Trigger mega bomb if enemies are crowded
-        const enemiesNearby = state.units.filter((o) => o.side === "player" && o.hp > 0 && dist(u, o) <= 4.0);
+        const enemiesNearby = state.units.filter((o) => o.side !== u.side && o.hp > 0 && dist(u, o) <= 4.0);
         if (enemiesNearby.length >= 2) {
           triggerUnitAbility(u, state);
         }
@@ -308,18 +361,19 @@ export function tickBattle(state: BattleState, dt: number) {
 
     // Doktor has 0 attack damage, she only supports/runs
     if (u.card.id === "doktor") {
-      const enemies = state.units.filter((e) => e.side !== u.side && e.hp > 0 && !e.underground);
-      if (enemies.length === 0) continue;
-
-      let nearestE = enemies[0];
-      let nearestD = dist(u, nearestE);
-      for (const e of enemies) {
-        const d = dist(u, e);
-        if (d < nearestD) { nearestD = d; nearestE = e; }
+      const enemies = state.units.filter((e) => e.side !== u.side && isUnitTargetable(e));
+      
+      let nearestE = enemies.length > 0 ? enemies[0] : null;
+      let nearestD = nearestE ? dist(u, nearestE) : Infinity;
+      if (nearestE) {
+        for (const e of enemies) {
+          const d = dist(u, e);
+          if (d < nearestD) { nearestD = d; nearestE = e; }
+        }
       }
 
       // Flee if nearest enemy is within 5 tiles or u is in fleeing mode
-      if (nearestD < 5.0 || (u.fleeTimeLeft || 0) > 0) {
+      if (nearestE && (nearestD < 5.0 || (u.fleeTimeLeft || 0) > 0)) {
         const sp = speed(u.card) * dt * 1.35; // Fleeing speed is faster!
         const dc = u.col - nearestE.col;
         const dr = u.row - nearestE.row;
@@ -330,6 +384,49 @@ export function tickBattle(state: BattleState, dt: number) {
         // Ensure Doktor does not jump screen margins
         u.col = Math.max(0, Math.min(COLS - 1, nc));
         u.row = Math.max(0, Math.min(ROWS - 1, nr));
+      } else {
+        // Safe from enemies, so follow teammates!
+        // Doktor only follows ground units (not flying/aerial units like kus-ordusu, ejder, or bombalama-ucagi, and not other dokturs or static barrels)
+        const allies = state.units.filter(
+          (o) => o.side === u.side && o.uid !== u.uid && isUnitTargetable(o) && !o.flying && o.card.id !== "doktor" && o.card.id !== "bira-varili"
+        );
+        if (allies.length > 0) {
+          // Prioritize injured allies, otherwise nearest active ally
+          const injuredAllies = allies.filter((o) => o.hp < o.maxHp);
+          const candidates = injuredAllies.length > 0 ? injuredAllies : allies;
+          
+          let targetAlly = candidates[0];
+          let bestD = dist(u, targetAlly);
+          for (const a of candidates) {
+            const d = dist(u, a);
+            if (d < bestD) {
+              bestD = d;
+              targetAlly = a;
+            }
+          }
+
+          // Move towards the target ally if not already super close (e.g., within 1 tile)
+          if (bestD > 1.0) {
+            const sp = speed(u.card) * dt;
+            const dc = targetAlly.col - u.col;
+            const dr = targetAlly.row - u.row;
+            const len = Math.hypot(dc, dr) || 1;
+            let nc = u.col + (dc / len) * sp;
+            let nr = u.row + (dr / len) * sp;
+
+            u.col = Math.max(0, Math.min(COLS - 1, nc));
+            u.row = Math.max(0, Math.min(ROWS - 1, nr));
+          }
+        } else {
+          // If all ground allies are dead, retreat to the very back of her team's side!
+          const targetRow = u.side === "player" ? ROWS - 1 : 0;
+          if (Math.abs(u.row - targetRow) > 0.05) {
+            const sp = speed(u.card) * dt * 1.25; // Escape fast to the safe baseline
+            const dr = targetRow - u.row;
+            const len = Math.abs(dr) || 1;
+            u.row = Math.max(0, Math.min(ROWS - 1, u.row + (dr / len) * sp));
+          }
+        }
       }
       continue;
     }
@@ -341,13 +438,15 @@ export function tickBattle(state: BattleState, dt: number) {
 
     // Filter targetable enemies
     const enemies = state.units.filter((e) => {
-      if (e.side === u.side || e.hp <= 0 || e.underground) return false;
+      if (e.side === u.side || !isUnitTargetable(e)) return false;
       // Ghost is invisible unless within 3x3 grid (dist <= 1.5)
       // Ghost is also completely invisible and untargetable if its ability is active
       if (e.card.id === "hayalet") {
         if (e.immuneTimeLeft && e.immuneTimeLeft > 0) return false;
         if (Math.abs(u.col - e.col) > 1.5 || Math.abs(u.row - e.row) > 1.5) return false;
       }
+      // Melee ground units cannot attack flying/aerial units
+      if (e.flying && u.card.range === "yakın") return false;
       return true;
     });
 
@@ -476,6 +575,11 @@ export function tickBattle(state: BattleState, dt: number) {
 
 /** Handles applying damage, considering invulnerabilities and defensive stances */
 function applyCombatDamage(defender: Unit, dmg: number, attacker?: Unit) {
+  // Check if targetable (cannot take damage if underground or emerging)
+  if (!isUnitTargetable(defender)) {
+    return; // takes 0 damage
+  }
+
   // Ghost invulnerability 2.5 seconds
   if (defender.immuneTimeLeft !== undefined && defender.immuneTimeLeft > 0) {
     return; // takes 0 damage
@@ -526,7 +630,7 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
       unit.doktorAbilityCd = 25.0; // Cooldown 25s
 
       state.units.forEach((targetUnit) => {
-        if (targetUnit.side === unit.side && targetUnit.hp > 0 && !targetUnit.underground) {
+        if (targetUnit.side === unit.side && isUnitTargetable(targetUnit)) {
           // Check 3x3 surrounding card boundaries (within 1.5 blocks)
           if (Math.abs(targetUnit.col - unit.col) <= 1.5 && Math.abs(targetUnit.row - unit.row) <= 1.5) {
             targetUnit.hp = Math.min(targetUnit.maxHp, targetUnit.hp + 40);
@@ -543,8 +647,11 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
 
   // 15. Bombalama Uçağı: altına 6x6 alana 50 hasarlı büyük bomba bırakır
   else if (unit.card.id === "bombalama-ucagi") {
+    if ((unit.bomberUsesLeft ?? 0) <= 0) return;
+    unit.bomberUsesLeft = (unit.bomberUsesLeft ?? 1) - 1;
+
     // Find closest enemy position to spawn massive blast, else explode directly below
-    const enemies = state.units.filter((e) => e.side !== unit.side && e.hp > 0 && !e.underground);
+    const enemies = state.units.filter((e) => e.side !== unit.side && isUnitTargetable(e));
     let explodeCol = unit.col;
     let explodeRow = unit.row;
 
@@ -575,7 +682,7 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
     });
 
     state.units.forEach((targetUnit) => {
-      if (targetUnit.side !== unit.side && targetUnit.hp > 0 && !targetUnit.underground) {
+      if (targetUnit.side !== unit.side && isUnitTargetable(targetUnit)) {
         // Check 6x6 bounding box (within 3 blocks)
         if (Math.abs(targetUnit.col - explodeCol) <= 3 && Math.abs(targetUnit.row - explodeRow) <= 3) {
           applyCombatDamage(targetUnit, 50, unit);
