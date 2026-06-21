@@ -359,73 +359,48 @@ export function tickBattle(state: BattleState, dt: number) {
       continue;
     }
 
-    // Doktor has 0 attack damage, she only supports/runs
+    // Doktor has 0 attack damage, she only supports
     if (u.card.id === "doktor") {
-      const enemies = state.units.filter((e) => e.side !== u.side && isUnitTargetable(e));
-      
-      let nearestE = enemies.length > 0 ? enemies[0] : null;
-      let nearestD = nearestE ? dist(u, nearestE) : Infinity;
-      if (nearestE) {
-        for (const e of enemies) {
-          const d = dist(u, e);
-          if (d < nearestD) { nearestD = d; nearestE = e; }
+      // Follow teammates!
+      // Doktor only follows ground units (not flying/aerial units like kus-ordusu, ejder, or bombalama-ucagi, and not other dokturs or static barrels)
+      const allies = state.units.filter(
+        (o) => o.side === u.side && o.uid !== u.uid && isUnitTargetable(o) && !o.flying && o.card.id !== "doktor" && o.card.id !== "bira-varili"
+      );
+      if (allies.length > 0) {
+        // Prioritize injured allies, otherwise nearest active ally
+        const injuredAllies = allies.filter((o) => o.hp < o.maxHp);
+        const candidates = injuredAllies.length > 0 ? injuredAllies : allies;
+        
+        let targetAlly = candidates[0];
+        let bestD = dist(u, targetAlly);
+        for (const a of candidates) {
+          const d = dist(u, a);
+          if (d < bestD) {
+            bestD = d;
+            targetAlly = a;
+          }
         }
-      }
 
-      // Flee if nearest enemy is within 5 tiles or u is in fleeing mode
-      if (nearestE && (nearestD < 5.0 || (u.fleeTimeLeft || 0) > 0)) {
-        const sp = speed(u.card) * dt * 1.35; // Fleeing speed is faster!
-        const dc = u.col - nearestE.col;
-        const dr = u.row - nearestE.row;
-        const len = Math.hypot(dc, dr) || 1;
-        let nc = u.col + (dc / len) * sp;
-        let nr = u.row + (dr / len) * sp;
+        // Move towards the target ally if not already super close (e.g., within 1 tile)
+        if (bestD > 1.0) {
+          const sp = speed(u.card) * dt;
+          const dc = targetAlly.col - u.col;
+          const dr = targetAlly.row - u.row;
+          const len = Math.hypot(dc, dr) || 1;
+          let nc = u.col + (dc / len) * sp;
+          let nr = u.row + (dr / len) * sp;
 
-        // Ensure Doktor does not jump screen margins
-        u.col = Math.max(0, Math.min(COLS - 1, nc));
-        u.row = Math.max(0, Math.min(ROWS - 1, nr));
+          u.col = Math.max(0, Math.min(COLS - 1, nc));
+          u.row = Math.max(0, Math.min(ROWS - 1, nr));
+        }
       } else {
-        // Safe from enemies, so follow teammates!
-        // Doktor only follows ground units (not flying/aerial units like kus-ordusu, ejder, or bombalama-ucagi, and not other dokturs or static barrels)
-        const allies = state.units.filter(
-          (o) => o.side === u.side && o.uid !== u.uid && isUnitTargetable(o) && !o.flying && o.card.id !== "doktor" && o.card.id !== "bira-varili"
-        );
-        if (allies.length > 0) {
-          // Prioritize injured allies, otherwise nearest active ally
-          const injuredAllies = allies.filter((o) => o.hp < o.maxHp);
-          const candidates = injuredAllies.length > 0 ? injuredAllies : allies;
-          
-          let targetAlly = candidates[0];
-          let bestD = dist(u, targetAlly);
-          for (const a of candidates) {
-            const d = dist(u, a);
-            if (d < bestD) {
-              bestD = d;
-              targetAlly = a;
-            }
-          }
-
-          // Move towards the target ally if not already super close (e.g., within 1 tile)
-          if (bestD > 1.0) {
-            const sp = speed(u.card) * dt;
-            const dc = targetAlly.col - u.col;
-            const dr = targetAlly.row - u.row;
-            const len = Math.hypot(dc, dr) || 1;
-            let nc = u.col + (dc / len) * sp;
-            let nr = u.row + (dr / len) * sp;
-
-            u.col = Math.max(0, Math.min(COLS - 1, nc));
-            u.row = Math.max(0, Math.min(ROWS - 1, nr));
-          }
-        } else {
-          // If all ground allies are dead, retreat to the very back of her team's side!
-          const targetRow = u.side === "player" ? ROWS - 1 : 0;
-          if (Math.abs(u.row - targetRow) > 0.05) {
-            const sp = speed(u.card) * dt * 1.25; // Escape fast to the safe baseline
-            const dr = targetRow - u.row;
-            const len = Math.abs(dr) || 1;
-            u.row = Math.max(0, Math.min(ROWS - 1, u.row + (dr / len) * sp));
-          }
+        // If all ground allies are dead, retreat to the very back of her team's side!
+        const targetRow = u.side === "player" ? ROWS - 1 : 0;
+        if (Math.abs(u.row - targetRow) > 0.05) {
+          const sp = speed(u.card) * dt * 1.25; // Escape fast to the safe baseline
+          const dr = targetRow - u.row;
+          const len = Math.abs(dr) || 1;
+          u.row = Math.max(0, Math.min(ROWS - 1, u.row + (dr / len) * sp));
         }
       }
       continue;

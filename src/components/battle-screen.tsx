@@ -18,10 +18,96 @@ import {
   ROWS,
   RIVER_ROW,
   type BattleState,
+  type Unit,
 } from "@/lib/battle";
 import { cn } from "@/lib/utils";
 
 type Phase = "placing" | "fighting" | "done";
+
+function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[]): { col: number; row: number } {
+  const isOccupied = (c: number, r: number) => {
+    return existingUnits.some(u => Math.round(u.col) === c && Math.round(u.row) === r);
+  };
+
+  // Helper to find first free column in a specific row
+  const findFreeInRow = (r: number) => {
+    // Try random columns first
+    const cols = Array.from({ length: COLS }, (_, idx) => idx).sort(() => Math.random() - 0.5);
+    for (const c of cols) {
+      if (!isOccupied(c, r)) return c;
+    }
+    return null;
+  };
+
+  // Special exception for Madenci (Miner) who digs anywhere:
+  if (card.id === "madenci") {
+    let attempts = 0;
+    while (attempts < 100) {
+      const c = Math.floor(Math.random() * COLS);
+      const r = Math.floor(Math.random() * ROWS);
+      if (r !== RIVER_ROW && !isOccupied(c, r)) {
+        return { col: c, row: r };
+      }
+      attempts++;
+    }
+  }
+
+  // Rule 3: En köşelere ve en arka sıraya sapan ve bira varilini koysun.
+  if (card.id === "sapanci" || card.id === "bira-varili") {
+    // Prefer row 0, col 0 or 11
+    if (!isOccupied(0, 0)) return { col: 0, row: 0 };
+    if (!isOccupied(11, 0)) return { col: 11, row: 0 };
+    
+    // Else try other columns in row 0
+    const colOpt = findFreeInRow(0);
+    if (colOpt !== null) return { col: colOpt, row: 0 };
+    
+    // If entire row 0 is full, fallback to row 1 corners
+    if (!isOccupied(0, 1)) return { col: 0, row: 1 };
+    if (!isOccupied(11, 1)) return { col: 11, row: 1 };
+  }
+
+  // Rule 1: Dev, zırhlı gibi canı 110'un üstünde olan kartları öne koysun.
+  if (card.hp > 110) {
+    // Front rows (closest to river): row 11, then row 10, then row 9
+    for (const r of [11, 10, 9]) {
+      const colOpt = findFreeInRow(r);
+      if (colOpt !== null) return { col: colOpt, row: r };
+    }
+  }
+
+  // Rule 2: Okçu, sapan, topçu, bombalama uçağı, kuş ordusu gibi kartları çok canlı olan kartların 2-3 blok arkasına koysun.
+  const isSquishyRanged = ["okcu", "sapanci", "topcu", "bombalama-ucagi", "kus-ordusu"].includes(card.id);
+  if (isSquishyRanged) {
+    // Front line tanks are at 11 or 10. 2-3 blocks behind them is rows 8, 9, 7
+    for (const r of [8, 9, 7]) {
+      const colOpt = findFreeInRow(r);
+      if (colOpt !== null) return { col: colOpt, row: r };
+    }
+  }
+
+  // Rule 4: Diğerlerini random yerleştirebilir. (row 1 to 11)
+  let attempts = 0;
+  while (attempts < 100) {
+    const c = Math.floor(Math.random() * COLS);
+    // Avoid row 0 (reserved for corners) and row 12 (river)
+    const r = 1 + Math.floor(Math.random() * (RIVER_ROW - 1));
+    if (!isOccupied(c, r)) {
+      return { col: c, row: r };
+    }
+    attempts++;
+  }
+
+  // Absolute fallback: find ANY completely free tile in bot side
+  for (let r = 0; r < RIVER_ROW; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (!isOccupied(c, r)) return { col: c, row: r };
+    }
+  }
+
+  return { col: Math.floor(Math.random() * COLS), row: Math.floor(Math.random() * RIVER_ROW) };
+}
+
 
 interface Props {
   deck: [string, string, string, string];
@@ -97,13 +183,8 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
       while (placedBotRef.current < 4) {
         const i = placedBotRef.current;
         const card = botDeck[i];
-        let c: number; let r: number; let attempts = 0;
-        do {
-          c = Math.floor(Math.random() * COLS);
-          r = Math.floor(Math.random() * RIVER_ROW);
-          attempts++;
-        } while (attempts < 20 && stateRef.current.units.some(u => Math.round(u.col) === c && Math.round(u.row) === r));
-        spawnUnit(stateRef.current, card, "bot", c, r);
+        const { col, row } = getBotPlacementCoordinate(card, stateRef.current.units);
+        spawnUnit(stateRef.current, card, "bot", col, row);
         placedBotRef.current++;
       }
       startFight();
@@ -137,14 +218,8 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
        while (placedBotRef.current < targetPlaced) {
          const i = placedBotRef.current;
          const card = botDeck[i];
-         let c: number; let r: number; let attempts = 0;
-         do {
-            c = Math.floor(Math.random() * COLS);
-            if (card.id === "madenci") { r = Math.floor(Math.random() * ROWS); if (r === RIVER_ROW) r = RIVER_ROW - 1; }
-            else { r = Math.floor(Math.random() * RIVER_ROW); }
-            attempts++;
-         } while (attempts < 20 && stateRef.current.units.some(u => Math.round(u.col) === c && Math.round(u.row) === r));
-         spawnUnit(stateRef.current, card, "bot", c, r);
+         const { col, row } = getBotPlacementCoordinate(card, stateRef.current.units);
+         spawnUnit(stateRef.current, card, "bot", col, row);
          placedBotRef.current++;
        }
        // Update UI after bot places
@@ -348,15 +423,6 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
                   );
                 })}
               </div>
-
-              {placedIds.size === 4 && (
-                <button
-                  onClick={handleReadyUp}
-                  className="mt-3.5 w-full py-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-display font-bold text-white text-sm shadow-[0_0_15px_rgba(16,185,129,0.4)] border border-emerald-400/30 transition-all duration-200 active:scale-98 animate-bounce"
-                >
-                  Savaşa Başla! ⚔️
-                </button>
-              )}
             </>
           )}
         </div>
