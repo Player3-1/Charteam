@@ -597,7 +597,7 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
     }
   }
 
-  // 13. Doktor: can iyileştirme 5x5 alanda +45
+  // 13. Doktor: can iyileştirme 5x5 alanda +75
   else if (unit.card.id === "doktor") {
     if ((unit.doktorAbilityCd || 0) <= 0) {
       unit.doktorAbilityCd = 5.0; // Cooldown 5s
@@ -606,7 +606,7 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
         if (targetUnit.side === unit.side && isUnitTargetable(targetUnit)) {
           // Surrounding blocks (within 5.0 range / 5x5 area)
           if (dist(targetUnit, unit) <= 5.0) {
-            targetUnit.hp = Math.min(targetUnit.maxHp, targetUnit.hp + 45); // heal 45 health
+            targetUnit.hp = Math.min(targetUnit.maxHp, targetUnit.hp + 75); // heal 75 health
           }
         }
       });

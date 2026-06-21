@@ -230,6 +230,41 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
     }
   }, [placeTimer, phase, battleId, botDeck, isReady]);
 
+  useEffect(() => {
+    if (phase !== "placing" || !isReady || !battleId) return;
+
+    if (placeTimer === 0 && !opponentReady && !startedRef.current) {
+      const t = setTimeout(() => {
+        if (!startedRef.current && !opponentReady) {
+          startedRef.current = true;
+          // Fallback opponent to bot
+          const oppPlacements = opponentPlacementsRef.current || [];
+          oppPlacements.forEach((p: any) => {
+            const card = CARDS.find((c) => c.id === p.cardId);
+            if (card) {
+              const r = ROWS - 1 - p.row;
+              const c = COLS - 1 - p.col;
+              spawnUnit(stateRef.current, card, "bot", c, r);
+            }
+          });
+
+          let placedOpponents = oppPlacements.length;
+          let pidx = 0;
+          while (placedOpponents < 4 && pidx < botDeck.length) {
+            const card = botDeck[pidx];
+            const { col, row } = getBotPlacementCoordinate(card, stateRef.current.units);
+            spawnUnit(stateRef.current, card, "bot", col, row);
+            placedOpponents++;
+            pidx++;
+          }
+
+          startFight();
+        }
+      }, 2000); // 2 second delay just to cover network latency
+      return () => clearTimeout(t);
+    }
+  }, [placeTimer, phase, isReady, opponentReady, battleId, botDeck]);
+
   const startedRef = useRef(false);
 
   useEffect(() => {
@@ -428,17 +463,6 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
                   );
                 })}
               </div>
-
-              {placedIds.size > 0 && (
-                <button
-                  type="button"
-                  id="fight-ready-btn"
-                  onClick={handleReadyUp}
-                  className="w-full mt-2 py-1.5 px-3 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 hover:brightness-110 active:scale-[0.98] text-white font-display text-xs font-bold shadow-md transition-all cursor-pointer"
-                >
-                  Savaş için Hazırım! 👍 ({placedIds.size}/4 Kart)
-                </button>
-              )}
             </>
           )}
         </div>
