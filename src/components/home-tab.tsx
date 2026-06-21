@@ -83,62 +83,66 @@ export function Home({ user }: { user: UserData }) {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-slate-950">
-      <header className="sticky top-0 z-20 panel-3d px-3 pb-3 pt-8 flex items-center justify-between gap-3 relative">
-        <div className="flex items-center gap-2">
-          <div className="grid h-10 w-10 place-items-center rounded-full border-2 border-black/40 bg-gradient-to-br from-amber-300 to-amber-600 text-lg font-display text-amber-950 shadow-inner shrink-0">
-            {state.username[0]}
-          </div>
-          <div>
-            <div className="font-display text-lg leading-none text-stroke text-white">
-              {state.username}
+      {!(inBattle && opponent) && (
+        <>
+          <header className="sticky top-0 z-20 panel-3d px-3 pb-3 pt-8 flex items-center justify-between gap-3 relative">
+            <div className="flex items-center gap-2">
+              <div className="grid h-10 w-10 place-items-center rounded-full border-2 border-black/40 bg-gradient-to-br from-amber-300 to-amber-600 text-lg font-display text-amber-950 shadow-inner shrink-0">
+                {state.username[0]}
+              </div>
+              <div>
+                <div className="font-display text-lg leading-none text-stroke text-white">
+                  {state.username}
+                </div>
+                <div className="mt-0.5 text-xs text-amber-200/90">
+                  Arena {arena.id} · {arena.name}
+                </div>
+              </div>
             </div>
-            <div className="mt-0.5 text-xs text-amber-200/90">
-              Arena {arena.id} · {arena.name}
+
+            <div className="flex flex-col items-end gap-1">
+              <Stat icon="🏆" value={state.trophies} color="from-amber-300 to-orange-500" />
+              <Stat icon="🪙" value={state.gold} color="from-yellow-200 to-amber-500" />
             </div>
-          </div>
-        </div>
+          </header>
 
-        <div className="flex flex-col items-end gap-1">
-          <Stat icon="🏆" value={state.trophies} color="from-amber-300 to-orange-500" />
-          <Stat icon="🪙" value={state.gold} color="from-yellow-200 to-amber-500" />
-        </div>
-      </header>
+          <main className="flex-1 px-3 pb-28 pt-4">
+            {tab === "battle" && (
+              <BattleTab
+                deck={state.deck}
+                trophies={state.trophies}
+                onStart={() => setShowMatchmaking(true)}
+              />
+            )}
+            {tab === "cards" && (
+              <CardsTab
+                collection={state.collection}
+                deck={state.deck}
+                setDeckSlot={setDeckSlot}
+              />
+            )}
+            {tab === "chests" && (
+              <ChestsTab gold={state.gold} arenaPool={arena.pool} onOpen={handleOpenChest} />
+            )}
+            {tab === "leaderboard" && (
+              <LeaderboardTab />
+            )}
+            {tab === "meta" && (
+              <MetaTab />
+            )}
+          </main>
 
-      <main className="flex-1 px-3 pb-28 pt-4">
-        {tab === "battle" && (
-          <BattleTab
-            deck={state.deck}
-            trophies={state.trophies}
-            onStart={() => setShowMatchmaking(true)}
-          />
-        )}
-        {tab === "cards" && (
-          <CardsTab
-            collection={state.collection}
-            deck={state.deck}
-            setDeckSlot={setDeckSlot}
-          />
-        )}
-        {tab === "chests" && (
-          <ChestsTab gold={state.gold} arenaPool={arena.pool} onOpen={handleOpenChest} />
-        )}
-        {tab === "leaderboard" && (
-          <LeaderboardTab />
-        )}
-        {tab === "meta" && (
-          <MetaTab />
-        )}
-      </main>
-
-      <nav className="fixed inset-x-0 bottom-0 z-[1000] mx-auto max-w-md panel-3d rounded-t-2xl rounded-b-none px-2 py-2">
-        <div className="grid grid-cols-5 gap-1">
-          <NavBtn active={tab === "meta"} onClick={() => setTab("meta")} icon="📊" label="Meta" />
-          <NavBtn active={tab === "chests"} onClick={() => setTab("chests")} icon="🎁" label="Sandıklar" />
-          <NavBtn active={tab === "battle"} onClick={() => setTab("battle")} icon="⚔️" label="Savaş" big />
-          <NavBtn active={tab === "cards"} onClick={() => setTab("cards")} icon="🃏" label="Kartlar" />
-          <NavBtn active={tab === "leaderboard"} onClick={() => setTab("leaderboard")} icon="🏆" label="Sıralama" />
-        </div>
-      </nav>
+          <nav className="fixed inset-x-0 bottom-0 z-[1000] mx-auto max-w-md panel-3d rounded-t-2xl rounded-b-none px-2 py-2">
+            <div className="grid grid-cols-5 gap-1">
+              <NavBtn active={tab === "meta"} onClick={() => setTab("meta")} icon="📊" label="Meta" />
+              <NavBtn active={tab === "chests"} onClick={() => setTab("chests")} icon="🎁" label="Sandıklar" />
+              <NavBtn active={tab === "battle"} onClick={() => setTab("battle")} icon="⚔️" label="Savaş" big />
+              <NavBtn active={tab === "cards"} onClick={() => setTab("cards")} icon="🃏" label="Kartlar" />
+              <NavBtn active={tab === "leaderboard"} onClick={() => setTab("leaderboard")} icon="🏆" label="Sıralama" />
+            </div>
+          </nav>
+        </>
+      )}
 
       {showMatchmaking && (
     <MatchmakingModal
@@ -170,6 +174,7 @@ export function Home({ user }: { user: UserData }) {
           isPlayer1={opponent.isPlayer1}
           onFinish={(gold, trophy, win) => {
             applyMatchReward(gold, trophy, win);
+            setInBattle(false);
             setOpponent(null);
           }}
           onExit={() => {
