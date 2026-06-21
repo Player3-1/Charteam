@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { usePlayer } from "@/hooks/use-player";
-import { Maximize2, Minimize2 } from "lucide-react";
 import { UserData } from "@/types";
 import {
   CARDS,
@@ -29,33 +28,7 @@ export function Home({ user }: { user: UserData }) {
   const [openedChestName, setOpenedChestName] = useState("");
   const [inBattle, setInBattle] = useState(false);
   const [opponent, setOpponent] = useState<{name: string, trophies: number, battleId?: string, isPlayer1?: boolean} | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [showMatchmaking, setShowMatchmaking] = useState(false);
-
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      const isFull = !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
-      setIsFullscreen(isFull);
-    };
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
-    return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
-    };
-  }, []);
-
-  const toggleFullscreen = () => {
-    const doc = document.documentElement as any;
-    const isFull = !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
-    if (!isFull) {
-      if (doc.requestFullscreen) doc.requestFullscreen().catch(console.error);
-      else if (doc.webkitRequestFullscreen) doc.webkitRequestFullscreen();
-    } else {
-      if (document.exitFullscreen) document.exitFullscreen().catch(console.error);
-      else if ((document as any).webkitExitFullscreen) (document as any).webkitExitFullscreen();
-    }
-  };
 
   if (!hydrated || !state) {
     return (
@@ -109,15 +82,8 @@ export function Home({ user }: { user: UserData }) {
   };
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col">
+    <div className="mx-auto flex min-h-screen max-w-md flex-col bg-slate-950">
       <header className="sticky top-0 z-20 panel-3d px-3 pb-3 pt-8 flex items-center justify-between gap-3 relative">
-        <button
-          onClick={toggleFullscreen}
-          className="absolute top-2 right-2 p-1.5 rounded-full bg-slate-800/80 text-white hover:bg-slate-700/80 shrink-0"
-          aria-label="Toggle Fullscreen"
-        >
-          {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-        </button>
         <div className="flex items-center gap-2">
           <div className="grid h-10 w-10 place-items-center rounded-full border-2 border-black/40 bg-gradient-to-br from-amber-300 to-amber-600 text-lg font-display text-amber-950 shadow-inner shrink-0">
             {state.username[0]}
@@ -164,7 +130,7 @@ export function Home({ user }: { user: UserData }) {
         )}
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-md panel-3d rounded-t-2xl rounded-b-none px-2 py-2">
+      <nav className="fixed inset-x-0 bottom-0 z-[1000] mx-auto max-w-md panel-3d rounded-t-2xl rounded-b-none px-2 py-2">
         <div className="grid grid-cols-5 gap-1">
           <NavBtn active={tab === "meta"} onClick={() => setTab("meta")} icon="📊" label="Meta" />
           <NavBtn active={tab === "chests"} onClick={() => setTab("chests")} icon="🎁" label="Sandıklar" />
