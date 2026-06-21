@@ -42,7 +42,7 @@ export function Home({ user }: { user: UserData }) {
 
   const handleOpenChest = (chestId: string) => {
     const chest = CHESTS.find((c) => c.id === chestId)!;
-    if (!spendGold(chest.cost)) return;
+    if (state.gold < chest.cost) return;
     const rolled: CardDef[] = [];
     // First card guarantees the minimum rarity (clamped to arena pool)
     const minOk = arena.pool.includes(chest.guaranteedMin)
@@ -76,7 +76,7 @@ export function Home({ user }: { user: UserData }) {
       }
     }
 
-    claimChestRewards(rewards);
+    claimChestRewards(rewards, chest.cost);
     setOpenedChestName(chest.name);
     setOpenedRewards(rewards);
   };

@@ -66,9 +66,9 @@ export function usePlayer(username: string) {
     await updateFirestore(newState);
   }, [state, updateFirestore]);
 
-  const claimChestRewards = useCallback(async (rewards: { card: any; isDuplicate: boolean; refundGold: number }[]) => {
+  const claimChestRewards = useCallback(async (rewards: { card: any; isDuplicate: boolean; refundGold: number }[], cost: number = 0) => {
     if (!state) return;
-    const newState = { ...state, collection: { ...state.collection }, gold: state.gold };
+    const newState = { ...state, collection: { ...state.collection }, gold: state.gold - cost };
     for (const reward of rewards) {
       if (reward.isDuplicate) {
         newState.gold += reward.refundGold;
