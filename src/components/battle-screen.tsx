@@ -161,7 +161,21 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
     if (isReady) return;
     setIsReady(true);
 
-    // No auto-fill anymore! Let's start with exactly what the player placed so far.
+    // Auto-fill player's missing cards if any are unplaced
+    playerCards.forEach(c => {
+      const isPlaced = stateRef.current.units.some(u => u.side === "player" && (u.card.id === c.id || (c.id === "kus-ordusu" && u.card.id.startsWith("kus-ordusu"))));
+      if (!isPlaced) {
+        let cCol: number; let rCol: number; let attempts = 0;
+        do {
+          cCol = Math.floor(Math.random() * COLS);
+          if (c.id === "madenci") { rCol = Math.floor(Math.random() * ROWS); if (rCol === RIVER_ROW) rCol = RIVER_ROW + 1; }
+          else { rCol = RIVER_ROW + 1 + Math.floor(Math.random() * (ROWS - RIVER_ROW - 1)); }
+          attempts++;
+        } while (attempts < 20 && stateRef.current.units.some(u => Math.round(u.col) === cCol && Math.round(u.row) === rCol));
+        spawnUnit(stateRef.current, c, "player", cCol, rCol);
+      }
+    });
+    setPlacedIds(new Set(playerCards.map(c => c.id)));
     rerender();
 
     if (!battleId) {
