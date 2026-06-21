@@ -457,16 +457,12 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
                     statusText = u.underground ? "⛏️ Çıkart!" : "Savaşta";
                     isDisabled = !u.underground;
                   } else if (u.card.id === "doktor") {
-                    const uses = u.doktorUsesLeft ?? 0;
                     const cd = Math.ceil(u.doktorAbilityCd ?? 0);
-                    if (uses <= 0) {
-                      statusText = "Tükendi";
-                      isDisabled = true;
-                    } else if (cd > 0) {
+                    if (cd > 0) {
                       statusText = `⏱️ ${cd}s`;
                       isDisabled = true;
                     } else {
-                      statusText = `💖 Şifa (${uses}/2)`;
+                      statusText = `💖 Şifa Ver`;
                     }
                   } else if (u.card.id === "hayalet") {
                     const isImmune = (u.immuneTimeLeft ?? 0) > 0;

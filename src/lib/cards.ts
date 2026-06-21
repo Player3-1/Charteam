@@ -26,7 +26,7 @@ export const CARDS: CardDef[] = [
   { id: "kus-ordusu", name: "Kuş Ordusu", emoji: "🐦", rarity: "epic", hp: 20, dmg: 10, cd: 1.0, range: "hava", description: "5 hızlı kuş, gözden kaçırma." },
   { id: "hayalet", name: "Hayalet", emoji: "👻", rarity: "legendary", hp: 110, dmg: 40, cd: 1.2, range: "yakın", description: "Sadece 3x3 alanda görünür. Özellik: 2.5sn görünmez ve hasarsız olur.", ability: "2.5 sn görünmezlik ve hasarsızlık" },
   { id: "madenci", name: "Madenci", emoji: "⛏️", rarity: "legendary", hp: 140, dmg: 25, cd: 0.9, range: "yakın", description: "İstenen yere kazıp çıkar.", ability: "Konum seç ve çık" },
-  { id: "doktor", name: "Doktor", emoji: "⚕️", rarity: "legendary", hp: 25, dmg: 0, cd: 0, range: "yakın", description: "Müttefiklere +40 can. Hasar alınca kaçar.", ability: "3x3 iyileştirme" },
+  { id: "doktor", name: "Doktor", emoji: "⚕️", rarity: "legendary", hp: 25, dmg: 0, cd: 0, range: "yakın", description: "Müttefiklere +45 can verir. Hasar alınca kaçar.", ability: "5 saniye CD ile 5x5 iyileştirme" },
   { id: "bira-varili", name: "Bira Varili", emoji: "🍺", rarity: "legendary", hp: 1, dmg: 0, cd: 0, range: "yakın", description: "Müttefik hasarı 1.3x. 30sn dayanır.", ability: "10sn 1.7x hasar" },
   { id: "bombalama-ucagi", name: "Bombalama Uçağı", emoji: "✈️", rarity: "legendary", hp: 80, dmg: 30, cd: 3.6, range: "hava", description: "3.6sn'de bir 4x4 alana 30 hasar.", ability: "6x6 alana 50 hasar süper bomba" },
   { id: "zirhli", name: "Zırhlı", emoji: "🛡️", rarity: "epic", hp: 300, dmg: 40, cd: 1.5, range: "yakın", description: "Tank. 8sn savunma duruşu hasarın %40'ını emer.", ability: "8sn savunma" },

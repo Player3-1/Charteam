@@ -139,7 +139,6 @@ export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: nu
     cdLeft: card.cd,
     flying: card.range === "hava",
     underground: isMiner,
-    doktorUsesLeft: isDoktor ? 2 : undefined,
     doktorAbilityCd: isDoktor ? 0 : undefined,
     chargeTime: card.id === "atli" ? 0 : undefined,
     isCharging: card.id === "atli" ? true : undefined,
@@ -328,9 +327,9 @@ export function tickBattle(state: BattleState, dt: number) {
         u.barrelAuraBoostTimeLeft = 10.0;
       }
       // Doktor heal if allies are injured
-      if (u.card.id === "doktor" && (u.doktorUsesLeft || 0) > 0 && (u.doktorAbilityCd || 0) <= 0) {
+      if (u.card.id === "doktor" && (u.doktorAbilityCd || 0) <= 0) {
         const injuredNearby = state.units.some(
-          (o) => o.side === u.side && o.hp > 0 && o.hp < o.maxHp * 0.75 && dist(u, o) <= 3.0
+          (o) => o.side === u.side && o.hp > 0 && o.hp < o.maxHp * 0.9 && dist(u, o) <= 5.0
         );
         if (injuredNearby) {
           triggerUnitAbility(u, state);
@@ -598,17 +597,16 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
     }
   }
 
-  // 13. Doktor: can iyileştirme 3x3 alanda +40
+  // 13. Doktor: can iyileştirme 5x5 alanda +45
   else if (unit.card.id === "doktor") {
-    if ((unit.doktorUsesLeft || 0) > 0 && (unit.doktorAbilityCd || 0) <= 0) {
-      unit.doktorUsesLeft = (unit.doktorUsesLeft || 0) - 1;
-      unit.doktorAbilityCd = 25.0; // Cooldown 25s
+    if ((unit.doktorAbilityCd || 0) <= 0) {
+      unit.doktorAbilityCd = 5.0; // Cooldown 5s
 
       state.units.forEach((targetUnit) => {
         if (targetUnit.side === unit.side && isUnitTargetable(targetUnit)) {
-          // Check 3x3 surrounding card boundaries (within 1.5 blocks)
-          if (Math.abs(targetUnit.col - unit.col) <= 1.5 && Math.abs(targetUnit.row - unit.row) <= 1.5) {
-            targetUnit.hp = Math.min(targetUnit.maxHp, targetUnit.hp + 40);
+          // Surrounding blocks (within 5.0 range / 5x5 area)
+          if (dist(targetUnit, unit) <= 5.0) {
+            targetUnit.hp = Math.min(targetUnit.maxHp, targetUnit.hp + 45); // heal 45 health
           }
         }
       });
