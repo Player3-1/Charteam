@@ -180,13 +180,18 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
         col: u.col,
         row: u.row
       }));
-      await submitPlacements(battleId, isPlayer1!, placements);
       
       const bRef = doc(db, "battles", battleId);
       if (isPlayer1) {
-        await updateDoc(bRef, { player1Ready: true });
+        await updateDoc(bRef, {
+          player1Placements: placements,
+          player1Ready: true
+        });
       } else {
-        await updateDoc(bRef, { player2Ready: true });
+        await updateDoc(bRef, {
+          player2Placements: placements,
+          player2Ready: true
+        });
       }
     }
   };
@@ -254,8 +259,10 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
           opponentDeckRef.current = oppData.deck;
         }
 
-        const myReady = isPlayer1 ? (data.player1Ready || myPlacements?.length === 4) : (data.player2Ready || myPlacements?.length === 4);
-        const oppReady = isPlayer1 ? (data.player2Ready || oppPlacements?.length === 4) : (data.player1Ready || oppPlacements?.length === 4);
+        const myReady = isPlayer1 ? !!data.player1Ready : !!data.player2Ready;
+        const oppReady = isPlayer1 ? !!data.player2Ready : !!data.player1Ready;
+        
+        setIsReady(myReady);
 
         if (oppPlacements) {
           opponentPlacementsRef.current = oppPlacements;
@@ -303,7 +310,9 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
     }
     rerender();
 
-    if (battleId) {
+    if (next.size === 4) {
+      handleReadyUp();
+    } else if (battleId) {
       const placements = stateRef.current.units.filter(u => u.side === "player" && (!u.card.id.startsWith("kus-ordusu") || u.card.id === "kus-ordusu-bird-0")).map(u => ({
         cardId: u.card.id.startsWith("kus-ordusu") ? "kus-ordusu" : u.card.id,
         col: u.col,
@@ -419,6 +428,17 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
                   );
                 })}
               </div>
+
+              {placedIds.size > 0 && (
+                <button
+                  type="button"
+                  id="fight-ready-btn"
+                  onClick={handleReadyUp}
+                  className="w-full mt-2 py-1.5 px-3 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 hover:brightness-110 active:scale-[0.98] text-white font-display text-xs font-bold shadow-md transition-all cursor-pointer"
+                >
+                  Savaş için Hazırım! 👍 ({placedIds.size}/4 Kart)
+                </button>
+              )}
             </>
           )}
         </div>
