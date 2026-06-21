@@ -4,7 +4,7 @@ import { CARDS } from "@/lib/cards";
 import { arenaForTrophies } from "@/lib/arenas";
 import { ArenaView } from "./arena-view";
 import { db } from "@/firebase";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { submitPlacements, submitAbilityTrigger, BattlePlacement } from "@/lib/matchmaking";
 import {
   computeRewards,
@@ -157,25 +157,11 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
   const [placeTimer, setPlaceTimer] = useState(PLACE_SECONDS);
   const placedBotRef = useRef(0);
 
-  const handleReadyUp = () => {
+  const handleReadyUp = async () => {
     if (isReady) return;
     setIsReady(true);
 
-    // Auto-fill player's missing cards if any are unplaced
-    playerCards.forEach(c => {
-      const isPlaced = stateRef.current.units.some(u => u.side === "player" && (u.card.id === c.id || (c.id === "kus-ordusu" && u.card.id.startsWith("kus-ordusu"))));
-      if (!isPlaced) {
-        let cCol: number; let rCol: number; let attempts = 0;
-        do {
-          cCol = Math.floor(Math.random() * COLS);
-          if (c.id === "madenci") { rCol = Math.floor(Math.random() * ROWS); if (rCol === RIVER_ROW) rCol = RIVER_ROW + 1; }
-          else { rCol = RIVER_ROW + 1 + Math.floor(Math.random() * (ROWS - RIVER_ROW - 1)); }
-          attempts++;
-        } while (attempts < 20 && stateRef.current.units.some(u => Math.round(u.col) === cCol && Math.round(u.row) === rCol));
-        spawnUnit(stateRef.current, c, "player", cCol, rCol);
-      }
-    });
-    setPlacedIds(new Set(playerCards.map(c => c.id)));
+    // No auto-fill anymore! Let's start with exactly what the player placed so far.
     rerender();
 
     if (!battleId) {
@@ -194,7 +180,14 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
         col: u.col,
         row: u.row
       }));
-      submitPlacements(battleId, isPlayer1!, placements);
+      await submitPlacements(battleId, isPlayer1!, placements);
+      
+      const bRef = doc(db, "battles", battleId);
+      if (isPlayer1) {
+        await updateDoc(bRef, { player1Ready: true });
+      } else {
+        await updateDoc(bRef, { player2Ready: true });
+      }
     }
   };
 
@@ -261,24 +254,27 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
           opponentDeckRef.current = oppData.deck;
         }
 
+        const myReady = isPlayer1 ? (data.player1Ready || myPlacements?.length === 4) : (data.player2Ready || myPlacements?.length === 4);
+        const oppReady = isPlayer1 ? (data.player2Ready || oppPlacements?.length === 4) : (data.player1Ready || oppPlacements?.length === 4);
+
         if (oppPlacements) {
           opponentPlacementsRef.current = oppPlacements;
-          if (oppPlacements.length === 4) {
-            setOpponentReady(true);
-          }
         }
+        setOpponentReady(!!oppReady);
 
-        if (myPlacements?.length === 4 && oppPlacements?.length === 4) {
+        if (myReady && oppReady) {
           // both ready, start
           if (!startedRef.current) {
             startedRef.current = true;
             // spawn opponent units
-            oppPlacements.forEach((p: any) => {
-              const card = CARDS.find(c => c.id === p.cardId)!;
-              const r = ROWS - 1 - p.row;
-              const c = COLS - 1 - p.col;
-              spawnUnit(stateRef.current, card, "bot", c, r);
-            });
+            if (oppPlacements) {
+              oppPlacements.forEach((p: any) => {
+                const card = CARDS.find(c => c.id === p.cardId)!;
+                const r = ROWS - 1 - p.row;
+                const c = COLS - 1 - p.col;
+                spawnUnit(stateRef.current, card, "bot", c, r);
+              });
+            }
             startFight();
           }
         }

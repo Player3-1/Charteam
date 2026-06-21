@@ -673,7 +673,10 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
 // ---------- helpers ----------
 
 export function makeBotDeck(arena: Arena): CardDef[] {
-  const allowed = [...CARDS.filter((c) => arena.pool.includes(c.rarity))];
+  let allowed = [...CARDS.filter((c) => arena.pool.includes(c.rarity))];
+  if (arena.id === 1) {
+    allowed = allowed.filter((c) => c.id !== "sapanci");
+  }
   for (let i = allowed.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     const temp = allowed[i];
