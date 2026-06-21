@@ -147,6 +147,7 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
 
   const opponentDeckRef = useRef<string[]>([]);
   const opponentPlacementsRef = useRef<any[]>([]);
+  const myPlacementsRef = useRef<any[]>([]);
   const triggeredOpponentAbilitiesRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -251,6 +252,15 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
       const t = setTimeout(() => {
         if (!startedRef.current && !opponentReady) {
           startedRef.current = true;
+
+          const myPlacements = myPlacementsRef.current || [];
+          if (myPlacements && !stateRef.current.units.some(u => u.side === "player")) {
+            myPlacements.forEach((p: any) => {
+              const card = CARDS.find(c => c.id === p.cardId);
+              if (card) spawnUnit(stateRef.current, card, "player", p.col, p.row);
+            });
+          }
+
           // Fallback opponent to bot
           const oppPlacements = opponentPlacementsRef.current || [];
           oppPlacements.forEach((p: any) => {
@@ -303,6 +313,10 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
         const myPlacements = isPlayer1 ? data.player1Placements : data.player2Placements;
         const oppPlacements = isPlayer1 ? data.player2Placements : data.player1Placements;
         
+        if (myPlacements) {
+          myPlacementsRef.current = myPlacements;
+        }
+
         const oppData = isPlayer1 ? data.player2 : data.player1;
         if (oppData && oppData.deck) {
           opponentDeckRef.current = oppData.deck;
@@ -322,13 +336,22 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
           // both ready, start
           if (!startedRef.current) {
             startedRef.current = true;
+            // safeguard: make sure our own units are loaded if this was a fresh load
+            if (myPlacements && !stateRef.current.units.some(u => u.side === "player")) {
+              myPlacements.forEach((p: any) => {
+                const card = CARDS.find(c => c.id === p.cardId);
+                if (card) spawnUnit(stateRef.current, card, "player", p.col, p.row);
+              });
+            }
             // spawn opponent units
             if (oppPlacements) {
               oppPlacements.forEach((p: any) => {
-                const card = CARDS.find(c => c.id === p.cardId)!;
-                const r = ROWS - 1 - p.row;
-                const c = COLS - 1 - p.col;
-                spawnUnit(stateRef.current, card, "bot", c, r);
+                const card = CARDS.find(c => c.id === p.cardId);
+                if (card) {
+                  const r = ROWS - 1 - p.row;
+                  const c = COLS - 1 - p.col;
+                  spawnUnit(stateRef.current, card, "bot", c, r);
+                }
               });
             }
             startFight();

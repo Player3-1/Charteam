@@ -39,7 +39,8 @@ export async function findOrCreateMatch(user: UserData): Promise<string> {
     const oppDoc = snapshot.docs.find(doc => doc.id !== user.username);
     if (oppDoc) {
       const oppData = oppDoc.data();
-      const battleId = oppDoc.id + "_" + user.username;
+      const rand = Math.floor(100000 + Math.random() * 900000);
+      const battleId = `${oppDoc.id}_${user.username}_${rand}`;
       
       // Create battle doc
       await setDoc(doc(db, "battles", battleId), {
