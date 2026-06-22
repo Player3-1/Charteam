@@ -5,7 +5,7 @@ import { arenaForTrophies } from "@/lib/arenas";
 import { ArenaView } from "./arena-view";
 import { db } from "@/firebase";
 import { doc, onSnapshot, updateDoc } from "firebase/firestore";
-import { submitPlacements, submitAbilityTrigger, submitEmoji, BattlePlacement } from "@/lib/matchmaking";
+import { submitPlacements, submitAbilityTrigger, submitEmoji, BattlePlacement, cancelMatchmaking } from "@/lib/matchmaking";
 import {
   computeRewards,
   makeBotDeck,
@@ -119,12 +119,13 @@ interface Props {
   isPlayer1?: boolean;
   onFinish: (gold: number, trophy: number, win: boolean) => void;
   onExit: () => void;
+  username: string; // Add this
 }
 
 const PLACE_SECONDS = 15;
 const FIGHT_TIMEOUT = 60;
 
-export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, opponentName, opponentTrophies, battleId, isPlayer1, onFinish, onExit }: Props) {
+export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, opponentName, opponentTrophies, battleId, isPlayer1, onFinish, onExit, username }: Props) {
   const arena = arenaForTrophies(trophies);
   const playerCards = useMemo(
     () => deck.map((id) => CARDS.find((c) => c.id === id)!).filter(Boolean),
@@ -206,6 +207,9 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
     rerender();
 
     if (!battleId) {
+      // Force cancel matchmaking just in case
+      cancelMatchmaking(username).catch(console.error);
+
       // Auto fill remaining bot cards just in case
       while (placedBotRef.current < 4) {
         const i = placedBotRef.current;

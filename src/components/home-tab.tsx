@@ -185,6 +185,7 @@ export function Home({ user }: { user: UserData }) {
           opponentTrophies={opponent.trophies}
           battleId={opponent.battleId}
           isPlayer1={opponent.isPlayer1}
+          username={user.username}
           onFinish={(gold, trophy, win) => {
             applyMatchReward(gold, trophy, win);
             setInBattle(false);
