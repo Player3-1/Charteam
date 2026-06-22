@@ -577,6 +577,7 @@ export function tickBattle(state: BattleState, dt: number) {
           else if (u.card.id === "sapanci") aoeRange = 1.5;
           else if (u.card.id === "ejder") aoeRange = 1.5;
           else if (u.card.id === "topcu") aoeRange = 2.0;
+          else if (u.card.id === "buz-dolabi") aoeRange = 1.0;
 
           state.projectiles.push({
             uid: nextUid(),
