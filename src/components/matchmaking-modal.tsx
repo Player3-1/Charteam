@@ -73,7 +73,7 @@ export const MatchmakingModal = ({
             onClick={() => {
               cancelMatchmaking(user.username);
               onMatchFound({name: "Bot", trophies: makeOpponentTrophies(user.trophies)});
-            }} 
+            }}
             className="mt-4 rounded bg-emerald-600 px-4 py-3 font-bold text-white block w-full"
           >
             Bot ile Savaş

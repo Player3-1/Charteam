@@ -5,7 +5,7 @@ import { arenaForTrophies } from "@/lib/arenas";
 import { ArenaView } from "./arena-view";
 import { db } from "@/firebase";
 import { doc, onSnapshot, updateDoc } from "firebase/firestore";
-import { submitPlacements, submitAbilityTrigger, BattlePlacement } from "@/lib/matchmaking";
+import { submitPlacements, submitAbilityTrigger, submitEmoji, BattlePlacement } from "@/lib/matchmaking";
 import {
   computeRewards,
   makeBotDeck,
@@ -111,6 +111,7 @@ function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[]): { col:
 
 interface Props {
   deck: [string, string, string, string];
+  playerEmojis?: [string, string, string, string];
   trophies: number;
   opponentName: string;
   opponentTrophies: number;
@@ -123,14 +124,20 @@ interface Props {
 const PLACE_SECONDS = 15;
 const FIGHT_TIMEOUT = 60;
 
-export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, battleId, isPlayer1, onFinish, onExit }: Props) {
+export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, opponentName, opponentTrophies, battleId, isPlayer1, onFinish, onExit }: Props) {
   const arena = arenaForTrophies(trophies);
   const playerCards = useMemo(
     () => deck.map((id) => CARDS.find((c) => c.id === id)!).filter(Boolean),
     [deck],
   );
   const [botTrophies] = useState(() => makeOpponentTrophies(trophies));
-  const [botDeck] = useState(() => makeBotDeck(arena));
+  const [botDeck, setBotDeck] = useState(() => battleId ? [] : makeBotDeck(arena));
+
+  useEffect(() => {
+    if (battleId && opponentDeckRef.current.length > 0) {
+        setBotDeck(opponentDeckRef.current);
+    }
+  }, [battleId]);
 
   const [phase, setPhase] = useState<Phase>("placing");
   const [selected, setSelected] = useState(0);
@@ -149,6 +156,25 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
   const opponentPlacementsRef = useRef<any[]>([]);
   const myPlacementsRef = useRef<any[]>([]);
   const triggeredOpponentAbilitiesRef = useRef<Set<string>>(new Set());
+  
+  const triggeredOpponentEmojisRef = useRef<Set<string>>(new Set());
+  const [displayedPlayerEmoji, setDisplayedPlayerEmoji] = useState<{ emoji: string, timestamp: number } | null>(null);
+  const [displayedOpponentEmoji, setDisplayedOpponentEmoji] = useState<{ emoji: string, timestamp: number } | null>(null);
+  const [showEmojiMenu, setShowEmojiMenu] = useState(false);
+
+  useEffect(() => {
+    if (displayedPlayerEmoji) {
+      const t = setTimeout(() => setDisplayedPlayerEmoji(null), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [displayedPlayerEmoji]);
+
+  useEffect(() => {
+    if (displayedOpponentEmoji) {
+      const t = setTimeout(() => setDisplayedOpponentEmoji(null), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [displayedOpponentEmoji]);
 
   useEffect(() => {
     stateRef.current.battleId = battleId || undefined;
@@ -310,6 +336,17 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
           }
         });
 
+        // Sync real-time opponent emojis
+        const oppEmojis: any[] = isPlayer1 ? (data.player2Emojis || []) : (data.player1Emojis || []);
+        oppEmojis.forEach((item: any) => {
+          const { emoji, simTime } = item;
+          const key = `${emoji}_${simTime}`;
+          if (!triggeredOpponentEmojisRef.current.has(key)) {
+            triggeredOpponentEmojisRef.current.add(key);
+            setDisplayedOpponentEmoji({ emoji, timestamp: Date.now() });
+          }
+        });
+
         const myPlacements = isPlayer1 ? data.player1Placements : data.player2Placements;
         const oppPlacements = isPlayer1 ? data.player2Placements : data.player1Placements;
         
@@ -454,13 +491,29 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
       </div>
 
       {/* arena fills */}
-      <div className="relative min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1 overflow-hidden">
         <ArenaView
           arena={arena}
           state={stateRef.current}
           onPlace={phase === "placing" ? placeAt : undefined}
           selectedCardId={playerCards[selected]?.id}
         />
+
+        {/* Display Opponent Emoji */}
+        {displayedOpponentEmoji && (
+          <div key={`opp_${displayedOpponentEmoji.timestamp}`} className="absolute top-12 right-6 bg-slate-900 border-2 border-slate-700 shadow-xl rounded-2xl px-4 py-2 text-4xl animate-bounce z-50 transform origin-bottom-right">
+            {displayedOpponentEmoji.emoji}
+            <div className="absolute -bottom-2 -left-2 w-4 h-4 bg-slate-900 border-l-2 border-b-2 border-slate-700 transform rotate-45"></div>
+          </div>
+        )}
+
+        {/* Display Player Emoji */}
+        {displayedPlayerEmoji && (
+          <div key={`player_${displayedPlayerEmoji.timestamp}`} className="absolute bottom-12 left-6 bg-slate-900 border-2 border-slate-700 shadow-xl rounded-2xl px-4 py-2 text-4xl animate-bounce z-50 transform origin-top-left">
+            {displayedPlayerEmoji.emoji}
+            <div className="absolute -bottom-2 right-4 w-4 h-4 bg-slate-900 border-r-2 border-b-2 border-slate-700 transform rotate-45"></div>
+          </div>
+        )}
       </div>
 
       {/* bottom: cards & abilities */}
@@ -513,108 +566,147 @@ export function BattleScreen({ deck, trophies, opponentName, opponentTrophies, b
           {(() => {
             const playerAbilityUnits = stateRef.current.units.filter((u) => {
               if (u.side !== "player" || u.hp <= 0) return false;
-              return ["hayalet", "madenci", "doktor", "bira-varili", "bombalama-ucagi", "zirhli"].includes(u.card.id);
+              return ["hayalet", "madenci", "doktor", "bira-varili", "bombalama-ucagi", "zirhli", "kurbaga"].includes(u.card.id);
             });
 
-            if (playerAbilityUnits.length === 0) {
-              return (
-                <div className="text-center text-[10px] text-slate-500 py-3 font-sans italic">
-                  Savaş alanında aktif yetenekli canlı birliğiniz yok.
-                </div>
-              );
-            }
-
             return (
-              <div className="grid grid-cols-3 gap-1.5 max-h-[85px] overflow-y-auto">
-                {playerAbilityUnits.map((u) => {
-                  let statusText = "Aktif Et";
-                  let isDisabled = false;
+              <div className="flex gap-2 items-stretch" style={{ minHeight: "60px" }}>
+                {playerAbilityUnits.length === 0 ? (
+                  <div className="flex-1 text-center text-[10px] text-slate-500 py-3 font-sans italic flex items-center justify-center bg-slate-900/50 rounded-xl border border-slate-800">
+                    Savaş alanında aktif yetenekli canlı birliğiniz yok.
+                  </div>
+                ) : (
+                  <div className="flex-1 grid grid-cols-2 gap-1.5 max-h-[85px] overflow-y-auto">
+                    {playerAbilityUnits.map((u) => {
+                      let statusText = "Aktif Et";
+                      let isDisabled = false;
 
-                  if (u.card.id === "madenci") {
-                    statusText = u.underground ? "⛏️ Çıkart!" : "Savaşta";
-                    isDisabled = !u.underground;
-                  } else if (u.card.id === "doktor") {
-                    const cd = Math.ceil(u.doktorAbilityCd ?? 0);
-                    if (cd > 0) {
-                      statusText = `⏱️ ${cd}s`;
-                      isDisabled = true;
-                    } else {
-                      statusText = `💖 Şifa Ver`;
-                    }
-                  } else if (u.card.id === "hayalet") {
-                    const isImmune = (u.immuneTimeLeft ?? 0) > 0;
-                    if (isImmune) {
-                      statusText = `🛡️ ${u.immuneTimeLeft!.toFixed(1)}s`;
-                      isDisabled = true;
-                    } else if (u.immuneTimeLeft !== undefined) {
-                      statusText = "Kullanıldı";
-                      isDisabled = true;
-                    } else {
-                      statusText = "Görünmez Ol";
-                    }
-                  } else if (u.card.id === "zirhli") {
-                    const isDefending = (u.zirhliDefendingTimeLeft ?? 0) > 0;
-                    if (isDefending) {
-                      statusText = `🛡️ ${u.zirhliDefendingTimeLeft!.toFixed(1)}s`;
-                      isDisabled = true;
-                    } else if (u.zirhliDefendingTimeLeft !== undefined) {
-                      statusText = "Kullanıldı";
-                      isDisabled = true;
-                    } else {
-                      statusText = "Sipere Çek";
-                    }
-                  } else if (u.card.id === "bira-varili") {
-                    const isBoosted = (u.barrelAuraBoostTimeLeft ?? 0) > 0;
-                    if (isBoosted) {
-                      statusText = `⚡ ${u.barrelAuraBoostTimeLeft!.toFixed(1)}s`;
-                      isDisabled = true;
-                    } else if (u.barrelAuraBoostTimeLeft !== undefined) {
-                      statusText = "Kullanıldı";
-                      isDisabled = true;
-                    } else {
-                      statusText = "Öfke Ver!";
-                    }
-                  } else if (u.card.id === "bombalama-ucagi") {
-                    const uses = u.bomberUsesLeft ?? 0;
-                    if (uses <= 0) {
-                      statusText = "Kullanıldı";
-                      isDisabled = true;
-                    } else {
-                      statusText = "Mega Bomba";
-                    }
-                  }
-
-                  return (
-                    <button
-                      key={u.uid}
-                      disabled={isDisabled}
-                      onClick={() => {
-                        triggerUnitAbility(u, stateRef.current);
-                        rerender();
-                        if (battleId) {
-                          submitAbilityTrigger(battleId, !!isPlayer1, u.card.id, stateRef.current.time)
-                            .catch(console.error);
+                      if (u.card.id === "madenci") {
+                        statusText = u.underground ? "⛏️ Çıkart!" : "Savaşta";
+                        isDisabled = !u.underground;
+                      } else if (u.card.id === "doktor") {
+                        const cd = Math.ceil(u.doktorAbilityCd ?? 0);
+                        if (cd > 0) {
+                          statusText = `⏱️ ${cd}s`;
+                          isDisabled = true;
+                        } else {
+                          statusText = `💖 Şifa Ver`;
                         }
-                      }}
-                      className={cn(
-                        "flex flex-row items-center justify-between rounded-lg px-2 py-1.5 border gap-1 text-left text-white transition-all",
-                        isDisabled
-                          ? "bg-slate-900/60 border-slate-900 opacity-50"
-                          : "bg-gradient-to-b from-blue-900/90 to-indigo-950 border-blue-500/80 hover:brightness-110 active:scale-95 cursor-pointer shadow"
-                      )}
+                      } else if (u.card.id === "hayalet") {
+                        const isImmune = (u.immuneTimeLeft ?? 0) > 0;
+                        if (isImmune) {
+                          statusText = `🛡️ ${u.immuneTimeLeft!.toFixed(1)}s`;
+                          isDisabled = true;
+                        } else if (u.immuneTimeLeft !== undefined) {
+                          statusText = "Kullanıldı";
+                          isDisabled = true;
+                        } else {
+                          statusText = "Görünmez Ol";
+                        }
+                      } else if (u.card.id === "zirhli") {
+                        const isDefending = (u.zirhliDefendingTimeLeft ?? 0) > 0;
+                        if (isDefending) {
+                          statusText = `🛡️ ${u.zirhliDefendingTimeLeft!.toFixed(1)}s`;
+                          isDisabled = true;
+                        } else if (u.zirhliDefendingTimeLeft !== undefined) {
+                          statusText = "Kullanıldı";
+                          isDisabled = true;
+                        } else {
+                          statusText = "Sipere Çek";
+                        }
+                      } else if (u.card.id === "bira-varili") {
+                        const isBoosted = (u.barrelAuraBoostTimeLeft ?? 0) > 0;
+                        if (isBoosted) {
+                          statusText = `⚡ ${u.barrelAuraBoostTimeLeft!.toFixed(1)}s`;
+                          isDisabled = true;
+                        } else if (u.barrelAuraBoostTimeLeft !== undefined) {
+                          statusText = "Kullanıldı";
+                          isDisabled = true;
+                        } else {
+                          statusText = "Öfke Ver!";
+                        }
+                      } else if (u.card.id === "bombalama-ucagi") {
+                        const uses = u.bomberUsesLeft ?? 0;
+                        if (uses <= 0) {
+                          statusText = "Kullanıldı";
+                          isDisabled = true;
+                        } else {
+                          statusText = "Mega Bomba";
+                        }
+                      } else if (u.card.id === "kurbaga") {
+                        const isSwallowed = (u.swallowedTimeLeft ?? 0) > 0;
+                        if (isSwallowed) {
+                          statusText = `💣 ${u.swallowedTimeLeft!.toFixed(1)}s`;
+                          isDisabled = true;
+                        } else if (u.swallowedTimeLeft !== undefined) {
+                          statusText = "Kullanıldı";
+                          isDisabled = true;
+                        } else {
+                          statusText = "YUT!";
+                        }
+                      }
+
+                      return (
+                        <button
+                          key={u.uid}
+                          disabled={isDisabled}
+                          onClick={() => {
+                            triggerUnitAbility(u, stateRef.current);
+                            rerender();
+                            if (battleId) {
+                              submitAbilityTrigger(battleId, !!isPlayer1, u.card.id, stateRef.current.time)
+                                .catch(console.error);
+                            }
+                          }}
+                          className={cn(
+                            "flex flex-row items-center justify-between rounded-lg px-2 py-1.5 border gap-1 text-left text-white transition-all",
+                            isDisabled
+                              ? "bg-slate-900/60 border-slate-900 opacity-50"
+                              : "bg-gradient-to-b from-blue-900/90 to-indigo-950 border-blue-500/80 hover:brightness-110 active:scale-95 cursor-pointer shadow"
+                          )}
+                        >
+                          <div className="flex items-center gap-1 min-w-0">
+                            <span className="text-base flex-shrink-0">{u.card.emoji}</span>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-[9px] font-bold font-display truncate leading-tight">{u.card.name}</span>
+                            </div>
+                          </div>
+                          <div className="text-[9px] font-bold px-1 py-0.5 rounded bg-black/40 font-mono text-amber-200">
+                            {statusText}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                
+                {playerEmojis.some(e => !!e) && (
+                  <div className="relative shrink-0 flex">
+                    <button 
+                      onClick={() => setShowEmojiMenu(!showEmojiMenu)} 
+                      className="px-3 rounded-xl border-2 border-slate-700 bg-slate-800 shadow shadow-black flex items-center justify-center text-3xl hover:bg-slate-700 active:scale-95 transition-transform"
                     >
-                      <div className="flex items-center gap-1 min-w-0">
-                        <span className="text-base flex-shrink-0">{u.card.emoji}</span>
-                        <div className="flex flex-col min-w-0">
-                          <span className="text-[9px] font-bold font-display truncate leading-tight">{u.card.name}</span>
-                        </div>
-                      </div>
-                      <div className="text-[9px] font-bold px-1 py-0.5 rounded bg-black/40 font-mono text-amber-200">
-                        {statusText}
-                      </div>
+                      💬
                     </button>
-                  );
-                })}
+                    {showEmojiMenu && (
+                      <div className="absolute bottom-full right-0 mb-3 bg-slate-900 border-2 border-slate-700 rounded-xl p-2 grid grid-cols-2 gap-2 shadow-[0_10px_25px_rgba(0,0,0,0.8)]">
+                        {playerEmojis.map((emoji, i) => emoji ? (
+                          <button 
+                            key={i} 
+                            onClick={() => {
+                              setDisplayedPlayerEmoji({ emoji, timestamp: Date.now() });
+                              setShowEmojiMenu(false);
+                              if (battleId) submitEmoji(battleId, !!isPlayer1, emoji, Date.now()).catch(console.error);
+                            }} 
+                            className="w-12 h-12 flex items-center justify-center text-3xl bg-slate-800 rounded-lg hover:bg-slate-700 hover:scale-110 border border-slate-600 transition-transform"
+                          >
+                            {emoji}
+                          </button>
+                        ) : null)}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })()}

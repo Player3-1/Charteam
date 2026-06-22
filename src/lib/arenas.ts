@@ -6,8 +6,8 @@ export interface Arena {
   min: number;
   max: number;
   biome: "grass" | "desert" | "snow" | "legendary";
-  /** rarities that can drop from chests in this arena */
-  pool: Rarity[];
+  /** cards that unlock in this arena */
+  unlocks: string[];
   /** css gradient background */
   bg: string;
   ground: string;
@@ -20,7 +20,7 @@ export const ARENAS: Arena[] = [
     min: 0,
     max: 120,
     biome: "grass",
-    pool: ["common", "rare"],
+    unlocks: ["mizrakli", "kilicli", "dev", "okcu", "atli", "tufekci", "sapanci", "topcu"],
     bg: "linear-gradient(180deg, #6ec24a 0%, #4a9b32 100%)",
     ground: "#5cb13b",
   },
@@ -30,7 +30,7 @@ export const ARENAS: Arena[] = [
     min: 120,
     max: 250,
     biome: "desert",
-    pool: ["common", "rare", "epic"],
+    unlocks: ["ejder", "kus-ordusu", "zirhli"],
     bg: "linear-gradient(180deg, #e6c373 0%, #c79a3f 100%)",
     ground: "#d7af55",
   },
@@ -40,7 +40,7 @@ export const ARENAS: Arena[] = [
     min: 250,
     max: 400,
     biome: "snow",
-    pool: ["common", "rare", "epic"],
+    unlocks: [],
     bg: "linear-gradient(180deg, #e8f1f7 0%, #b9d0e0 100%)",
     ground: "#dde9f2",
   },
@@ -50,17 +50,51 @@ export const ARENAS: Arena[] = [
     min: 400,
     max: 750,
     biome: "legendary",
-    pool: ["common", "rare", "epic", "legendary"],
+    unlocks: ["hayalet", "madenci", "doktor", "bira-varili", "bombalama-ucagi"],
     bg: "linear-gradient(180deg, #6a5e55 0%, #3d342e 100%)",
     ground: "#544840",
   },
+  {
+    id: 5,
+    name: "Buz Krallığı",
+    min: 750,
+    max: 1000,
+    biome: "snow",
+    unlocks: ["buz-dolabi", "kardan-adam"],
+    bg: "linear-gradient(180deg, #1e90ff 0%, #00008b 100%)",
+    ground: "#70a1ff",
+  },
+  {
+    id: 6,
+    name: "Bataklık",
+    min: 1000,
+    max: 1500,
+    biome: "grass",
+    unlocks: ["kurbaga", "dev-sinek"],
+    bg: "linear-gradient(180deg, #5c6239 0%, #484c2f 100%)",
+    ground: "#353823",
+  }
 ];
 
-export const MAX_TROPHIES = 750;
+export const MAX_TROPHIES = 1500;
 
 export function arenaForTrophies(trophies: number): Arena {
   const t = Math.max(0, Math.min(MAX_TROPHIES, trophies));
   return ARENAS.find((a) => t >= a.min && t < a.max) ?? ARENAS[ARENAS.length - 1];
+}
+
+export function getArenaForCard(cardId: string): Arena | undefined {
+  return ARENAS.find(a => a.unlocks.includes(cardId));
+}
+
+export function getUnlockedCardsUpToTrophies(trophies: number): string[] {
+  const arena = arenaForTrophies(trophies);
+  const unlocked: string[] = [];
+  for (const a of ARENAS) {
+    unlocked.push(...a.unlocks);
+    if (a.id === arena.id) break;
+  }
+  return unlocked;
 }
 
 export function makeOpponentTrophies(playerTrophies: number): number {

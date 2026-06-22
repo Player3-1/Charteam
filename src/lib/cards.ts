@@ -15,21 +15,25 @@ export interface CardDef {
 
 export const CARDS: CardDef[] = [
   { id: "mizrakli", name: "Mızraklı", emoji: "🔱", rarity: "common", hp: 140, dmg: 35, cd: 0.7, range: "yakın", description: "Hızlı yakın menzil birliği." },
-  { id: "kilicli", name: "Kılıçlı", emoji: "⚔️", rarity: "common", hp: 135, dmg: 40, cd: 1.0, range: "yakın", description: "Yavaş ama sert vuruşlu kılıç ustası." },
-  { id: "dev", name: "Dev", emoji: "🗿", rarity: "common", hp: 350, dmg: 30, cd: 2.6, range: "yakın", description: "Tankı yüksek, ön cephe birliği." },
+  { id: "kilicli", name: "Kılıçlı", emoji: "⚔️", rarity: "common", hp: 160, dmg: 40, cd: 1.0, range: "yakın", description: "Yavaş ama sert vuruşlu kılıç ustası." },
+  { id: "dev", name: "Dev", emoji: "🗿", rarity: "common", hp: 350, dmg: 30, cd: 1.8, range: "yakın", description: "Tankı yüksek, ön cephe birliği." },
   { id: "atli", name: "Atlı", emoji: "🐎", rarity: "rare", hp: 135, dmg: "25 / 75", cd: 1.2, range: "yakın", description: "Hızla çarparsa 75 hasar, yavaşken 25." },
   { id: "okcu", name: "Okçu", emoji: "🏹", rarity: "common", hp: 65, dmg: 12, cd: 0.5, range: "uzak", description: "Uzak menzilden hızlı oklar atar." },
-  { id: "tufekci", name: "Tüfekçi", emoji: "🔫", rarity: "rare", hp: 57, dmg: 45, cd: 2.4, range: "uzak", description: "Sert ateşli, yavaş tetik." },
+  { id: "tufekci", name: "Tüfekçi", emoji: "🔫", rarity: "rare", hp: 96, dmg: 45, cd: 1.4, range: "uzak", description: "Sert ateşli, yavaş tetik." },
   { id: "sapanci", name: "Sapancı", emoji: "🪨", rarity: "rare", hp: 70, dmg: 30, cd: 2.0, range: "uzak", description: "Aşırı uzun menzilden çarpan alan hasarı atar." },
-  { id: "topcu", name: "Topçu", emoji: "💣", rarity: "rare", hp: 60, dmg: 60, cd: 5.0, range: "uzak", description: "Yıkıcı geniş alan hasarlı top ateşi." },
+  { id: "topcu", name: "Topçu", emoji: "💣", rarity: "rare", hp: 60, dmg: 60, cd: 3.7, range: "uzak", description: "Yıkıcı geniş alan hasarlı top ateşi." },
   { id: "ejder", name: "Ejder", emoji: "🐉", rarity: "epic", hp: 110, dmg: 45, cd: 1.4, range: "hava", description: "Havadan alev nefesi ile alan hasarı verir." },
   { id: "kus-ordusu", name: "Kuş Ordusu", emoji: "🐦", rarity: "epic", hp: 20, dmg: 10, cd: 1.0, range: "hava", description: "5 hızlı kuş, gözden kaçırma." },
-  { id: "hayalet", name: "Hayalet", emoji: "👻", rarity: "legendary", hp: 110, dmg: 40, cd: 1.2, range: "yakın", description: "Sadece 3x3 alanda görünür. Özellik: 2.5sn görünmez ve hasarsız olur.", ability: "2.5 sn görünmezlik ve hasarsızlık" },
-  { id: "madenci", name: "Madenci", emoji: "⛏️", rarity: "legendary", hp: 30, dmg: 25, cd: 0.9, range: "yakın", description: "İstenen yere kazıp çıkar.", ability: "Konum seç ve çık" },
+  { id: "hayalet", name: "Hayalet", emoji: "👻", rarity: "legendary", hp: 110, dmg: 45, cd: 1.0, range: "yakın", description: "Sadece 3x3 alanda görünür. Özellik: 5sn görünmez, hasarsız ve 2x hasar verir.", ability: "5 sn görünmezlik, hasarsızlık ve 2x hasar" },
+  { id: "madenci", name: "Madenci", emoji: "⛏️", rarity: "legendary", hp: 130, dmg: 25, cd: 0.9, range: "yakın", description: "İstenen yere kazıp çıkar.", ability: "Konum seç ve çık" },
   { id: "doktor", name: "Doktor", emoji: "⚕️", rarity: "legendary", hp: 90, dmg: 0, cd: 0, range: "yakın", description: "Müttefiklere +75 can verir. Hasar alınca kaçar.", ability: "5 saniye CD ile 5x5 iyileştirme" },
-  { id: "bira-varili", name: "Bira Varili", emoji: "🍺", rarity: "legendary", hp: 1, dmg: 0, cd: 0, range: "yakın", description: "Müttefik hasarı 1.3x. 30sn dayanır.", ability: "10sn 1.7x hasar" },
+  { id: "bira-varili", name: "Bira Varili", emoji: "🍺", rarity: "legendary", hp: 1, dmg: 0, cd: 0, range: "yakın", description: "Müttefik hasarı 1.5x. 30sn dayanır.", ability: "10sn 2.0x hasar" },
   { id: "bombalama-ucagi", name: "Bombalama Uçağı", emoji: "✈️", rarity: "legendary", hp: 80, dmg: 30, cd: 3.6, range: "hava", description: "3.6sn'de bir 4x4 alana 30 hasar.", ability: "6x6 alana 50 hasar süper bomba" },
   { id: "zirhli", name: "Zırhlı", emoji: "🛡️", rarity: "epic", hp: 300, dmg: 40, cd: 1.5, range: "yakın", description: "Tank. 8sn savunma duruşu hasarın %40'ını emer.", ability: "8sn savunma" },
+  { id: "buz-dolabi", name: "Buz Sapanı", emoji: "🧊", rarity: "rare", hp: 100, dmg: 0, cd: 4.0, range: "uzak", description: "4sn'de bir buz atar, kartı 1.5s mavi yapıp dondurur." },
+  { id: "kardan-adam", name: "Kardan Adam", emoji: "⛄", rarity: "epic", hp: 100, dmg: 25, cd: 1.25, range: "uzak", description: "Kartopu rakibi 0.7sn dondurur." },
+  { id: "kurbaga", name: "Kurbağa", emoji: "🐸", rarity: "legendary", hp: 90, dmg: 25, cd: 2.0, range: "uzak", description: "Dil atar, 10sn süren zehirler (saniyede 3 hasar).", ability: "En yakın kartı yutar, 2sn sonra patlar." },
+  { id: "dev-sinek", name: "Dev Sinek", emoji: "🪰", rarity: "common", hp: 340, dmg: 20, cd: 2.0, range: "hava", description: "Havadan giden tank." },
 ];
 
 export const RARITY_LABEL: Record<Rarity, string> = {
@@ -91,6 +95,25 @@ export function rollRarity(pool: Rarity[], min?: Rarity): Rarity {
     if (n <= 0) return r;
   }
   return finalPool[0];
+}
+
+export function rollCardFromUnlocked(unlockedIds: string[], minRarity?: Rarity): CardDef {
+  let pool = CARDS.filter(c => unlockedIds.includes(c.id));
+  const order: Rarity[] = ["common", "rare", "epic", "legendary"];
+  const startIdx = minRarity ? order.indexOf(minRarity) : 0;
+  
+  const minRestricted = pool.filter(c => order.indexOf(c.rarity) >= startIdx);
+  if (minRestricted.length > 0) {
+    pool = minRestricted;
+  }
+  
+  const availableRarities = Array.from(new Set(pool.map(c => c.rarity)));
+  const targetRarity = rollRarity(availableRarities, minRarity);
+  
+  const rarityPool = pool.filter(c => c.rarity === targetRarity);
+  const fallbackPool = rarityPool.length > 0 ? rarityPool : pool;
+  
+  return fallbackPool[Math.floor(Math.random() * fallbackPool.length)];
 }
 
 export function pickCardByRarity(rarity: Rarity): CardDef {

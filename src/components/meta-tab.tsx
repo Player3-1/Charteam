@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { collection, getDocs, query, limit } from "firebase/firestore";
 import { db } from "@/firebase";
 import { CARDS } from "@/lib/cards";
+import { UserData } from "@/types";
 
-export function MetaTab() {
+export function MetaTab({ user }: { user: UserData }) {
   const [loading, setLoading] = useState(true);
   const [topCards, setTopCards] = useState<{ id: string; count: number; percentage: number }[]>([]);
   const [topDecks, setTopDecks] = useState<{ cards: string[]; count: number; percentage: number }[]>([]);

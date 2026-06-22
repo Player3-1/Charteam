@@ -31,6 +31,13 @@ export interface Unit {
   zirhliDefendingTimeLeft?: number;
   fleeTimeLeft?: number;
   bomberUsesLeft?: number;
+  frozenTimeLeft?: number;
+  poisonTicksLeft?: number;
+  poisonCdLeft?: number;
+  swallowingUid?: number;
+  swallowedTimeLeft?: number;
+  tongueTimeLeft?: number;
+  swallowingTargetUid?: number;
 }
 
 export interface Projectile {
@@ -42,7 +49,7 @@ export interface Projectile {
   toRow: number;
   t: number; // 0..1
   duration: number;
-  kind: "arrow" | "stone" | "bullet" | "bomb" | "fire";
+  kind: "arrow" | "stone" | "bullet" | "bomb" | "fire" | "snowball" | "ice" | "tongue";
   attackerUid: number;
   damage: number;
   aoeRange?: number;
@@ -171,6 +178,9 @@ function projectileKind(card: CardDef): Projectile["kind"] | null {
   if (card.id === "tufekci") return "bullet";
   if (card.id === "topcu" || card.id === "bombalama-ucagi") return "bomb";
   if (card.id === "ejder") return "fire";
+  if (card.id === "buz-dolabi") return "ice";
+  if (card.id === "kardan-adam") return "snowball";
+  if (card.id === "kurbaga") return "tongue";
   if (card.range === "yakın") return null;
   return "arrow";
 }
@@ -189,11 +199,28 @@ export function emergeMiner(u: Unit) {
 function handleProjectileImpact(p: Projectile, state: BattleState) {
   const attacker = state.units.find((u) => u.uid === p.attackerUid);
   
+  const applyEffects = (target: Unit) => {
+    applyCombatDamage(target, p.damage, attacker);
+    if (p.kind === "snowball") {
+      target.frozenTimeLeft = Math.max(target.frozenTimeLeft || 0, 0.7);
+    } else if (p.kind === "ice") {
+      target.frozenTimeLeft = Math.max(target.frozenTimeLeft || 0, 1.5);
+    } else if (p.kind === "tongue") {
+      target.poisonTicksLeft = 10;
+      target.poisonCdLeft = 1.0;
+    }
+  };
+
   if (p.aoeRange) {
     state.units.forEach((targetUnit) => {
       if (targetUnit.side !== p.side && isUnitTargetable(targetUnit)) {
-        if (Math.abs(targetUnit.col - p.toCol) <= p.aoeRange! && Math.abs(targetUnit.row - p.toRow) <= p.aoeRange!) {
-          applyCombatDamage(targetUnit, p.damage, attacker);
+        let inRange = Math.abs(targetUnit.col - p.toCol) <= p.aoeRange! && Math.abs(targetUnit.row - p.toRow) <= p.aoeRange!;
+        if (attacker && attacker.card.id === "sapanci" && targetUnit.card.id.startsWith("kus-ordusu")) {
+           inRange = true;
+        }
+        
+        if (inRange) {
+          applyEffects(targetUnit);
         }
       }
     });
@@ -210,7 +237,7 @@ function handleProjectileImpact(p: Projectile, state: BattleState) {
         }
       }
     }
-    if (best) applyCombatDamage(best, p.damage, attacker);
+    if (best) applyEffects(best);
   }
 }
 
@@ -273,6 +300,56 @@ export function tickBattle(state: BattleState, dt: number) {
     // Miner emerging timer
     if (u.emergingTimeLeft !== undefined && u.emergingTimeLeft > 0) {
       u.emergingTimeLeft = Math.max(0, u.emergingTimeLeft - dt);
+    }
+
+    // Frozen timer
+    if (u.frozenTimeLeft !== undefined && u.frozenTimeLeft > 0) {
+      u.frozenTimeLeft = Math.max(0, u.frozenTimeLeft - dt);
+    }
+
+    // Poison timer
+    if (u.poisonTicksLeft !== undefined && u.poisonTicksLeft > 0) {
+      if (u.poisonCdLeft !== undefined) {
+        u.poisonCdLeft -= dt;
+        if (u.poisonCdLeft <= 0) {
+          u.poisonCdLeft = 1.0;
+          u.poisonTicksLeft -= 1;
+          applyCombatDamage(u, 3); // 3 damage per tick
+        }
+      }
+    }
+
+    // Tongue ability (Kurbağa) pull-in
+    if (u.tongueTimeLeft !== undefined && u.tongueTimeLeft > 0) {
+      const target = state.units.find(eu => eu.uid === u.swallowingTargetUid);
+      if (target) {
+        // Move target closer to Kurbağa
+        const distCol = u.col - target.col;
+        const distRow = u.row - target.row;
+        target.col += distCol * (dt / u.tongueTimeLeft);
+        target.row += distRow * (dt / u.tongueTimeLeft);
+      }
+      u.tongueTimeLeft -= dt;
+      if (u.tongueTimeLeft <= 0) {
+        if (target) {
+          target.col = u.col;
+          target.row = u.row;
+          target.hp = 0; // kill
+          u.swallowedTimeLeft = 2.0; // Start swallowing explosion
+        }
+        u.tongueTimeLeft = undefined;
+        u.swallowingTargetUid = undefined;
+      }
+    }
+
+    // Swallowed explosion timer (Kurbağa)
+    if (u.swallowedTimeLeft !== undefined && u.swallowedTimeLeft > 0) {
+      u.swallowedTimeLeft -= dt;
+      if (u.swallowedTimeLeft <= 0) {
+         u.hp = 0; // explode
+         u.swallowedTimeLeft = 0;
+         continue;
+      }
     }
 
     // Ghost invul rate
@@ -343,9 +420,31 @@ export function tickBattle(state: BattleState, dt: number) {
           triggerUnitAbility(u, state);
         }
       }
+      // Kurbaga triggers swallow if enemies are near
+      if (u.card.id === "kurbaga" && (u.swallowedTimeLeft ?? 0) <= 0) {
+        const enemiesNearby = state.units.filter((o) => o.side !== u.side && o.hp > 0 && dist(u, o) <= 3.0);
+        if (enemiesNearby.length >= 1) {
+          triggerUnitAbility(u, state);
+        }
+      }
       // Miner automatically emerges after 4 seconds underground
       if (u.card.id === "madenci" && u.underground && state.time >= 4.0) {
         emergeMiner(u);
+      }
+    }
+  }
+
+  // Persistent abilities that trigger automatically regardless of side
+  for (const u of state.units) {
+    if (u.hp > 0) {
+      if (u.card.id === "buz-dolabi" && u.cdLeft <= 0) {
+        // We need to know if it succeeded. Let's make triggerUnitAbility return a boolean?
+        // Or just check here?
+        const enemies = state.units.filter((e) => e.side !== u.side && isUnitTargetable(e));
+        if (enemies.length > 0) {
+          triggerUnitAbility(u, state);
+          u.cdLeft = u.card.cd; 
+        }
       }
     }
   }
@@ -463,7 +562,12 @@ export function tickBattle(state: BattleState, dt: number) {
         );
         if (activeAuraBarrels.length > 0) {
           const hasSuperBoost = activeAuraBarrels.some((b) => (b.barrelAuraBoostTimeLeft || 0) > 0);
-          dmgValueResult *= hasSuperBoost ? 1.7 : 1.3;
+          dmgValueResult *= hasSuperBoost ? 2.0 : 1.5;
+        }
+
+        // Apply Hayalet ability damage boost
+        if (u.card.id === "hayalet" && (u.immuneTimeLeft || 0) > 0) {
+          dmgValueResult *= 2.0;
         }
 
         const kind = projectileKind(u.card);
@@ -482,7 +586,7 @@ export function tickBattle(state: BattleState, dt: number) {
             toCol: best.col,
             toRow: best.row,
             t: 0,
-            duration: Math.max(0.18, bestD * 0.08),
+            duration: Math.max(0.3, bestD * 0.1),
             kind,
             attackerUid: u.uid,
             damage: dmgValueResult,
@@ -499,9 +603,19 @@ export function tickBattle(state: BattleState, dt: number) {
       // Movement sequence
       let speedFactor = speed(u.card);
 
+      // Frozen ability slowing effect
+      if (u.frozenTimeLeft !== undefined && u.frozenTimeLeft > 0) {
+        speedFactor *= 0.25; // slow down by 75%
+      }
+
       // Zırhlı ability immobilization state
       if (u.zirhliDefendingTimeLeft !== undefined && u.zirhliDefendingTimeLeft > 0) {
         speedFactor = 0; // Stands still completely
+      }
+      
+      // Buz dolabı static behavior
+      if (u.card.id === "buz-dolabi") {
+        speedFactor = 0;
       }
 
       // Build Cavalry charge
@@ -585,9 +699,9 @@ function applyCombatDamage(defender: Unit, dmg: number, attacker?: Unit) {
 export function triggerUnitAbility(unit: Unit, state: BattleState) {
   if (unit.hp <= 0) return;
 
-  // 11. Hayalet: Hasar almaz olma 2.5sn
+  // 11. Hayalet: Hasar almaz olma 5sn
   if (unit.card.id === "hayalet") {
-    unit.immuneTimeLeft = 2.5;
+    unit.immuneTimeLeft = 5.0;
   }
 
   // 12. Madenci: yer altından fırlar
@@ -664,6 +778,52 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
     });
   }
 
+  // 19. Kurbağa: En yakın olan kartı yutar, 2 saniye sonra patlar
+  else if (unit.card.id === "kurbaga") {
+    // Already swallowing or tonguing? Do nothing
+    if ((unit.swallowedTimeLeft ?? 0) > 0 || (unit.tongueTimeLeft ?? 0) > 0) return;
+
+    // Find nearest targetable enemy
+    const enemies = state.units.filter((e) => e.side !== unit.side && isUnitTargetable(e));
+    if (enemies.length > 0) {
+      let best = enemies[0];
+      let bestD = dist(unit, best);
+      for (const e of enemies) {
+         const d = dist(unit, e);
+         if (d < bestD) { bestD = d; best = e; }
+      }
+      
+      unit.swallowingTargetUid = best.uid;
+      unit.tongueTimeLeft = 0.5; // 0.5s animation
+    }
+  }
+
+  // 20. Buz Dolabı: Buz atar
+  else if (unit.card.id === "buz-dolabi") {
+       const enemies = state.units.filter((e) => e.side !== unit.side && isUnitTargetable(e));
+       if (enemies.length > 0) {
+            let best = enemies[0];
+            let bestD = dist(unit, best);
+            for (const e of enemies) {
+                const d = dist(unit, e);
+                if (d < bestD) { bestD = d; best = e; }
+            }
+            state.projectiles.push({
+                uid: nextUid(),
+                side: unit.side,
+                attackerUid: unit.uid,
+                damage: 10,
+                fromCol: unit.col,
+                fromRow: unit.row,
+                toCol: best.col,
+                toRow: best.row,
+                t: 0,
+                duration: 0.5,
+                kind: "ice",
+            });
+       }
+  }
+
   // 16. Zırhlı: 8sn savunma modu, speed=0, takes %40 less dmg
   else if (unit.card.id === "zirhli") {
     unit.zirhliDefendingTimeLeft = 8.0;
@@ -672,8 +832,11 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
 
 // ---------- helpers ----------
 
+import { getUnlockedCardsUpToTrophies } from "./arenas";
+
 export function makeBotDeck(arena: Arena): CardDef[] {
-  let allowed = [...CARDS.filter((c) => arena.pool.includes(c.rarity))];
+  const unlockedIds = getUnlockedCardsUpToTrophies(arena.min);
+  let allowed = [...CARDS.filter((c) => unlockedIds.includes(c.id))];
   if (arena.id === 1) {
     allowed = allowed.filter((c) => c.id !== "sapanci");
   }

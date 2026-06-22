@@ -7,28 +7,32 @@ import {
   RARITY_LABEL,
   pickCardByRarity,
   rollRarity,
+  rollCardFromUnlocked,
   type CardDef,
   type Rarity,
 } from "@/lib/cards";
-import { ARENAS, arenaForTrophies, MAX_TROPHIES } from "@/lib/arenas";
+import { ARENAS, arenaForTrophies, getUnlockedCardsUpToTrophies, MAX_TROPHIES, getArenaForCard } from "@/lib/arenas";
 import { GameCard } from "@/components/game-card";
 import { BattleScreen } from "@/components/battle-screen";
 import { LeaderboardTab } from "@/components/leaderboard";
-import { MetaTab } from "@/components/meta-tab";
+import { ArenasView } from "@/components/arenas-view";
 import { MatchmakingModal } from "@/components/matchmaking-modal";
+import { MetaTab } from "@/components/meta-tab";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
+import { SHOP_EMOJIS } from "@/lib/emojis";
 
-type Tab = "battle" | "cards" | "chests" | "leaderboard" | "meta";
+type Tab = "battle" | "cards" | "chests" | "leaderboard" | "meta" | "arenas";
 
 export function Home({ user }: { user: UserData }) {
-  const { state, hydrated, claimChestRewards, spendGold, setDeckSlot, applyMatchReward } = usePlayer(user.username);
+  const { state, hydrated, claimChestRewards, spendGold, setDeckSlot, applyMatchReward, buyEmoji, setEmojiSlot } = usePlayer(user.username);
   const [tab, setTab] = useState<Tab>("cards");
   const [openedRewards, setOpenedRewards] = useState<{ card: CardDef; isDuplicate: boolean; refundGold: number }[] | null>(null);
   const [openedChestName, setOpenedChestName] = useState("");
   const [inBattle, setInBattle] = useState(false);
   const [opponent, setOpponent] = useState<{name: string, trophies: number, battleId?: string, isPlayer1?: boolean} | null>(null);
   const [showMatchmaking, setShowMatchmaking] = useState(false);
+  const [showArenas, setShowArenas] = useState(false);
 
   if (!hydrated || !state) {
     return (
@@ -44,14 +48,12 @@ export function Home({ user }: { user: UserData }) {
     const chest = CHESTS.find((c) => c.id === chestId)!;
     if (state.gold < chest.cost) return;
     const rolled: CardDef[] = [];
-    // First card guarantees the minimum rarity (clamped to arena pool)
-    const minOk = arena.pool.includes(chest.guaranteedMin)
-      ? chest.guaranteedMin
-      : arena.pool[arena.pool.length - 1];
-    rolled.push(pickCardByRarity(minOk));
+    
+    const unlockedIds = getUnlockedCardsUpToTrophies(state.trophies);
+    rolled.push(rollCardFromUnlocked(unlockedIds, chest.guaranteedMin));
+    
     for (let i = 1; i < chest.cards; i++) {
-      const r: Rarity = rollRarity(arena.pool);
-      rolled.push(pickCardByRarity(r));
+        rolled.push(rollCardFromUnlocked(unlockedIds));
     }
 
     const tempCollection = { ...state.collection };
@@ -86,7 +88,7 @@ export function Home({ user }: { user: UserData }) {
       {!(inBattle && opponent) && (
         <>
           <header className="sticky top-0 z-20 panel-3d px-3 pb-3 pt-8 flex items-center justify-between gap-3 relative">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setShowArenas(true)}>
               <div className="grid h-10 w-10 place-items-center rounded-full border-2 border-black/40 bg-gradient-to-br from-amber-300 to-amber-600 text-lg font-display text-amber-950 shadow-inner shrink-0">
                 {state.username[0]}
               </div>
@@ -94,7 +96,7 @@ export function Home({ user }: { user: UserData }) {
                 <div className="font-display text-lg leading-none text-stroke text-white">
                   {state.username}
                 </div>
-                <div className="mt-0.5 text-xs text-amber-200/90">
+                <div className="mt-0.5 text-xs text-amber-200/90 underline decoration-amber-500/50 underline-offset-2">
                   Arena {arena.id} · {arena.name}
                 </div>
               </div>
@@ -118,24 +120,27 @@ export function Home({ user }: { user: UserData }) {
               <CardsTab
                 collection={state.collection}
                 deck={state.deck}
+                selectedEmojis={state.selectedEmojis as [string, string, string, string] | undefined}
+                unlockedEmojis={state.unlockedEmojis ?? []}
                 setDeckSlot={setDeckSlot}
+                setEmojiSlot={setEmojiSlot}
               />
             )}
             {tab === "chests" && (
-              <ChestsTab gold={state.gold} arenaPool={arena.pool} onOpen={handleOpenChest} />
+              <ChestsTab gold={state.gold} unlockedEmojis={state.unlockedEmojis ?? []} onOpen={handleOpenChest} onBuyEmoji={buyEmoji} />
             )}
             {tab === "leaderboard" && (
               <LeaderboardTab />
             )}
             {tab === "meta" && (
-              <MetaTab />
+              <MetaTab user={user} />
             )}
           </main>
 
           <nav className="fixed inset-x-0 bottom-0 z-[1000] mx-auto max-w-md panel-3d rounded-t-2xl rounded-b-none px-2 py-2">
             <div className="grid grid-cols-5 gap-1">
               <NavBtn active={tab === "meta"} onClick={() => setTab("meta")} icon="📊" label="Meta" />
-              <NavBtn active={tab === "chests"} onClick={() => setTab("chests")} icon="🎁" label="Sandıklar" />
+              <NavBtn active={tab === "chests"} onClick={() => setTab("chests")} icon="🎁" label="Mağaza" />
               <NavBtn active={tab === "battle"} onClick={() => setTab("battle")} icon="⚔️" label="Savaş" big />
               <NavBtn active={tab === "cards"} onClick={() => setTab("cards")} icon="🃏" label="Kartlar" />
               <NavBtn active={tab === "leaderboard"} onClick={() => setTab("leaderboard")} icon="🏆" label="Sıralama" />
@@ -156,6 +161,10 @@ export function Home({ user }: { user: UserData }) {
     />
       )}
 
+      {showArenas && (
+        <ArenasModal currentTrophies={state.trophies} onClose={() => setShowArenas(false)} />
+      )}
+
       {openedRewards && (
         <ChestReveal
           chestName={openedChestName}
@@ -167,6 +176,7 @@ export function Home({ user }: { user: UserData }) {
       {inBattle && opponent && (
         <BattleScreen
           deck={state.deck}
+          playerEmojis={(state.selectedEmojis as [string, string, string, string]) || ["", "", "", ""]}
           trophies={state.trophies}
           opponentName={opponent.name}
           opponentTrophies={opponent.trophies}
@@ -233,27 +243,67 @@ function NavBtn({
 function CardsTab({
   collection,
   deck,
+  selectedEmojis = ["", "", "", ""],
+  unlockedEmojis = [],
   setDeckSlot,
+  setEmojiSlot,
 }: {
   collection: Record<string, number>;
   deck: [string, string, string, string];
+  selectedEmojis?: [string, string, string, string];
+  unlockedEmojis?: string[];
   setDeckSlot: (slot: number, cardId: string) => void;
+  setEmojiSlot: (slot: number, emoji: string) => void;
 }) {
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
+  const [activeEmojiSlot, setActiveEmojiSlot] = useState<number | null>(null);
 
   const owned = CARDS.filter((c) => (collection[c.id] ?? 0) > 0);
   const locked = CARDS.filter((c) => (collection[c.id] ?? 0) === 0);
 
   // When a user clicks a slot in their deck (Destem)
   const handleSlotClick = (i: number, hasCard: boolean) => {
+    setActiveEmojiSlot(null);
     if (hasCard) {
-      // Empty the slot immediately
       setDeckSlot(i, "");
-      // Set this slot as active/selected so they can fill it
       setActiveSlot(i);
     } else {
-      // If clicked empty slot, toggle or set active slot
       setActiveSlot(activeSlot === i ? null : i);
+    }
+  };
+
+  const handleEmojiSlotClick = (i: number, hasEmoji: boolean) => {
+    setActiveSlot(null);
+    if (hasEmoji) {
+      setEmojiSlot(i, "");
+      setActiveEmojiSlot(i);
+    } else {
+      setActiveEmojiSlot(activeEmojiSlot === i ? null : i);
+    }
+  };
+
+  const handleEmojiSelect = (emoji: string) => {
+    const inDeckIndex = selectedEmojis.indexOf(emoji);
+    if (inDeckIndex >= 0) {
+      setEmojiSlot(inDeckIndex, "");
+      setActiveEmojiSlot(inDeckIndex);
+    } else {
+      if (activeEmojiSlot !== null) {
+        setEmojiSlot(activeEmojiSlot, emoji);
+        const next = [...selectedEmojis];
+        next[activeEmojiSlot] = emoji;
+        const nextEmpty = next.findIndex(e => e === "");
+        setActiveEmojiSlot(nextEmpty >= 0 ? nextEmpty : null);
+      } else {
+        const firstEmpty = selectedEmojis.findIndex(e => e === "");
+        if (firstEmpty >= 0) {
+          setEmojiSlot(firstEmpty, emoji);
+          const next = [...selectedEmojis];
+          next[firstEmpty] = emoji;
+          const nextEmpty = next.findIndex(e => e === "");
+          setActiveEmojiSlot(nextEmpty >= 0 ? nextEmpty : null);
+        }
+      }
     }
   };
 
@@ -350,6 +400,60 @@ function CardsTab({
       </section>
 
       <section>
+        <div className="mb-2 flex flex-col justify-start">
+          <h2 className="text-stroke text-xl text-white">Seçili Emojiler</h2>
+          <p className="text-[11px] text-amber-200/90 mt-0.5 font-medium min-h-[16px] leading-tight">
+            {activeEmojiSlot !== null 
+              ? "👉 Emojiyi değiştirmek için aşağıdaki koleksiyondan seç!" 
+              : "ℹ️ Savaşta kullanacağın 4 emojiyi seç."}
+          </p>
+        </div>
+        <div className="flex gap-2 justify-center mb-4 panel-3d border border-slate-700 p-2 rounded-xl bg-slate-900/60">
+          {selectedEmojis.map((emoji, i) => {
+            const isActive = activeEmojiSlot === i;
+            return (
+              <button
+                key={i}
+                onClick={() => handleEmojiSlotClick(i, !!emoji)}
+                className={cn(
+                  "w-12 h-12 flex items-center justify-center text-3xl rounded-xl border relative shadow-inner",
+                  isActive ? "border-amber-400 bg-amber-500/20 text-amber-300 scale-110 shadow-[0_0_10px_rgba(245,158,11,0.5)] animate-pulse z-10" : "border-slate-600 bg-slate-800 text-slate-300",
+                  !emoji && !isActive && "opacity-50"
+                )}
+              >
+                {emoji || "?"}
+                {isActive && (
+                  <span className="absolute -bottom-1.5 bg-amber-500 text-amber-950 text-[6px] font-black tracking-wider px-1 py-0 rounded border border-black shadow">
+                    SEÇİLİ
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {activeEmojiSlot !== null && (
+          <div className="grid grid-cols-4 gap-2 p-2 border border-dashed border-amber-500/30 bg-amber-500/10 rounded-xl mb-4">
+            {unlockedEmojis.length === 0 ? (
+              <div className="col-span-4 text-center text-sm text-amber-200/70 py-2">
+                Hiç emojin yok! Sandıklar menüsünden satın alabilirsin.
+              </div>
+            ) : (
+              unlockedEmojis.map(emoji => (
+                <button
+                  key={emoji}
+                  onClick={() => handleEmojiSelect(emoji)}
+                  className="text-3xl bg-slate-800 border border-slate-600 rounded-lg py-1 hover:bg-slate-700 focus:outline-none"
+                >
+                  {emoji}
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </section>
+
+      <section>
         <h2 className="mb-2 text-stroke text-2xl text-white font-display">
           Koleksiyon · {owned.length}/{CARDS.length}
         </h2>
@@ -363,6 +467,7 @@ function CardsTab({
                   card={card}
                   owned={collection[card.id] ?? 0}
                   locked={!isOwned}
+                  lockedAtArena={!isOwned ? getArenaForCard(card.id)?.id : undefined}
                   selected={inDeck}
                   onClick={
                     isOwned ? () => handleCollectionCardClick(card.id) : undefined
@@ -526,54 +631,81 @@ function BattleTab({
 
 function ChestsTab({
   gold,
-  arenaPool,
+  unlockedEmojis,
   onOpen,
+  onBuyEmoji,
 }: {
   gold: number;
-  arenaPool: Rarity[];
+  unlockedEmojis: string[];
   onOpen: (id: string) => void;
+  onBuyEmoji: (emoji: string, cost: number) => void;
 }) {
   return (
-    <div className="space-y-3">
-      <h2 className="text-stroke text-2xl text-white">Sandıklar</h2>
-      <p className="text-sm text-amber-200/85 bg-black/30 p-2 rounded-xl border border-dashed border-amber-400/20">
-        Bu arenadan çıkabilen nadirlikler:{" "}
-        <b className="text-white">{arenaPool.map((r) => RARITY_LABEL[r]).join(", ")}</b>
-      </p>
-      <div className="grid grid-cols-1 gap-3">
-        {CHESTS.map((chest) => {
-          const can = gold >= chest.cost;
-          return (
-            <div
-              key={chest.id}
-              className="panel-3d flex items-center gap-3 rounded-2xl p-3 bg-gradient-to-br from-slate-900/90 to-slate-950/90"
-            >
-              <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-slate-800 to-slate-950 text-5xl shadow-inner border border-slate-800/80">
-                {chest.emoji}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-display text-lg text-white font-bold">{chest.name}</div>
-                <div className="text-xs text-amber-200/80">
-                  {chest.cards} kart · Garanti min:{" "}
-                  <span className="font-semibold text-stroke-sm text-white">
-                    {RARITY_LABEL[chest.guaranteedMin]}
-                  </span>
+    <div className="space-y-6">
+      <div className="space-y-3">
+        <h2 className="text-stroke text-2xl text-white">Mağaza</h2>
+        
+        <div className="grid grid-cols-1 gap-3">
+          {CHESTS.map((chest) => {
+            const can = gold >= chest.cost;
+            return (
+              <div
+                key={chest.id}
+                className="panel-3d flex items-center gap-3 rounded-2xl p-3 bg-gradient-to-br from-slate-900/90 to-slate-950/90"
+              >
+                <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-slate-800 to-slate-950 text-5xl shadow-inner border border-slate-800/80">
+                  {chest.emoji}
                 </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-display text-lg text-white font-bold">{chest.name}</div>
+                  <div className="text-xs text-amber-200/80">
+                    {chest.cards} kart · Garanti min:{" "}
+                    <span className="font-semibold text-stroke-sm text-white">
+                      {RARITY_LABEL[chest.guaranteedMin]}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => onOpen(chest.id)}
+                    disabled={!can}
+                    className={cn(
+                      "mt-2 rounded-xl px-4 py-1.5 text-sm font-display text-primary-foreground text-stroke",
+                      "btn-pop active:btn-pop-active",
+                      !can && "opacity-50",
+                    )}
+                  >
+                    🪙 {chest.cost.toLocaleString("tr-TR")}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="space-y-3 pt-6 border-t border-slate-800">
+        <h2 className="text-stroke text-2xl text-white">Emojiler</h2>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {SHOP_EMOJIS.map(({ emoji, cost }) => {
+            const hasEmoji = unlockedEmojis.includes(emoji);
+            const can = !hasEmoji && gold >= cost;
+            return (
+              <div key={emoji} className="panel-3d flex flex-col items-center gap-2 p-3 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 text-center">
+                <div className="text-4xl">{emoji}</div>
                 <button
-                  onClick={() => onOpen(chest.id)}
-                  disabled={!can}
+                  onClick={() => onBuyEmoji(emoji, cost)}
+                  disabled={hasEmoji || !can}
                   className={cn(
-                    "mt-2 rounded-xl px-4 py-1.5 text-sm font-display text-primary-foreground text-stroke",
-                    "btn-pop active:btn-pop-active",
-                    !can && "opacity-50",
+                    "mt-1 w-full rounded-xl px-2 py-1.5 text-xs font-display text-primary-foreground text-stroke whitespace-nowrap",
+                    hasEmoji ? "bg-slate-700 text-slate-300" : "btn-pop active:btn-pop-active",
+                    !hasEmoji && !can && "opacity-50"
                   )}
                 >
-                  🪙 {chest.cost.toLocaleString("tr-TR")}
+                  {hasEmoji ? "Sahipsin" : `🪙 ${cost.toLocaleString("tr-TR")}`}
                 </button>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -831,6 +963,80 @@ function ChestReveal({
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+function ArenasModal({ currentTrophies, onClose }: { currentTrophies: number; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[999] flex flex-col bg-slate-950 p-4 font-display">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-2xl text-stroke text-white">Arenalar</h2>
+        <button onClick={onClose} className="p-2 text-white bg-slate-800 rounded-full w-10 h-10 flex items-center justify-center">
+          ✕
+        </button>
+      </div>
+      <div className="flex-1 overflow-y-auto space-y-4 pb-12">
+        {ARENAS.map((arena) => {
+          const isUnlocked = currentTrophies >= arena.min;
+          const unlocksCards = CARDS.filter((c) => arena.unlocks.includes(c.id));
+          return (
+            <div
+              key={arena.id}
+              className={cn(
+                "p-4 rounded-xl shadow-inner border border-slate-700/50 relative overflow-hidden",
+                !isUnlocked && "opacity-60 grayscale blur-[1px]"
+              )}
+            >
+              <div 
+                className="absolute inset-0 z-0 opacity-40 mix-blend-overlay pointer-events-none" 
+                style={{ background: arena.bg }} 
+              />
+              <div className="relative z-10 space-y-2">
+                <div className="flex justify-between items-end border-b border-white/10 pb-2">
+                  <div>
+                    <div className="text-xl text-white text-stroke drop-shadow-md">{arena.name}</div>
+                    <div className="text-sm text-white/80 font-sans">Arena {arena.id}</div>
+                  </div>
+                  <div className="text-sm font-bold text-amber-400 drop-shadow">
+                    {arena.min}+ 🏆
+                  </div>
+                </div>
+                {unlocksCards.length > 0 && (
+                  <div className="pt-2">
+                    <div className="text-xs text-white/90 mb-2 drop-shadow-md font-sans font-semibold text-stroke-sm">
+                      Açılan Kartlar:
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto pb-2 snap-x">
+                      {unlocksCards.map((c) => (
+                        <div key={c.id} className="flex-none snap-start group relative">
+                          <div className={cn(
+                            "w-14 h-16 rounded-xl border border-white/20 shadow-md bg-gradient-to-br flex items-center justify-center text-3xl",
+                            c.rarity === "legendary" ? "from-purple-900 to-indigo-900 shadow-purple-500/50" :
+                            c.rarity === "epic" ? "from-pink-900 to-rose-900 shadow-pink-500/50" :
+                            c.rarity === "rare" ? "from-amber-700 to-orange-700 shadow-amber-500/50" :
+                            "from-slate-700 to-slate-800"
+                          )}>
+                            {c.emoji}
+                          </div>
+                          <div className="text-[9px] text-center text-white/90 font-sans mt-0.5" style={{ textShadow: "0 1px 2px black" }}>
+                            {c.name}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {isUnlocked && (
+                  <div className="absolute top-2 right-2 px-2 py-0.5 text-[10px] rounded-full bg-green-500/20 text-green-300 font-sans">
+                    Açık
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

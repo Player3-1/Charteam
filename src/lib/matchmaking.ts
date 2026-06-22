@@ -112,3 +112,11 @@ export async function submitAbilityTrigger(battleId: string, isPlayer1: boolean,
     [abilityField]: arrayUnion({ cardId, simTime })
   });
 }
+
+export async function submitEmoji(battleId: string, isPlayer1: boolean, emoji: string, simTime: number) {
+  const bRef = doc(db, "battles", battleId);
+  const emojiField = isPlayer1 ? "player1Emojis" : "player2Emojis";
+  await updateDoc(bRef, {
+    [emojiField]: arrayUnion({ emoji, simTime })
+  });
+}

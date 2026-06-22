@@ -31,12 +31,13 @@ interface Props {
   size?: "sm" | "md" | "lg";
   owned?: number;
   locked?: boolean;
+  lockedAtArena?: number;
   selected?: boolean;
   onClick?: () => void;
   key?: any;
 }
 
-export function GameCard({ card, size = "md", owned, locked, selected, onClick }: Props) {
+export function GameCard({ card, size = "md", owned, locked, lockedAtArena, selected, onClick }: Props) {
   const s = RARITY_STYLES[card.rarity];
   const dims = size === "sm" ? "w-20" : size === "lg" ? "w-44" : "w-28";
 
@@ -55,6 +56,13 @@ export function GameCard({ card, size = "md", owned, locked, selected, onClick }
         onClick && "hover:-translate-y-1 active:translate-y-0",
       )}
     >
+      {locked && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 rounded-xl backdrop-blur-[1px]">
+          <span className="text-white text-xs font-bold font-display text-center p-2">
+            {lockedAtArena ? `Arena ${lockedAtArena}'de açılır` : "Kilitli"}
+          </span>
+        </div>
+      )}
       {selected && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 rounded-xl backdrop-blur-[1px]">
           <span className="bg-amber-500 text-amber-950 font-display font-black text-[11px] px-2 py-0.5 rounded-full border border-black shadow-lg uppercase tracking-wider scale-105">

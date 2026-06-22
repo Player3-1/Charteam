@@ -37,7 +37,7 @@ function mulberry(seed: number) {
 function pickProp(biome: Arena["biome"], r: number): string {
   if (biome === "grass") return r < 0.5 ? "tree" : r < 0.85 ? "flower" : "bush";
   if (biome === "desert") return r < 0.7 ? "cactus" : "rock-sand";
-  if (biome === "snow") return r < 0.55 ? "snow-tree" : r < 0.85 ? "rock-snow" : "snow-pile";
+  if (biome === "snow") return r < 0.4 ? "snow-tree" : r < 0.65 ? "rock-snow" : r < 0.85 ? "snow-pile" : "icicle";
   return r < 0.5 ? "skeleton" : r < 0.85 ? "rock-dark" : "skull";
 }
 function propEmoji(kind: string): string {
@@ -50,6 +50,7 @@ function propEmoji(kind: string): string {
     case "snow-tree": return "🌲";
     case "rock-snow": return "🪨";
     case "snow-pile": return "❄️";
+    case "icicle": return "🧊";
     case "skeleton": return "💀";
     case "rock-dark": return "🪨";
     case "skull": return "☠️";
@@ -63,6 +64,9 @@ function projectileEmoji(p: Projectile): string {
     case "bullet": return "•";
     case "bomb": return "💣";
     case "fire": return "🔥";
+    case "snowball": return "❄️";
+    case "ice": return "🧊";
+    case "tongue": return "👅";
   }
 }
 
@@ -195,7 +199,9 @@ export function ArenaView({ arena, state, onPlace, selectedCardId }: Props) {
         }
 
         const isEmerging = u.emergingTimeLeft !== undefined && u.emergingTimeLeft > 0;
+        const isTonguing = u.tongueTimeLeft !== undefined && u.tongueTimeLeft > 0;
         const isImmune = u.immuneTimeLeft !== undefined && u.immuneTimeLeft > 0;
+        const isFrozen = u.frozenTimeLeft !== undefined && u.frozenTimeLeft > 0;
         const isDefending = u.zirhliDefendingTimeLeft !== undefined && u.zirhliDefendingTimeLeft > 0;
         const isFleeing = u.fleeTimeLeft !== undefined && u.fleeTimeLeft > 0;
         const hasAura = u.card.id === "bira-varili" && u.barrelAuraBoostTimeLeft !== undefined && u.barrelAuraBoostTimeLeft > 0;
@@ -211,9 +217,12 @@ export function ArenaView({ arena, state, onPlace, selectedCardId }: Props) {
 
         let isInvisibleHayalet = false;
         if (u.card.id === "hayalet") {
-          // If ability is active, completely invisible.
-          // Otherwise, invisible unless an enemy is within 1.5 grid distance.
-          if (isImmune) {
+          const aliveUnits = state.units.filter(e => e.hp > 0);
+          const isOnlyHayaletLeft = aliveUnits.length === 1 && aliveUnits[0].uid === u.uid;
+          if (isOnlyHayaletLeft) {
+            isInvisibleHayalet = false; // Always visible if it's the only one left
+          } else if (isImmune) {
+            // invisible when ability is active
             isInvisibleHayalet = true;
           } else {
             const hasEnemyClose = state.units.some(e => e.side !== u.side && e.hp > 0 && Math.abs(u.col - e.col) <= 1.5 && Math.abs(u.row - e.row) <= 1.5);
@@ -241,6 +250,9 @@ export function ArenaView({ arena, state, onPlace, selectedCardId }: Props) {
               {isImmune && (
                 <div className="absolute inset-0 -m-1 rounded-full border-2 border-yellow-300 animate-pulse bg-yellow-400/20" />
               )}
+              {isFrozen && (
+                <div className="absolute inset-0 -m-1 rounded-full border-2 border-cyan-400 animate-pulse bg-cyan-500/20" />
+              )}
               {isDefending && (
                 <div className="absolute inset-0 -m-1 rounded-full border-2 border-indigo-400 animate-pulse bg-indigo-500/25" />
               )}
@@ -249,6 +261,35 @@ export function ArenaView({ arena, state, onPlace, selectedCardId }: Props) {
               )}
               {isFleeing && (
                 <div className="absolute -top-4 left-1/2 -translate-x-1/2 text-[10px] bg-red-600 text-white rounded px-1 scale-90 font-display font-medium leading-none whitespace-nowrap">KAÇIYOR! 💨</div>
+              )}
+              {isTonguing && (() => {
+                const target = state.units.find(e => e.uid === u.swallowingTargetUid);
+                if (!target) return null;
+                const startX = cx(u.col);
+                const startY = cy(u.row);
+                const endX = cx(target.col);
+                const endY = cy(target.row);
+                const dx = endX - startX;
+                const dy = endY - startY;
+                const len = Math.sqrt(dx*dx + dy*dy);
+                const ang = Math.atan2(dy, dx) * 180 / Math.PI;
+                return (
+                  <div
+                    className="absolute bg-pink-500 rounded-full"
+                    style={{
+                      left: `${startX}%`,
+                      top: `${startY}%`,
+                      width: `${len}%`,
+                      height: "4px",
+                      transform: `rotate(${ang}deg)`,
+                      transformOrigin: "0 50%",
+                      zIndex: -1,
+                    }}
+                  />
+                );
+              })()}
+              {isTonguing && (
+                <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-2xl animate-pulse">👅</div>
               )}
               {hasAura && (
                 <div className="absolute inset-0 -m-2 rounded-full border-2 border-dashed border-amber-400 animate-spin bg-amber-500/10 duration-1000" />

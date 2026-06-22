@@ -6,4 +6,6 @@ export interface UserData {
   deck: [string, string, string, string];
   wins: number;
   losses: number;
+  unlockedEmojis?: string[];
+  selectedEmojis?: string[]; // Max 4
 }

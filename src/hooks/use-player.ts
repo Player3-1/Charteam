@@ -3,6 +3,7 @@ import { CARDS } from "@/lib/cards";
 import { db, handleFirestoreError, OperationType } from "@/firebase";
 import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { UserData } from "@/types";
+import { MAX_TROPHIES } from "@/lib/arenas";
 
 const STARTER_DECK: UserData["deck"] = ["mizrakli", "kilicli", "okcu", "dev"];
 
@@ -93,7 +94,7 @@ export function usePlayer(username: string) {
     const newState = { 
       ...state, 
       gold: Math.max(0, state.gold + gold),
-      trophies: Math.max(0, Math.min(750, state.trophies + trophy)),
+      trophies: Math.max(0, Math.min(MAX_TROPHIES, state.trophies + trophy)),
       wins: win ? state.wins + 1 : state.wins,
       losses: !win ? state.losses + 1 : state.losses,
     };
@@ -118,5 +119,35 @@ export function usePlayer(username: string) {
     await updateFirestore(newState);
   }, [state, updateFirestore]);
 
-  return { state, hydrated, addCards, claimChestRewards, spendGold, setDeckSlot, applyMatchReward };
+  const setEmojiSlot = useCallback(async (slot: number, emoji: string) => {
+    if (!state) return;
+    const selectedEmojis = [...(state.selectedEmojis ?? ["", "", "", ""])] as string[];
+    
+    if (emoji === "") {
+        selectedEmojis[slot] = "";
+    } else {
+        const existingSlot = selectedEmojis.indexOf(emoji);
+        if (existingSlot >= 0) {
+            selectedEmojis[existingSlot] = selectedEmojis[slot];
+        }
+        selectedEmojis[slot] = emoji;
+    }
+    const newState = { ...state, selectedEmojis };
+    setState(newState);
+    await updateFirestore(newState);
+  }, [state, updateFirestore]);
+
+  const buyEmoji = useCallback(async (emoji: string, cost: number) => {
+    if (!state || state.gold < cost || state.unlockedEmojis?.includes(emoji)) return false;
+    const newState = { 
+      ...state, 
+      gold: state.gold - cost,
+      unlockedEmojis: [...(state.unlockedEmojis ?? []), emoji] 
+    };
+    setState(newState);
+    await updateFirestore(newState);
+    return true;
+  }, [state, updateFirestore]);
+
+  return { state, hydrated, addCards, claimChestRewards, spendGold, setDeckSlot, applyMatchReward, setEmojiSlot, buyEmoji };
 }
