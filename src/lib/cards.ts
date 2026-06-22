@@ -30,7 +30,7 @@ export const CARDS: CardDef[] = [
   { id: "bira-varili", name: "Bira Varili", emoji: "🍺", rarity: "legendary", hp: 1, dmg: 0, cd: 0, range: "yakın", description: "Müttefik hasarı 1.5x. 30sn dayanır.", ability: "10sn 2.0x hasar" },
   { id: "bombalama-ucagi", name: "Bombalama Uçağı", emoji: "✈️", rarity: "legendary", hp: 80, dmg: 30, cd: 3.6, range: "hava", description: "3.6sn'de bir 4x4 alana 30 hasar.", ability: "6x6 alana 50 hasar süper bomba" },
   { id: "zirhli", name: "Zırhlı", emoji: "🛡️", rarity: "epic", hp: 300, dmg: 40, cd: 1.5, range: "yakın", description: "Tank. 8sn savunma duruşu hasarın %40'ını emer.", ability: "8sn savunma" },
-  { id: "buz-dolabi", name: "Buz Sapanı", emoji: "🧊", rarity: "rare", hp: 100, dmg: 0, cd: 4.0, range: "uzak", description: "4sn'de bir buz atar, kartı 1.5s mavi yapıp dondurur." },
+  { id: "buz-dolabi", name: "Buz Sapanı", emoji: "🧊", rarity: "rare", hp: 100, dmg: 20, cd: 4.0, range: "uzak", description: "4sn'de bir buz atar, kartı 1.5s mavi yapıp dondurur." },
   { id: "kardan-adam", name: "Kardan Adam", emoji: "⛄", rarity: "epic", hp: 100, dmg: 25, cd: 1.25, range: "uzak", description: "Kartopu rakibi 0.7sn dondurur." },
   { id: "kurbaga", name: "Kurbağa", emoji: "🐸", rarity: "legendary", hp: 90, dmg: 25, cd: 2.0, range: "uzak", description: "Dil atar, 10sn süren zehirler (saniyede 3 hasar).", ability: "En yakın kartı yutar, 2sn sonra patlar." },
   { id: "dev-sinek", name: "Dev Sinek", emoji: "🪰", rarity: "common", hp: 340, dmg: 20, cd: 2.0, range: "hava", description: "Havadan giden tank." },
