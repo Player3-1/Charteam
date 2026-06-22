@@ -214,12 +214,7 @@ function handleProjectileImpact(p: Projectile, state: BattleState) {
   if (p.aoeRange) {
     state.units.forEach((targetUnit) => {
       if (targetUnit.side !== p.side && isUnitTargetable(targetUnit)) {
-        let inRange = Math.abs(targetUnit.col - p.toCol) <= p.aoeRange! && Math.abs(targetUnit.row - p.toRow) <= p.aoeRange!;
-        if (attacker && attacker.card.id === "sapanci" && targetUnit.card.id.startsWith("kus-ordusu")) {
-           inRange = true;
-        }
-        
-        if (inRange) {
+        if (Math.abs(targetUnit.col - p.toCol) <= p.aoeRange! && Math.abs(targetUnit.row - p.toRow) <= p.aoeRange!) {
           applyEffects(targetUnit);
         }
       }
@@ -657,9 +652,11 @@ export function tickBattle(state: BattleState, dt: number) {
 
   const playerAlive = state.units.some((u) => u.side === "player");
   const botAlive = state.units.some((u) => u.side === "bot");
-  if (!playerAlive && botAlive) state.winner = "bot";
-  else if (!botAlive && playerAlive) state.winner = "player";
-  else if (!playerAlive && !botAlive) state.winner = "player"; // tie → player
+  if (state.time > 0.5) {
+      if (!playerAlive && botAlive) state.winner = "bot";
+      else if (!botAlive && playerAlive) state.winner = "player";
+      else if (!playerAlive && !botAlive) state.winner = "player"; // tie → player
+  }
 }
 
 /** Handles applying damage, considering invulnerabilities and defensive stances */

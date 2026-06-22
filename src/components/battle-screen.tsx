@@ -693,7 +693,7 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
                       💬
                     </button>
                     {showEmojiMenu && (
-                      <div className="absolute bottom-full right-0 mb-3 bg-slate-900 border-2 border-slate-700 rounded-xl p-2 grid grid-cols-2 gap-2 shadow-[0_10px_25px_rgba(0,0,0,0.8)]">
+                      <div className="absolute bottom-full right-0 mb-3 bg-slate-900 border-2 border-slate-700 rounded-xl p-2 grid grid-cols-4 gap-2 shadow-[0_10px_25px_rgba(0,0,0,0.8)]">
                         {playerEmojis.map((emoji, i) => emoji ? (
                           <button 
                             key={i} 
