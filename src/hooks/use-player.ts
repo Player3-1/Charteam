@@ -18,6 +18,8 @@ function defaultState(username: string): UserData {
     trophies: 0,
     collection,
     deck: STARTER_DECK,
+    decks: Object.fromEntries(Array(5).fill(null).map((_, i) => [i.toString(), [...STARTER_DECK]])),
+    activeDeckIndex: 0,
     wins: 0,
     losses: 0,
   };
@@ -38,6 +40,8 @@ export function usePlayer(username: string) {
           ...data, 
           collection: data.collection ?? {},
           deck: data.deck ?? STARTER_DECK,
+          decks: data.decks ?? Object.fromEntries(Array(5).fill(null).map((_, i) => [i.toString(), [...STARTER_DECK]])),
+          activeDeckIndex: data.activeDeckIndex ?? 0,
           wins: data.wins ?? 0,
           losses: data.losses ?? 0
         });
@@ -104,7 +108,10 @@ export function usePlayer(username: string) {
 
   const setDeckSlot = useCallback(async (slot: number, cardId: string) => {
     if (!state) return;
-    const deck = [...state.deck] as UserData["deck"];
+    const activeDeckIndex = state.activeDeckIndex ?? 0;
+    const decks = { ...(state.decks ?? { "0": state.deck }) };
+    const deck = [...(decks[activeDeckIndex.toString()] || state.deck)] as UserData["deck"];
+    
     if (cardId === "") {
         deck[slot] = "";
     } else {
@@ -114,7 +121,16 @@ export function usePlayer(username: string) {
         }
         deck[slot] = cardId;
     }
-    const newState = { ...state, deck };
+    decks[activeDeckIndex.toString()] = deck;
+
+    const newState = { ...state, decks, deck }; // Keep deck for backward compatibility
+    setState(newState);
+    await updateFirestore(newState);
+  }, [state, updateFirestore]);
+
+  const setActiveDeck = useCallback(async (index: number) => {
+    if (!state) return;
+    const newState = { ...state, activeDeckIndex: index, deck: state.decks![index.toString()] };
     setState(newState);
     await updateFirestore(newState);
   }, [state, updateFirestore]);
@@ -149,5 +165,5 @@ export function usePlayer(username: string) {
     return true;
   }, [state, updateFirestore]);
 
-  return { state, hydrated, addCards, claimChestRewards, spendGold, setDeckSlot, applyMatchReward, setEmojiSlot, buyEmoji };
+  return { state, hydrated, addCards, claimChestRewards, spendGold, setDeckSlot, setActiveDeck, applyMatchReward, setEmojiSlot, buyEmoji };
 }

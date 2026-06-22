@@ -25,7 +25,7 @@ import { SHOP_EMOJIS } from "@/lib/emojis";
 type Tab = "battle" | "cards" | "chests" | "leaderboard" | "meta" | "arenas";
 
 export function Home({ user }: { user: UserData }) {
-  const { state, hydrated, claimChestRewards, spendGold, setDeckSlot, applyMatchReward, buyEmoji, setEmojiSlot } = usePlayer(user.username);
+  const { state, hydrated, claimChestRewards, spendGold, setDeckSlot, setActiveDeck, applyMatchReward, buyEmoji, setEmojiSlot } = usePlayer(user.username);
   const [tab, setTab] = useState<Tab>("cards");
   const [openedRewards, setOpenedRewards] = useState<{ card: CardDef; isDuplicate: boolean; refundGold: number }[] | null>(null);
   const [openedChestName, setOpenedChestName] = useState("");
@@ -120,9 +120,12 @@ export function Home({ user }: { user: UserData }) {
               <CardsTab
                 collection={state.collection}
                 deck={state.deck}
+                decks={state.decks}
+                activeDeckIndex={state.activeDeckIndex}
                 selectedEmojis={state.selectedEmojis as [string, string, string, string] | undefined}
                 unlockedEmojis={state.unlockedEmojis ?? []}
                 setDeckSlot={setDeckSlot}
+                setActiveDeck={setActiveDeck}
                 setEmojiSlot={setEmojiSlot}
               />
             )}
@@ -243,16 +246,22 @@ function NavBtn({
 function CardsTab({
   collection,
   deck,
+  decks,
+  activeDeckIndex = 0,
   selectedEmojis = ["", "", "", ""],
   unlockedEmojis = [],
   setDeckSlot,
+  setActiveDeck,
   setEmojiSlot,
 }: {
   collection: Record<string, number>;
   deck: [string, string, string, string];
+  decks?: Record<string, [string, string, string, string]>;
+  activeDeckIndex?: number;
   selectedEmojis?: [string, string, string, string];
   unlockedEmojis?: string[];
   setDeckSlot: (slot: number, cardId: string) => void;
+  setActiveDeck: (index: number) => void;
   setEmojiSlot: (slot: number, emoji: string) => void;
 }) {
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
@@ -351,7 +360,28 @@ function CardsTab({
     <div className="space-y-6">
       <section>
         <div className="mb-2 flex flex-col justify-start">
-          <h2 className="text-stroke text-2xl text-white">Destem</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-stroke text-2xl text-white">Destem</h2>
+            <div className="flex gap-1">
+              {Object.keys(decks ?? { "0": deck }).map((key) => {
+                const index = parseInt(key);
+                return (
+                  <button
+                    key={index}
+                    onClick={() => setActiveDeck(index)}
+                    className={cn(
+                      "text-xs font-bold w-8 h-8 rounded-lg flex items-center justify-center transition-all",
+                      index === activeDeckIndex
+                        ? "bg-amber-500 text-amber-950 shadow-md scale-105"
+                        : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                    )}
+                  >
+                    {index + 1}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <p className="text-[11px] text-amber-200/90 mt-0.5 font-medium min-h-[16px] leading-tight">
             {activeSlot !== null 
               ? "👉 Doldurmak için alttaki karakterlerden birine bas!" 

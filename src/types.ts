@@ -3,7 +3,9 @@ export interface UserData {
   gold: number;
   trophies: number;
   collection: Record<string, number>;
-  deck: [string, string, string, string];
+  deck: [string, string, string, string]; // Deprecated, use decks[activeDeckIndex]
+  decks?: Record<string, [string, string, string, string]>; // NEW: Object of decks
+  activeDeckIndex?: number; // NEW: Index of active deck
   wins: number;
   losses: number;
   unlockedEmojis?: string[];
