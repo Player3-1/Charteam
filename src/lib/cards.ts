@@ -26,7 +26,7 @@ export const CARDS: CardDef[] = [
   { id: "kus-ordusu", name: "Kuş Ordusu", emoji: "🐦", rarity: "epic", hp: 20, dmg: 10, cd: 1.0, range: "hava", description: "5 hızlı kuş, gözden kaçırma." },
   { id: "hayalet", name: "Hayalet", emoji: "👻", rarity: "legendary", hp: 110, dmg: 45, cd: 1.0, range: "yakın", description: "Sadece 3x3 alanda görünür. Özellik: 5sn görünmez, hasarsız ve 2x hasar verir.", ability: "5 sn görünmezlik, hasarsızlık ve 2x hasar" },
   { id: "madenci", name: "Madenci", emoji: "⛏️", rarity: "legendary", hp: 130, dmg: 25, cd: 0.9, range: "yakın", description: "İstenen yere kazıp çıkar.", ability: "Konum seç ve çık" },
-  { id: "doktor", name: "Doktor", emoji: "⚕️", rarity: "legendary", hp: 90, dmg: 0, cd: 0, range: "yakın", description: "Müttefiklere +75 can verir. Hasar alınca kaçar.", ability: "5 saniye CD ile 5x5 iyileştirme" },
+  { id: "doktor", name: "Doktor", emoji: "⚕️", rarity: "legendary", hp: 90, dmg: 0, cd: 0, range: "yakın", description: "Müttefiklere +75 can verir, canı azalan müttefikleri takip eder.", ability: "5 saniye CD ile 5x5 iyileştirme" },
   { id: "bira-varili", name: "Bira Varili", emoji: "🍺", rarity: "legendary", hp: 1, dmg: 0, cd: 0, range: "yakın", description: "Müttefik hasarı 1.5x. 30sn dayanır.", ability: "10sn 2.0x hasar" },
   { id: "bombalama-ucagi", name: "Bombalama Uçağı", emoji: "✈️", rarity: "legendary", hp: 80, dmg: 30, cd: 3.6, range: "hava", description: "3.6sn'de bir 4x4 alana 30 hasar.", ability: "6x6 alana 50 hasar süper bomba" },
   { id: "zirhli", name: "Zırhlı", emoji: "🛡️", rarity: "epic", hp: 300, dmg: 40, cd: 1.5, range: "yakın", description: "Tank. 8sn savunma duruşu hasarın %40'ını emer.", ability: "8sn savunma" },
@@ -57,13 +57,14 @@ export interface Chest {
   cards: number;
   guaranteedMin: Rarity;
   emoji: string;
+  allowedRarities: Rarity[];
 }
 
 export const CHESTS: Chest[] = [
-  { id: "wood", name: "Basit Sandık", cost: 500, cards: 1, guaranteedMin: "common", emoji: "📦" },
-  { id: "silver", name: "Nadir Sandık", cost: 2000, cards: 2, guaranteedMin: "rare", emoji: "🎁" },
-  { id: "gold", name: "Epik Sandık", cost: 5000, cards: 3, guaranteedMin: "epic", emoji: "🏆" },
-  { id: "magic", name: "Efsanevi Sandık", cost: 12000, cards: 4, guaranteedMin: "legendary", emoji: "✨" },
+  { id: "wood", name: "Basit Sandık", cost: 500, cards: 1, guaranteedMin: "common", emoji: "📦", allowedRarities: ["common"] },
+  { id: "silver", name: "Nadir Sandık", cost: 2000, cards: 2, guaranteedMin: "rare", emoji: "🎁", allowedRarities: ["common", "rare"] },
+  { id: "gold", name: "Epik Sandık", cost: 5000, cards: 3, guaranteedMin: "epic", emoji: "🏆", allowedRarities: ["common", "rare", "epic"] },
+  { id: "magic", name: "Efsanevi Sandık", cost: 12000, cards: 4, guaranteedMin: "legendary", emoji: "✨", allowedRarities: ["rare", "epic", "legendary"] },
 ];
 
 /** Roll a rarity restricted to the given pool (arena unlocks). */
@@ -97,9 +98,14 @@ export function rollRarity(pool: Rarity[], min?: Rarity): Rarity {
   return finalPool[0];
 }
 
-export function rollCardFromUnlocked(unlockedIds: string[], minRarity?: Rarity): CardDef {
+export function rollCardFromUnlocked(unlockedIds: string[], minRarity?: Rarity, allowedRarities?: Rarity[]): CardDef {
   let pool = CARDS.filter(c => unlockedIds.includes(c.id));
   const order: Rarity[] = ["common", "rare", "epic", "legendary"];
+  
+  if (allowedRarities) {
+      pool = pool.filter(c => allowedRarities.includes(c.rarity));
+  }
+  
   const startIdx = minRarity ? order.indexOf(minRarity) : 0;
   
   const minRestricted = pool.filter(c => order.indexOf(c.rarity) >= startIdx);

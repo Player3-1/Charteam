@@ -60,9 +60,9 @@ export function LeaderboardTab() {
              <div className="text-center text-amber-300 font-bold mb-2">{selectedPlayer.trophies} 🏆 · {selectedPlayer.gold} 🪙</div>
              <div className="text-center text-slate-300 font-bold mb-4">{selectedPlayer.wins} Galibiyet / {selectedPlayer.losses} Mağlubiyet ({selectedPlayer.wins + selectedPlayer.losses > 0 ? Math.round((selectedPlayer.wins / (selectedPlayer.wins + selectedPlayer.losses)) * 100) : 0}% Win Rate)</div>
              <div className="grid grid-cols-4 gap-2">
-                {selectedPlayer.deck.map((cardId) => {
+                {selectedPlayer.deck.map((cardId, index) => {
                   const card = CARDS.find((c) => c.id === cardId);
-                  return card ? <GameCard key={cardId} card={card} size="sm" /> : null
+                  return card ? <GameCard key={`${cardId}_${index}`} card={card} size="sm" /> : null
                 })}
              </div>
              <button onClick={() => setSelectedPlayer(null)} className="mt-4 w-full rounded bg-slate-700 p-2 text-white font-bold">Kapat</button>

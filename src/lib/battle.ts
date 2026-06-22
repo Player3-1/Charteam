@@ -53,6 +53,7 @@ export interface Projectile {
   attackerUid: number;
   damage: number;
   aoeRange?: number;
+  targetUid?: number;
 }
 
 export interface BattleState {
@@ -262,7 +263,16 @@ export function tickBattle(state: BattleState, dt: number) {
   state.time += dt;
 
   // projectiles
-  state.projectiles.forEach((p) => (p.t += dt / p.duration));
+  state.projectiles.forEach((p) => {
+    if (p.targetUid !== undefined) {
+      const target = state.units.find(u => u.uid === p.targetUid && u.hp > 0);
+      if (target) {
+        p.toCol = target.col;
+        p.toRow = target.row;
+      }
+    }
+    p.t += dt / p.duration;
+  });
   state.projectiles = state.projectiles.filter((p) => {
     if (p.t >= 1) {
       handleProjectileImpact(p, state);
@@ -487,13 +497,30 @@ export function tickBattle(state: BattleState, dt: number) {
           u.row = Math.max(0, Math.min(ROWS - 1, nr));
         }
       } else {
-        // If all ground allies are dead, retreat to the very back of her team's side!
-        const targetRow = u.side === "player" ? ROWS - 1 : 0;
-        if (Math.abs(u.row - targetRow) > 0.05) {
-          const sp = speed(u.card) * dt * 1.25; // Escape fast to the safe baseline
-          const dr = targetRow - u.row;
-          const len = Math.abs(dr) || 1;
-          u.row = Math.max(0, Math.min(ROWS - 1, u.row + (dr / len) * sp));
+        // If all ground allies are dead, Doktor advances towards the nearest targetable enemy card!
+        const enemies = state.units.filter((e) => e.side !== u.side && isUnitTargetable(e));
+        if (enemies.length > 0) {
+          let targetEnemy = enemies[0];
+          let bestD = dist(u, targetEnemy);
+          for (const e of enemies) {
+            const d = dist(u, e);
+            if (d < bestD) {
+              bestD = d;
+              targetEnemy = e;
+            }
+          }
+
+          if (bestD > 0.1) {
+            const sp = speed(u.card) * dt;
+            const dc = targetEnemy.col - u.col;
+            const dr = targetEnemy.row - u.row;
+            const len = Math.hypot(dc, dr) || 1;
+            let nc = u.col + (dc / len) * sp;
+            let nr = u.row + (dr / len) * sp;
+
+            u.col = Math.max(0, Math.min(COLS - 1, nc));
+            u.row = Math.max(0, Math.min(ROWS - 1, nr));
+          }
         }
       }
       continue;
@@ -582,11 +609,12 @@ export function tickBattle(state: BattleState, dt: number) {
             toCol: best.col,
             toRow: best.row,
             t: 0,
-            duration: Math.max(0.3, bestD * 0.1),
+            duration: u.card.id === "sapanci" ? Math.max(0.15, bestD * 0.04) : Math.max(0.3, bestD * 0.1),
             kind,
             attackerUid: u.uid,
             damage: dmgValueResult,
             aoeRange: aoeRange > 0 ? aoeRange : undefined,
+            targetUid: best.uid,
           });
         } else {
           // Direct single strike
@@ -687,9 +715,9 @@ function applyCombatDamage(defender: Unit, dmg: number, attacker?: Unit) {
 
   defender.hp = Math.max(0, defender.hp - finalDmg);
 
-  // Trigger Doktor flee upon taking damage
+  // Doctor does not flee on taking damage anymore, advances toward the nearest target
   if (defender.card.id === "doktor") {
-    defender.fleeTimeLeft = 3.0; // Flees furiously for 3 seconds
+    defender.fleeTimeLeft = 0;
   }
 }
 
@@ -818,6 +846,7 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
                 t: 0,
                 duration: 0.5,
                 kind: "ice",
+                targetUid: best.uid,
             });
        }
   }

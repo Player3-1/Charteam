@@ -158,9 +158,9 @@ export function ArenaView({ arena, state, onPlace, selectedCardId }: Props) {
                 }
               }
             }
-            return tiles.map(({ col, row }, i) => (
+            return tiles.map(({ col, row }) => (
               <button
-                key={i}
+                key={`${col}_${row}`}
                 onClick={() => onPlace(col, row)}
                 className="absolute border border-amber-200/30 bg-amber-200/5 hover:bg-amber-200/25"
                 style={{

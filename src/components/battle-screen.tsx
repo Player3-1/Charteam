@@ -6,6 +6,7 @@ import { ArenaView } from "./arena-view";
 import { db } from "@/firebase";
 import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { submitPlacements, submitAbilityTrigger, submitEmoji, BattlePlacement, cancelMatchmaking } from "@/lib/matchmaking";
+import { cn } from "@/lib/utils";
 import {
   computeRewards,
   makeBotDeck,
@@ -20,7 +21,6 @@ import {
   type BattleState,
   type Unit,
 } from "@/lib/battle";
-import { cn } from "@/lib/utils";
 
 type Phase = "placing" | "fighting" | "done";
 
@@ -154,6 +154,7 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
   const [opponentReady, setOpponentReady] = useState(false);
 
   const opponentDeckRef = useRef<string[]>([]);
+  const isBotFallbackRef = useRef(false);
   const opponentPlacementsRef = useRef<any[]>([]);
   const myPlacementsRef = useRef<any[]>([]);
   const triggeredOpponentAbilitiesRef = useRef<Set<string>>(new Set());
@@ -279,45 +280,67 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
     if (phase !== "placing" || !isReady || !battleId) return;
 
     if (placeTimer === 0 && !opponentReady && !startedRef.current) {
-      const t = setTimeout(() => {
-        if (!startedRef.current && !opponentReady) {
-          startedRef.current = true;
+        isBotFallbackRef.current = true;
+        startedRef.current = true;
 
-          const myPlacements = myPlacementsRef.current || [];
-          if (myPlacements && !stateRef.current.units.some(u => u.side === "player")) {
+        // Fallback opponent to bot
+        // 1. Spawning already-placed opponent units
+        const oppPlacements = opponentPlacementsRef.current || [];
+        oppPlacements.forEach((p: any) => {
+          const card = CARDS.find((c) => c.id === p.cardId);
+          if (card) {
+            const r = ROWS - 1 - p.row;
+            const c = COLS - 1 - p.col;
+            if (!stateRef.current.units.some(u => u.side === "bot" && Math.round(u.col) === c && Math.round(u.row) === r)) {
+              spawnUnit(stateRef.current, card, "bot", c, r);
+            }
+          }
+        });
+
+        // 2. Fallback deck if opponent hasn't loaded their deck
+        const oppDeckIds = (opponentDeckRef.current && opponentDeckRef.current.length > 0)
+          ? opponentDeckRef.current
+          : (botDeck && botDeck.length > 0 ? botDeck : ["mizrakli", "kilicli", "okcu", "dev"]);
+        const oppCards = oppDeckIds.map(id => CARDS.find(c => c.id === id)).filter(Boolean) as CardDef[];
+
+        // 3. Fill up remaining unplaced units
+        const spawnedBotCardIds = stateRef.current.units
+          .filter(u => u.side === "bot")
+          .map(u => u.card.id.startsWith("kus-ordusu") ? "kus-ordusu" : u.card.id);
+
+        const unplacedOppCards = oppCards.filter(card => !spawnedBotCardIds.includes(card.id));
+
+        unplacedOppCards.forEach(card => {
+          const { col, row } = getBotPlacementCoordinate(card, stateRef.current.units);
+          spawnUnit(stateRef.current, card, "bot", col, row);
+        });
+
+        // 4. Force spawn our player units if they somehow missed spawning
+        const myPlacements = myPlacementsRef.current || [];
+        if (!stateRef.current.units.some(u => u.side === "player")) {
+          if (myPlacements.length > 0) {
             myPlacements.forEach((p: any) => {
               const card = CARDS.find(c => c.id === p.cardId);
               if (card) spawnUnit(stateRef.current, card, "player", p.col, p.row);
             });
+          } else {
+            // Absolute fallback for player side too just in case
+            playerCards.forEach(c => {
+              let cCol: number; let rCol: number; let attempts = 0;
+              do {
+                cCol = Math.floor(Math.random() * COLS);
+                rCol = RIVER_ROW + 1 + Math.floor(Math.random() * (ROWS - RIVER_ROW - 1));
+                attempts++;
+              } while (attempts < 20 && stateRef.current.units.some(u => Math.round(u.col) === cCol && Math.round(u.row) === rCol));
+              spawnUnit(stateRef.current, c, "player", cCol, rCol);
+            });
           }
-
-          // Fallback opponent to bot
-          const oppPlacements = opponentPlacementsRef.current || [];
-          oppPlacements.forEach((p: any) => {
-            const card = CARDS.find((c) => c.id === p.cardId);
-            if (card) {
-              const r = ROWS - 1 - p.row;
-              const c = COLS - 1 - p.col;
-              spawnUnit(stateRef.current, card, "bot", c, r);
-            }
-          });
-
-          let placedOpponents = oppPlacements.length;
-          let pidx = 0;
-          while (placedOpponents < 4 && pidx < botDeck.length) {
-            const card = botDeck[pidx];
-            const { col, row } = getBotPlacementCoordinate(card, stateRef.current.units);
-            spawnUnit(stateRef.current, card, "bot", col, row);
-            placedOpponents++;
-            pidx++;
-          }
-
-          startFight();
         }
-      }, 2000); // 2 second delay just to cover network latency
-      return () => clearTimeout(t);
+
+        startFight();
+        rerender();
     }
-  }, [placeTimer, phase, isReady, opponentReady, battleId, botDeck]);
+  }, [placeTimer, phase, isReady, opponentReady, battleId, botDeck, playerCards]);
 
   const startedRef = useRef(false);
 
@@ -350,6 +373,12 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
             setDisplayedOpponentEmoji({ emoji, timestamp: Date.now() });
           }
         });
+
+        if (data.winner && !winner) {
+            setWinner(data.winner);
+            const r = computeRewards(data.winner === "player", trophies, opponentTrophies);
+            setRewards(r); setPhase("done");
+        }
 
         const myPlacements = isPlayer1 ? data.player1Placements : data.player2Placements;
         const oppPlacements = isPlayer1 ? data.player2Placements : data.player1Placements;
@@ -455,18 +484,28 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
       rerender();
       if (stateRef.current.winner) {
         const w = stateRef.current.winner;
-        setWinner(w);
-        const r = computeRewards(w === "player", trophies, opponentTrophies);
-        setRewards(r); setPhase("done");
+        if (battleId && isPlayer1 && !isBotFallbackRef.current) {
+            updateDoc(doc(db, "battles", battleId), { winner: w });
+        }
+        if (!battleId || isPlayer1 || isBotFallbackRef.current) {
+            setWinner(w);
+            const r = computeRewards(w === "player", trophies, opponentTrophies);
+            setRewards(r); setPhase("done");
+        }
         return;
       }
       if (stateRef.current.time > FIGHT_TIMEOUT) {
         const pHp = stateRef.current.units.filter((u) => u.side === "player").reduce((s, u) => s + u.hp, 0);
         const bHp = stateRef.current.units.filter((u) => u.side === "bot").reduce((s, u) => s + u.hp, 0);
         const w = pHp >= bHp ? "player" : "bot";
-        setWinner(w);
-        const r = computeRewards(w === "player", trophies, opponentTrophies);
-        setRewards(r); setPhase("done");
+        if (battleId && isPlayer1 && !isBotFallbackRef.current) {
+            updateDoc(doc(db, "battles", battleId), { winner: w });
+        }
+        if (!battleId || isPlayer1 || isBotFallbackRef.current) {
+            setWinner(w);
+            const r = computeRewards(w === "player", trophies, opponentTrophies);
+            setRewards(r); setPhase("done");
+        }
         return;
       }
       rafRef.current = requestAnimationFrame(loop);
@@ -541,7 +580,7 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
                   const isPlaced = placedIds.has(c.id);
                   return (
                     <button
-                      key={c.id}
+                      key={`${c.id}_${i}`}
                       disabled={isPlaced}
                       onClick={() => setSelected(i)}
                       className={cn(
@@ -693,20 +732,25 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
                       💬
                     </button>
                     {showEmojiMenu && (
-                      <div className="absolute bottom-full right-0 mb-3 bg-slate-900 border-2 border-slate-700 rounded-xl p-2 grid grid-cols-4 gap-2 shadow-[0_10px_25px_rgba(0,0,0,0.8)]">
-                        {playerEmojis.map((emoji, i) => emoji ? (
+                      <div className="absolute bottom-full right-8 mb-3 bg-slate-900 border-2 border-slate-700 rounded-2xl py-3 pr-20 pl-8 grid grid-cols-4 gap-16 shadow-[0_10px_25px_rgba(0,0,0,0.8)]">
+                        {playerEmojis.map((emoji, i) => (
                           <button 
                             key={i} 
-                            onClick={() => {
+                            onClick={emoji ? () => {
                               setDisplayedPlayerEmoji({ emoji, timestamp: Date.now() });
                               setShowEmojiMenu(false);
                               if (battleId) submitEmoji(battleId, !!isPlayer1, emoji, Date.now()).catch(console.error);
-                            }} 
-                            className="w-12 h-12 flex items-center justify-center text-3xl bg-slate-800 rounded-lg hover:bg-slate-700 hover:scale-110 border border-slate-600 transition-transform"
+                            } : undefined}
+                            className={cn(
+                              "w-16 h-16 flex items-center justify-center text-3xl rounded-xl border-2 transition-all shadow-inner",
+                              emoji 
+                                ? "bg-slate-800 border-slate-600 hover:bg-slate-700 hover:scale-105" 
+                                : "bg-slate-950/50 border-slate-800 opacity-50 cursor-not-allowed"
+                            )}
                           >
-                            {emoji}
+                            {emoji || "?"}
                           </button>
-                        ) : null)}
+                        ))}
                       </div>
                     )}
                   </div>

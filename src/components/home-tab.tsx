@@ -50,10 +50,10 @@ export function Home({ user }: { user: UserData }) {
     const rolled: CardDef[] = [];
     
     const unlockedIds = getUnlockedCardsUpToTrophies(state.trophies);
-    rolled.push(rollCardFromUnlocked(unlockedIds, chest.guaranteedMin));
+    rolled.push(rollCardFromUnlocked(unlockedIds, chest.guaranteedMin, chest.allowedRarities));
     
     for (let i = 1; i < chest.cards; i++) {
-        rolled.push(rollCardFromUnlocked(unlockedIds));
+        rolled.push(rollCardFromUnlocked(unlockedIds, undefined, chest.allowedRarities));
     }
 
     const tempCollection = { ...state.collection };
@@ -318,6 +318,21 @@ function CardsTab({
   };
 
   const handleCollectionCardClick = (cardId: string) => {
+    const card = CARDS.find((c) => c.id === cardId);
+    
+    // Check if adding this will exceed legendary limit
+    if (card && card.rarity === "legendary") {
+       const legendaryCount = deck.filter(id => {
+         const c = CARDS.find(card => card.id === id);
+         return c && c.rarity === "legendary";
+       }).length;
+       if (legendaryCount >= 2 && !deck.includes(cardId)) {
+         // Prevent adding
+         alert("Maksimum 2 efsanevi kart koyabilirsin!");
+         return;
+       }
+    }
+    
     const inDeckIndex = deck.indexOf(cardId);
     if (inDeckIndex >= 0) {
       // It is already in the deck! Remove it immediately.
@@ -470,9 +485,9 @@ function CardsTab({
                 Hiç emojin yok! Sandıklar menüsünden satın alabilirsin.
               </div>
             ) : (
-              unlockedEmojis.map(emoji => (
+              Array.from(new Set(unlockedEmojis)).map((emoji, index) => (
                 <button
-                  key={emoji}
+                  key={`${emoji}_${index}`}
                   onClick={() => handleEmojiSelect(emoji)}
                   className="text-3xl bg-slate-800 border border-slate-600 rounded-lg py-1 hover:bg-slate-700 focus:outline-none"
                 >
