@@ -20,7 +20,7 @@ export const CARDS: CardDef[] = [
   { id: "atli", name: "Atlı", emoji: "🐎", rarity: "rare", hp: 135, dmg: "25 / 75", cd: 1.2, range: "yakın", description: "Hızla çarparsa 75 hasar, yavaşken 25." },
   { id: "okcu", name: "Okçu", emoji: "🏹", rarity: "common", hp: 65, dmg: 12, cd: 0.5, range: "uzak", description: "Uzak menzilden hızlı oklar atar." },
   { id: "tufekci", name: "Tüfekçi", emoji: "🔫", rarity: "rare", hp: 96, dmg: 45, cd: 1.4, range: "uzak", description: "Sert ateşli, yavaş tetik." },
-  { id: "sapanci", name: "Sapancı", emoji: "🪨", rarity: "rare", hp: 70, dmg: 30, cd: 4.0, range: "uzak", description: "Aşırı uzun menzilden çarpan alan hasarı atar." },
+  { id: "sapanci", name: "Sapancı", emoji: "🪨", rarity: "rare", hp: 70, dmg: 30, cd: 3.0, range: "uzak", description: "Aşırı uzun menzilden çarpan alan hasarı atar." },
   { id: "topcu", name: "Topçu", emoji: "💣", rarity: "rare", hp: 60, dmg: 60, cd: 3.7, range: "uzak", description: "Yıkıcı geniş alan hasarlı top ateşi." },
   { id: "ejder", name: "Ejder", emoji: "🐉", rarity: "epic", hp: 110, dmg: 45, cd: 1.4, range: "hava", description: "Havadan alev nefesi ile alan hasarı verir." },
   { id: "kus-ordusu", name: "Kuş Ordusu", emoji: "🐦", rarity: "epic", hp: 20, dmg: 10, cd: 1.0, range: "hava", description: "5 hızlı kuş, gözden kaçırma." },
