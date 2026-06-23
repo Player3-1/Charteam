@@ -151,7 +151,7 @@ export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: nu
     hp,
     maxHp: hp,
     cdLeft: card.cd,
-    flying: card.range === "hava",
+    flying: card.range === "hava" || card.id === "hayalet",
     underground: isMiner,
     doktorAbilityCd: isDoktor ? 0 : undefined,
     chargeTime: card.id === "atli" ? 0 : undefined,
@@ -1000,13 +1000,39 @@ export function makeBotDeck(arena: Arena): CardDef[] {
   if (arena.id === 1) {
     allowed = allowed.filter((c) => c.id !== "sapanci");
   }
-  for (let i = allowed.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const temp = allowed[i];
-    allowed[i] = allowed[j];
-    allowed[j] = temp;
+
+  // Define roles
+  const tanks = ["dev", "zirhli", "dev-sinek", "lav-kopegi", "kilicli", "kopek-baligi"];
+  const ranged = ["okcu", "tufekci", "sapanci", "topcu", "buz-dolabi", "kardan-adam", "kurbaga", "volkan"];
+  const airOrSpecial = ["ejder", "kus-ordusu", "bombalama-ucagi", "cehennem-ejderi", "balik", "mercan", "doktor", "bira-varili"];
+  const meleeFast = ["mizrakli", "atli", "madenci", "hayalet"];
+
+  const deck: CardDef[] = [];
+  
+  // Try to pick one from each category
+  const categories = [tanks, ranged, meleeFast, airOrSpecial];
+  for (const cat of categories) {
+    const available = allowed.filter(c => cat.includes(c.id) && !deck.includes(c));
+    if (available.length > 0) {
+      deck.push(available[Math.floor(Math.random() * available.length)]);
+    }
   }
-  return allowed.slice(0, 4);
+
+  // Fill remaining slots randomly if needed
+  while (deck.length < 4 && allowed.length > 0) {
+    const available = allowed.filter(c => !deck.includes(c));
+    if (available.length === 0) break;
+    deck.push(available[Math.floor(Math.random() * available.length)]);
+  }
+
+  // Shuffle final deck
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const temp = deck[i];
+    deck[i] = deck[j];
+    deck[j] = temp;
+  }
+  return deck;
 }
 
 export { makeOpponentTrophies } from "./arenas";

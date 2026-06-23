@@ -19,6 +19,7 @@ export function LeaderboardTab() {
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         players.push({
+          id: doc.id,
           username: data.username || "Oyuncu",
           gold: data.gold ?? 0,
           trophies: data.trophies ?? 0,
@@ -38,7 +39,7 @@ export function LeaderboardTab() {
     <div className="space-y-4">
       <h2 className="text-stroke text-2xl text-white">Dünya İlk 10</h2>
       {topPlayers.map((player, i) => (
-        <div key={player.username} className="panel-3d flex items-center justify-between rounded-xl p-4 bg-slate-800">
+        <div key={player.id || i} className="panel-3d flex items-center justify-between rounded-xl p-4 bg-slate-800">
           <div className="flex items-center gap-3">
              <div className="text-2xl font-black text-amber-400">#{i + 1}</div>
              <div>

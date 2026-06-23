@@ -107,10 +107,10 @@ export function MetaTab({ user }: { user: UserData }) {
                 <span>%{td.percentage}</span>
               </div>
               <div className="flex gap-2">
-                {td.cards.map(id => {
+                {td.cards.map((id, idx) => {
                   const card = CARDS.find(c => c.id === id);
                   return (
-                    <div key={id} className="bg-slate-800 p-1.5 rounded text-2xl border border-slate-700" title={card?.name}>
+                    <div key={`${id}_${idx}`} className="bg-slate-800 p-1.5 rounded text-2xl border border-slate-700" title={card?.name}>
                       {card?.emoji}
                     </div>
                   );

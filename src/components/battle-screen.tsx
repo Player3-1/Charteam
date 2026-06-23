@@ -29,14 +29,38 @@ function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[]): { col:
     return existingUnits.some(u => Math.round(u.col) === c && Math.round(u.row) === r);
   };
 
-  // Helper to find first free column in a specific row
-  const findFreeInRow = (r: number) => {
-    // Try random columns first
+  const playerUnits = existingUnits.filter(u => u.side === "player");
+  
+  // Calculate column weight based on player units to try to align tanks or avoid threats
+  // Player is at row 13..24. We are at row 0..11.
+  const getColWeight = (c: number, wantAlign: boolean) => {
+    let w = 0;
+    for (const pu of playerUnits) {
+      const distCol = Math.abs(pu.col - c);
+      if (wantAlign) {
+        w += Math.max(0, 5 - distCol); // higher weight if closer column
+      } else {
+        w -= Math.max(0, 5 - distCol); // lower weight if closer column
+      }
+    }
+    return w;
+  };
+
+  // Helper to find best column in a specific row
+  const findBestColInRow = (r: number, wantAlign: boolean) => {
+    let bestCol = -1;
+    let bestW = -Infinity;
     const cols = Array.from({ length: COLS }, (_, idx) => idx).sort(() => Math.random() - 0.5);
     for (const c of cols) {
-      if (!isOccupied(c, r)) return c;
+      if (!isOccupied(c, r)) {
+        const w = getColWeight(c, wantAlign);
+        if (w > bestW) {
+          bestW = w;
+          bestCol = c;
+        }
+      }
     }
-    return null;
+    return bestCol !== -1 ? bestCol : null;
   };
 
   // Special exception for Madenci (Miner) who digs anywhere:
@@ -46,7 +70,20 @@ function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[]): { col:
       const c = Math.floor(Math.random() * COLS);
       const r = Math.floor(Math.random() * ROWS);
       if (r !== RIVER_ROW && !isOccupied(c, r)) {
-        return { col: c, row: r };
+        // If there are player units, miner prefers to dig near them
+        if (playerUnits.length > 0 && Math.random() < 0.7) {
+          const target = playerUnits[Math.floor(Math.random() * playerUnits.length)];
+          const tc = target.col;
+          const tr = target.row;
+          // Place nearby target
+          const dCol = Math.floor(Math.random() * 3) - 1;
+          const dRow = Math.floor(Math.random() * 3) - 1;
+          if (!isOccupied(tc + dCol, tr + dRow) && tr + dRow !== RIVER_ROW && tc + dCol >= 0 && tc + dCol < COLS && tr + dRow >= 0 && tr + dRow < ROWS) {
+             return { col: tc + dCol, row: tr + dRow };
+          }
+        } else {
+           return { col: c, row: r };
+        }
       }
       attempts++;
     }
@@ -59,7 +96,7 @@ function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[]): { col:
     if (!isOccupied(11, 0)) return { col: 11, row: 0 };
     
     // Else try other columns in row 0
-    const colOpt = findFreeInRow(0);
+    const colOpt = findBestColInRow(0, false); // avoid alignment for squishy
     if (colOpt !== null) return { col: colOpt, row: 0 };
     
     // If entire row 0 is full, fallback to row 1 corners
@@ -70,30 +107,31 @@ function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[]): { col:
   // Rule 1: Dev, zırhlı gibi canı 110'un üstünde olan kartları öne koysun.
   if (card.hp > 110) {
     // Front rows (closest to river): row 11, then row 10, then row 9
+    // Try to align with player units
     for (const r of [11, 10, 9]) {
-      const colOpt = findFreeInRow(r);
+      const colOpt = findBestColInRow(r, true);
       if (colOpt !== null) return { col: colOpt, row: r };
     }
   }
 
   // Rule 2: Okçu, sapan, topçu, bombalama uçağı, kuş ordusu gibi kartları çok canlı olan kartların 2-3 blok arkasına koysun.
-  const isSquishyRanged = ["okcu", "sapanci", "topcu", "bombalama-ucagi", "kus-ordusu"].includes(card.id);
+  const isSquishyRanged = ["okcu", "sapanci", "topcu", "bombalama-ucagi", "kus-ordusu", "buz-dolabi", "kardan-adam", "volkan"].includes(card.id);
   if (isSquishyRanged) {
     // Front line tanks are at 11 or 10. 2-3 blocks behind them is rows 8, 9, 7
-    for (const r of [8, 9, 7]) {
-      const colOpt = findFreeInRow(r);
+    // Try to align behind own tanks
+    for (const r of [8, 9, 7, 6]) {
+      const colOpt = findBestColInRow(r, true);
       if (colOpt !== null) return { col: colOpt, row: r };
     }
   }
 
-  // Rule 4: Diğerlerini random yerleştirebilir. (row 1 to 11)
+  // Rule 4: Diğerlerini random yerleştirebilir. Ama oyuncuya göre hizalayarak
   let attempts = 0;
   while (attempts < 100) {
-    const c = Math.floor(Math.random() * COLS);
-    // Avoid row 0 (reserved for corners) and row 12 (river)
-    const r = 1 + Math.floor(Math.random() * (RIVER_ROW - 1));
-    if (!isOccupied(c, r)) {
-      return { col: c, row: r };
+    const r = 1 + Math.floor(Math.random() * (RIVER_ROW - 2));
+    const colOpt = findBestColInRow(r, true);
+    if (colOpt !== null) {
+      return { col: colOpt, row: r };
     }
     attempts++;
   }

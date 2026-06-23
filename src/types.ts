@@ -1,4 +1,5 @@
 export interface UserData {
+  id?: string;
   username: string;
   gold: number;
   trophies: number;
