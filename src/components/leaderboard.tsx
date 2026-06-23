@@ -5,6 +5,7 @@ import { UserData } from "@/types";
 import { cn } from "@/lib/utils";
 import { GameCard } from "@/components/game-card";
 import { CARDS } from "@/lib/cards";
+import { getRankForTrophies, getRankForWins, getRankForRankProgress } from "@/lib/arenas";
 
 export function LeaderboardTab() {
   const [topPlayers, setTopPlayers] = useState<UserData[]>([]);
@@ -25,6 +26,7 @@ export function LeaderboardTab() {
           deck: data.deck ?? ["mizrakli", "kilicli", "okcu", "dev"],
           wins: data.wins ?? 0,
           losses: data.losses ?? 0,
+          rankProgressTrophies: data.rankProgressTrophies ?? 0,
         });
       });
       setTopPlayers(players);
@@ -56,7 +58,16 @@ export function LeaderboardTab() {
       {selectedPlayer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
           <div className="rounded-xl bg-slate-900 p-6 shadow-xl w-full max-w-sm">
-             <h2 className="text-2xl font-bold text-white text-center mb-4">{selectedPlayer.username}</h2>
+             <h2 className="text-2xl font-bold text-white text-center mb-1">{selectedPlayer.username}</h2>
+             {(() => {
+               const r = getRankForRankProgress(selectedPlayer.rankProgressTrophies || 0);
+               return (
+                 <div className="text-center text-cyan-400 font-bold mb-3 flex items-center justify-center gap-1.5 text-sm">
+                   <span>{r.current.emoji}</span>
+                   <span>{r.current.name}</span>
+                 </div>
+               );
+             })()}
              <div className="text-center text-amber-300 font-bold mb-2">{selectedPlayer.trophies} 🏆 · {selectedPlayer.gold} 🪙</div>
              <div className="text-center text-slate-300 font-bold mb-4">{selectedPlayer.wins} Galibiyet / {selectedPlayer.losses} Mağlubiyet ({selectedPlayer.wins + selectedPlayer.losses > 0 ? Math.round((selectedPlayer.wins / (selectedPlayer.wins + selectedPlayer.losses)) * 100) : 0}% Win Rate)</div>
              <div className="grid grid-cols-4 gap-2">

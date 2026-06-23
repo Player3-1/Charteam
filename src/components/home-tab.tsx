@@ -11,7 +11,7 @@ import {
   type CardDef,
   type Rarity,
 } from "@/lib/cards";
-import { ARENAS, arenaForTrophies, getUnlockedCardsUpToTrophies, MAX_TROPHIES, getArenaForCard } from "@/lib/arenas";
+import { ARENAS, arenaForTrophies, getUnlockedCardsUpToTrophies, MAX_TROPHIES, getArenaForCard, getRankForTrophies, getRankForWins, getRankForRankProgress } from "@/lib/arenas";
 import { GameCard } from "@/components/game-card";
 import { BattleScreen } from "@/components/battle-screen";
 import { LeaderboardTab } from "@/components/leaderboard";
@@ -96,8 +96,12 @@ export function Home({ user }: { user: UserData }) {
                 <div className="font-display text-lg leading-none text-stroke text-white">
                   {state.username}
                 </div>
-                <div className="mt-0.5 text-xs text-amber-200/90 underline decoration-amber-500/50 underline-offset-2">
-                  Arena {arena.id} · {arena.name}
+                <div className="mt-0.5 text-[11px] text-amber-200/90 underline decoration-amber-500/50 underline-offset-2 flex flex-col gap-0.5">
+                  <div>Arena {arena.id} · {arena.name}</div>
+                  {(() => {
+                    const r = getRankForRankProgress(state.rankProgressTrophies || 0);
+                    return <div className="text-cyan-400 font-bold font-display decoration-transparent">{r.current.emoji} {r.current.name}</div>;
+                  })()}
                 </div>
               </div>
             </div>
@@ -113,6 +117,7 @@ export function Home({ user }: { user: UserData }) {
               <BattleTab
                 deck={state.deck}
                 trophies={state.trophies}
+                rankProgressTrophies={state.rankProgressTrophies || 0}
                 onStart={() => setShowMatchmaking(true)}
               />
             )}
@@ -507,11 +512,12 @@ function CardsTab({
           {[...owned, ...locked].map((card) => {
             const isOwned = (collection[card.id] ?? 0) > 0;
             const inDeck = deck.includes(card.id);
+            const ownedVal = isOwned ? Math.max(1, collection[card.id] ?? 0) : 0;
             return (
               <div key={card.id} className="flex justify-center">
                 <GameCard
                   card={card}
-                  owned={collection[card.id] ?? 0}
+                  owned={ownedVal}
                   locked={!isOwned}
                   lockedAtArena={!isOwned ? getArenaForCard(card.id)?.id : undefined}
                   selected={inDeck}
@@ -531,10 +537,12 @@ function CardsTab({
 function BattleTab({
   deck,
   trophies,
+  rankProgressTrophies,
   onStart,
 }: {
   deck: [string, string, string, string];
   trophies: number;
+  rankProgressTrophies: number;
   onStart: () => void;
 }) {
   const deckCards = deck.map((id) => CARDS.find((c) => c.id === id));
@@ -569,11 +577,14 @@ function BattleTab({
       case "grass": return { emoji: "🌳🏡🏰", desc: "Bol çimenli savaş alanı" };
       case "desert": return { emoji: "🏜️🌵🦂", desc: "Zorlu çöl fırtınası" };
       case "snow": return { emoji: "❄️🏔️⛄", desc: "Dondurucu buz kalesi" };
+      case "sea": return { emoji: "🌊🦈🐠", desc: "Derin okyanus dalgaları" };
+      case "hell": return { emoji: "🌋🔥👿", desc: "Lavların fışkırdığı cehennem" };
       default: return { emoji: "🏛️👑💫", desc: "Büyük şampiyonlar geçidi" };
     }
   };
 
   const visuals = getArenaVisuals(arena.biome);
+  const rank = getRankForRankProgress(rankProgressTrophies);
 
   return (
     <div className="space-y-4">
@@ -625,6 +636,38 @@ function BattleTab({
               <span>{nextArena ? nextArena.min : MAX_TROPHIES} 🏆</span>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Modern Rank Tracking Card */}
+      <div className="panel-3d rounded-2xl p-4 bg-slate-900 border border-slate-800/80 flex items-center justify-between text-white shadow-lg">
+        <div className="flex items-center gap-3">
+          <div className="text-4xl drop-shadow">{rank.current.emoji}</div>
+          <div className="text-left font-display">
+            <div className="text-[9px] text-slate-400 font-semibold tracking-wider uppercase leading-none">Mevcut Rank</div>
+            <div className={cn("text-lg font-black text-stroke-sm tracking-tight leading-tight mt-0.5", 
+              rank.current.name.includes("Bronz") ? "text-amber-600" : 
+              rank.current.name.includes("Gümüş") ? "text-slate-300" : 
+              rank.current.name.includes("Altın") ? "text-yellow-400" : "text-cyan-400"
+            )}>{rank.current.name}</div>
+          </div>
+        </div>
+        <div className="text-right font-display pl-4 flex-1 max-w-[150px]">
+          <div className="flex justify-between items-center text-[9.5px] text-amber-200 font-bold mb-1">
+            <span>Rütbe Gelişimi</span>
+            <span>{rank.next ? `${Math.floor(rank.currentProgressValue)}/${rank.requiredForNext}` : "MAX"}</span>
+          </div>
+          <div className="h-2 w-full bg-slate-950 border border-slate-800 rounded-full overflow-hidden relative">
+            <div 
+              className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-400 transition-all duration-300"
+              style={{ width: `${rank.progress}%` }}
+            />
+          </div>
+          {rank.next && (
+            <div className="text-[10px] text-slate-400 mt-1 leading-none font-medium">
+              Sonraki: <span className="text-white font-bold">{rank.next.name}</span>
+            </div>
+          )}
         </div>
       </div>
 

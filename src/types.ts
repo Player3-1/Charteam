@@ -10,4 +10,5 @@ export interface UserData {
   losses: number;
   unlockedEmojis?: string[];
   selectedEmojis?: string[]; // Max 4
+  rankProgressTrophies?: number; // Cumulative rank progression kupa
 }

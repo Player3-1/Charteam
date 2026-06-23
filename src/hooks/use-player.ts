@@ -22,6 +22,7 @@ function defaultState(username: string): UserData {
     activeDeckIndex: 0,
     wins: 0,
     losses: 0,
+    rankProgressTrophies: 0,
   };
 }
 
@@ -36,18 +37,20 @@ export function usePlayer(username: string) {
     const unsubscribe = onSnapshot(userRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data() as UserData;
-        setState({ 
+        
+        const nextState = { 
           ...data, 
-          collection: data.collection ?? {},
           deck: data.deck ?? STARTER_DECK,
           decks: data.decks ?? Object.fromEntries(Array(5).fill(null).map((_, i) => [i.toString(), [...STARTER_DECK]])),
           activeDeckIndex: data.activeDeckIndex ?? 0,
           wins: data.wins ?? 0,
-          losses: data.losses ?? 0
-        });
+          losses: data.losses ?? 0,
+          rankProgressTrophies: data.rankProgressTrophies ?? 0
+        };
+
+        setState(nextState);
       } else {
-        const initialState = defaultState(username);
-        setState(initialState);
+        setState(defaultState(username));
       }
       setHydrated(true);
     }, (error) => {
@@ -95,12 +98,15 @@ export function usePlayer(username: string) {
 
   const applyMatchReward = useCallback(async (gold: number, trophy: number, win: boolean) => {
     if (!state) return;
+    const progressTrophies = state.rankProgressTrophies ?? 0;
+    const nextProgressTrophies = Math.max(0, progressTrophies + trophy);
     const newState = { 
       ...state, 
       gold: Math.max(0, state.gold + gold),
       trophies: Math.max(0, Math.min(MAX_TROPHIES, state.trophies + trophy)),
       wins: win ? state.wins + 1 : state.wins,
       losses: !win ? state.losses + 1 : state.losses,
+      rankProgressTrophies: nextProgressTrophies,
     };
     setState(newState);
     await updateFirestore(newState);

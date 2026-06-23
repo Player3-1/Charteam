@@ -38,6 +38,7 @@ function pickProp(biome: Arena["biome"], r: number): string {
   if (biome === "grass") return r < 0.5 ? "tree" : r < 0.85 ? "flower" : "bush";
   if (biome === "desert") return r < 0.7 ? "cactus" : "rock-sand";
   if (biome === "snow") return r < 0.4 ? "snow-tree" : r < 0.65 ? "rock-snow" : r < 0.85 ? "snow-pile" : "icicle";
+  if (biome === "sea") return r < 0.4 ? "coral" : r < 0.65 ? "shell" : r < 0.85 ? "seaweed" : "starfish";
   return r < 0.5 ? "skeleton" : r < 0.85 ? "rock-dark" : "skull";
 }
 function propEmoji(kind: string): string {
@@ -51,6 +52,10 @@ function propEmoji(kind: string): string {
     case "rock-snow": return "🪨";
     case "snow-pile": return "❄️";
     case "icicle": return "🧊";
+    case "coral": return "🪸";
+    case "shell": return "🐚";
+    case "seaweed": return "🌿";
+    case "starfish": return "⭐";
     case "skeleton": return "💀";
     case "rock-dark": return "🪨";
     case "skull": return "☠️";
@@ -204,6 +209,7 @@ export function ArenaView({ arena, state, onPlace, selectedCardId }: Props) {
         const isFrozen = u.frozenTimeLeft !== undefined && u.frozenTimeLeft > 0;
         const isDefending = u.zirhliDefendingTimeLeft !== undefined && u.zirhliDefendingTimeLeft > 0;
         const isFleeing = u.fleeTimeLeft !== undefined && u.fleeTimeLeft > 0;
+        const isBurning = u.burningTicksLeft !== undefined && u.burningTicksLeft > 0;
         const hasAura = u.card.id === "bira-varili" && u.barrelAuraBoostTimeLeft !== undefined && u.barrelAuraBoostTimeLeft > 0;
 
         const isBird = u.card.id.startsWith("kus-ordusu");
@@ -225,8 +231,9 @@ export function ArenaView({ arena, state, onPlace, selectedCardId }: Props) {
             // invisible when ability is active
             isInvisibleHayalet = true;
           } else {
-            const hasEnemyClose = state.units.some(e => e.side !== u.side && e.hp > 0 && Math.abs(u.col - e.col) <= 1.5 && Math.abs(u.row - e.row) <= 1.5);
-            if (!hasEnemyClose) isInvisibleHayalet = true;
+            if (u.hayaletRevealedByUid === undefined) {
+              isInvisibleHayalet = true;
+            }
           }
         }
 
@@ -258,6 +265,15 @@ export function ArenaView({ arena, state, onPlace, selectedCardId }: Props) {
               )}
               {isBuffedByBarrel && u.card.id !== "bira-varili" && (
                 <div className="absolute inset-0 -m-1.5 rounded-full border-2 border-yellow-400 bg-yellow-400/15 shadow-[0_0_10px_2px_rgba(234,179,8,0.65)] animate-pulse" />
+              )}
+              {isBurning && (
+                <>
+                  <div className="absolute -top-2.5 -left-2.5 text-xs animate-bounce" style={{ animationDelay: "0ms" }}>🔥</div>
+                  <div className="absolute -top-2.5 -right-2.5 text-xs animate-bounce" style={{ animationDelay: "150ms" }}>🔥</div>
+                  <div className="absolute -bottom-2.5 -left-2.5 text-xs animate-bounce" style={{ animationDelay: "300ms" }}>🔥</div>
+                  <div className="absolute -bottom-2.5 -right-2.5 text-xs animate-bounce" style={{ animationDelay: "450ms" }}>🔥</div>
+                  <div className="absolute inset-0 -m-1 rounded-full border-2 border-orange-500 bg-orange-600/10 animate-pulse shadow-[0_0_10px_1px_rgba(249,115,22,0.6)]" />
+                </>
               )}
               {isFleeing && (
                 <div className="absolute -top-4 left-1/2 -translate-x-1/2 text-[10px] bg-red-600 text-white rounded px-1 scale-90 font-display font-medium leading-none whitespace-nowrap">KAÇIYOR! 💨</div>

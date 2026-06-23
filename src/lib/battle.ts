@@ -34,10 +34,16 @@ export interface Unit {
   frozenTimeLeft?: number;
   poisonTicksLeft?: number;
   poisonCdLeft?: number;
+  burningTicksLeft?: number;
+  burningDmgPerTick?: number;
+  burningCdLeft?: number;
   swallowingUid?: number;
   swallowedTimeLeft?: number;
   tongueTimeLeft?: number;
   swallowingTargetUid?: number;
+  lavKopegiAbilityUsed?: boolean;
+  lavKopegiAbilityTimeLeft?: number;
+  hayaletRevealedByUid?: number;
 }
 
 export interface Projectile {
@@ -156,12 +162,16 @@ export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: nu
 
 function attackRange(card: CardDef): number {
   if (card.id === "sapanci") return 25.0; // Extremely high range, can shoot targeting backline
+  if (card.id === "volkan") return 20.0; // exactly 5 blocks less than sapanci (25.0 - 5.0)
   if (card.range === "yakın") return 1.1;
   if (card.range === "uzak") return 4.5;
   return 5.5;
 }
 
 function speed(card: CardDef): number {
+  if (card.id === "kopek-baligi") return 1.5; // Fast shark
+  if (card.id === "balik") return 1.3; // Fast fish
+  if (card.id === "mercan" || card.id === "volkan") return 0; // Static building/coral
   if (card.id === "atli") return 2.4; // Fast cavalry
   if (card.id === "mizrakli") return 1.4; // Fast melee
   if (card.id === "kilicli") return 0.8; // Slow melee
@@ -178,7 +188,7 @@ function projectileKind(card: CardDef): Projectile["kind"] | null {
   if (card.id === "okcu") return "arrow";
   if (card.id === "tufekci") return "bullet";
   if (card.id === "topcu" || card.id === "bombalama-ucagi") return "bomb";
-  if (card.id === "ejder") return "fire";
+  if (card.id === "ejder" || card.id === "volkan" || card.id === "cehennem-ejderi") return "fire";
   if (card.id === "buz-dolabi") return "ice";
   if (card.id === "kardan-adam") return "snowball";
   if (card.id === "kurbaga") return "tongue";
@@ -201,7 +211,7 @@ function handleProjectileImpact(p: Projectile, state: BattleState) {
   const attacker = state.units.find((u) => u.uid === p.attackerUid);
   
   const applyEffects = (target: Unit) => {
-    applyCombatDamage(target, p.damage, attacker);
+    applyCombatDamage(target, p.damage, attacker, true);
     if (p.kind === "snowball") {
       target.frozenTimeLeft = Math.max(target.frozenTimeLeft || 0, 0.7);
     } else if (p.kind === "ice") {
@@ -209,6 +219,22 @@ function handleProjectileImpact(p: Projectile, state: BattleState) {
     } else if (p.kind === "tongue") {
       target.poisonTicksLeft = 10;
       target.poisonCdLeft = 1.0;
+    }
+
+    if (attacker) {
+      if (attacker.card.id === "volkan") {
+        target.burningTicksLeft = 4;
+        target.burningDmgPerTick = 5;
+        target.burningCdLeft = 1.0;
+      } else if (attacker.card.id === "cehennem-ejderi") {
+        target.burningTicksLeft = 4;
+        target.burningDmgPerTick = 5;
+        target.burningCdLeft = 1.0;
+      } else if (attacker.card.id === "lav-kopegi") {
+        target.burningTicksLeft = 7;
+        target.burningDmgPerTick = 5;
+        target.burningCdLeft = 1.0;
+      }
     }
   };
 
@@ -324,6 +350,19 @@ export function tickBattle(state: BattleState, dt: number) {
       }
     }
 
+    // Burning timer
+    if (u.burningTicksLeft !== undefined && u.burningTicksLeft > 0) {
+      if (u.burningCdLeft !== undefined) {
+        u.burningCdLeft -= dt;
+        if (u.burningCdLeft <= 0) {
+          u.burningCdLeft = 1.0;
+          u.burningTicksLeft -= 1;
+          const tickDmg = u.burningDmgPerTick ?? 5;
+          applyCombatDamage(u, tickDmg);
+        }
+      }
+    }
+
     // Tongue ability (Kurbağa) pull-in
     if (u.tongueTimeLeft !== undefined && u.tongueTimeLeft > 0) {
       const target = state.units.find(eu => eu.uid === u.swallowingTargetUid);
@@ -377,6 +416,11 @@ export function tickBattle(state: BattleState, dt: number) {
       u.doktorAbilityCd = Math.max(0, u.doktorAbilityCd - dt);
     }
 
+    // Lav Köpeği ability duration timer
+    if (u.lavKopegiAbilityTimeLeft !== undefined && u.lavKopegiAbilityTimeLeft > 0) {
+      u.lavKopegiAbilityTimeLeft = Math.max(0, u.lavKopegiAbilityTimeLeft - dt);
+    }
+
     // Barrel lifespan & burst timer
     if (u.card.id === "bira-varili") {
       u.barrelAge = (u.barrelAge || 0) + dt;
@@ -386,6 +430,26 @@ export function tickBattle(state: BattleState, dt: number) {
       }
       if (u.barrelAuraBoostTimeLeft !== undefined && u.barrelAuraBoostTimeLeft > 0) {
         u.barrelAuraBoostTimeLeft = Math.max(0, u.barrelAuraBoostTimeLeft - dt);
+      }
+    }
+
+    // Ghost visibility hysteresis
+    if (u.card.id === "hayalet") {
+      if (u.immuneTimeLeft && u.immuneTimeLeft > 0) {
+        u.hayaletRevealedByUid = undefined;
+      } else {
+        if (u.hayaletRevealedByUid !== undefined) {
+          const revealer = state.units.find(e => e.uid === u.hayaletRevealedByUid);
+          if (!revealer || revealer.hp <= 0 || Math.hypot(u.col - revealer.col, u.row - revealer.row) > 3.5) {
+            u.hayaletRevealedByUid = undefined;
+          }
+        }
+        if (u.hayaletRevealedByUid === undefined) {
+          const closeEnemy = state.units.find(e => e.side !== u.side && e.hp > 0 && Math.hypot(u.col - e.col, u.row - e.row) <= 1.8);
+          if (closeEnemy) {
+            u.hayaletRevealedByUid = closeEnemy.uid;
+          }
+        }
       }
     }
   }
@@ -450,6 +514,14 @@ export function tickBattle(state: BattleState, dt: number) {
           triggerUnitAbility(u, state);
           u.cdLeft = u.card.cd; 
         }
+      }
+      if (u.card.id === "mercan" && u.cdLeft <= 0) {
+        state.units.forEach((targetUnit) => {
+          if (targetUnit.side === u.side && targetUnit.hp > 0) {
+            targetUnit.hp = Math.min(targetUnit.maxHp, targetUnit.hp + 10);
+          }
+        });
+        u.cdLeft = u.card.cd; 
       }
     }
   }
@@ -534,11 +606,11 @@ export function tickBattle(state: BattleState, dt: number) {
     // Filter targetable enemies
     const enemies = state.units.filter((e) => {
       if (e.side === u.side || !isUnitTargetable(e)) return false;
-      // Ghost is invisible unless within 3x3 grid (dist <= 1.5)
+      // Ghost is invisible unless revealed
       // Ghost is also completely invisible and untargetable if its ability is active
       if (e.card.id === "hayalet") {
         if (e.immuneTimeLeft && e.immuneTimeLeft > 0) return false;
-        if (Math.abs(u.col - e.col) > 1.5 || Math.abs(u.row - e.row) > 1.5) return false;
+        if (e.hayaletRevealedByUid === undefined) return false;
       }
       // Melee ground units cannot attack flying/aerial units
       if (e.flying && u.card.range === "yakın") return false;
@@ -563,8 +635,9 @@ export function tickBattle(state: BattleState, dt: number) {
       if (d < bestD) { bestD = d; best = e; }
     }
     const range = attackRange(u.card);
+    const standsFleeing = u.card.id === "balik" && u.fleeTimeLeft !== undefined && u.fleeTimeLeft > 0;
 
-    if (bestD <= range) {
+    if (bestD <= range && !standsFleeing) {
       // Cavalry (Atlı) loses charge focus upon attack range reach
       u.chargeTime = 0;
 
@@ -619,6 +692,9 @@ export function tickBattle(state: BattleState, dt: number) {
         } else {
           // Direct single strike
           applyCombatDamage(best, dmgValueResult, u);
+          if (u.card.id === "balik") {
+            u.fleeTimeLeft = 1.2; // flee for 1.2s of its 2.0s cooldown
+          }
         }
 
         u.cdLeft = u.card.cd;
@@ -650,12 +726,15 @@ export function tickBattle(state: BattleState, dt: number) {
         }
       }
 
+      let isFleeing = u.card.id === "balik" && u.fleeTimeLeft !== undefined && u.fleeTimeLeft > 0;
       const sp = speedFactor * dt;
       const dc = best.col - u.col;
       const dr = best.row - u.row;
       const len = Math.hypot(dc, dr) || 1;
-      let nc = u.col + (dc / len) * sp;
-      let nr = u.row + (dr / len) * sp;
+      
+      const dirMult = isFleeing ? -1 : 1;
+      let nc = u.col + (dc / len) * sp * dirMult;
+      let nr = u.row + (dr / len) * sp * dirMult;
 
       if (!u.flying) {
         const crossing =
@@ -688,10 +767,15 @@ export function tickBattle(state: BattleState, dt: number) {
 }
 
 /** Handles applying damage, considering invulnerabilities and defensive stances */
-function applyCombatDamage(defender: Unit, dmg: number, attacker?: Unit) {
+function applyCombatDamage(defender: Unit, dmg: number, attacker?: Unit, isProjectile?: boolean) {
   // Check if targetable (cannot take damage if underground or emerging)
   if (!isUnitTargetable(defender)) {
     return; // takes 0 damage
+  }
+
+  // Fish is immune to melee (non-projectile) damage while fleeing
+  if (defender.card.id === "balik" && defender.fleeTimeLeft !== undefined && defender.fleeTimeLeft > 0 && !isProjectile) {
+    return; // takes 0 damage from melee while running away
   }
 
   // Ghost invulnerability 2.5 seconds
@@ -854,6 +938,55 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
   // 16. Zırhlı: 8sn savunma modu, speed=0, takes %40 less dmg
   else if (unit.card.id === "zirhli") {
     unit.zirhliDefendingTimeLeft = 8.0;
+  }
+
+  // 24. Lav Köpeği: 3x3 alana 3 saniye süren ve her saniye 20 hasar veren alev etkisi versin
+  else if (unit.card.id === "lav-kopegi") {
+    if (unit.lavKopegiAbilityUsed) return;
+    unit.lavKopegiAbilityUsed = true;
+    unit.lavKopegiAbilityTimeLeft = 3.0;
+
+    state.units.forEach((target) => {
+      if (target.side !== unit.side && isUnitTargetable(target)) {
+        const colDiff = Math.abs(target.col - unit.col);
+        const rowDiff = Math.abs(target.row - unit.row);
+        // 3x3 area is within 1.5 distance in columns and rows
+        if (colDiff <= 1.5 && rowDiff <= 1.5) {
+          target.burningTicksLeft = 3;
+          target.burningDmgPerTick = 20;
+          target.burningCdLeft = 1.0;
+        }
+      }
+    });
+
+    // Create a spectacular 3x3 visual fire blast centered on the Lav Köpeği
+    const fireOffsets = [
+      { dCol: -1, dRow: -1 },
+      { dCol: 1, dRow: -1 },
+      { dCol: -1, dRow: 1 },
+      { dCol: 1, dRow: 1 },
+      { dCol: 0, dRow: 1 },
+      { dCol: 0, dRow: -1 },
+      { dCol: 1, dRow: 0 },
+      { dCol: -1, dRow: 0 },
+      { dCol: 0, dRow: 0 },
+    ];
+
+    fireOffsets.forEach((offset, index) => {
+      state.projectiles.push({
+        uid: nextUid(),
+        side: unit.side,
+        attackerUid: unit.uid,
+        damage: 0,
+        fromCol: unit.col,
+        fromRow: unit.row,
+        toCol: Math.min(COLS - 1, Math.max(0, unit.col + offset.dCol)),
+        toRow: Math.min(ROWS - 1, Math.max(0, unit.row + offset.dRow)),
+        t: 0,
+        duration: 0.3 + (index % 3) * 0.05,
+        kind: "fire",
+      });
+    });
   }
 }
 
