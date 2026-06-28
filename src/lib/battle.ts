@@ -18,6 +18,7 @@ export interface Unit {
   maxHp: number;
   cdLeft: number;
   flying: boolean;
+  level: number; // The level of the unit (1 to 10)
   // --- Custom ability tracking fields ---
   isCharging?: boolean;
   chargeTime?: number;
@@ -70,6 +71,7 @@ export interface BattleState {
   isPlayer1?: boolean;
   battleId?: string;
   pendingOpponentAbilities?: Map<string, number>;
+  arenaId?: number;
 }
 
 let _uid = 1;
@@ -102,7 +104,7 @@ export function makeInitialState(): BattleState {
   return { units: [], projectiles: [], time: 0, winner: null, pendingOpponentAbilities: new Map() };
 }
 
-export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: number, row: number) {
+export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: number, row: number, level: number = 1) {
   // Kuş ordusu spawns 5 individual birds
   if (card.id === "kus-ordusu") {
     const offsets = [
@@ -131,6 +133,7 @@ export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: nu
         maxHp: 20,
         cdLeft: 1.0,
         flying: true,
+        level,
       });
     });
     return;
@@ -157,6 +160,7 @@ export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: nu
     chargeTime: card.id === "atli" ? 0 : undefined,
     isCharging: card.id === "atli" ? true : undefined,
     bomberUsesLeft: card.id === "bombalama-ucagi" ? 1 : undefined,
+    level,
   });
 }
 
@@ -178,6 +182,7 @@ function speed(card: CardDef): number {
   if (card.id === "dev") return 0.5; // Very slow tank
   if (card.id === "tufekci") return 0.7; // Slow shooter
   if (card.id === "topcu") return 0.5; // Very slow cannon
+  if (card.id === "hayalet") return 1.375; // +25% speed
   if (card.range === "hava") return 1.3;
   if (card.range === "uzak") return 0.9;
   return 1.1;
@@ -213,10 +218,10 @@ function handleProjectileImpact(p: Projectile, state: BattleState) {
   const applyEffects = (target: Unit) => {
     applyCombatDamage(target, p.damage, attacker, true);
     if (p.kind === "snowball") {
-      target.frozenTimeLeft = Math.max(target.frozenTimeLeft || 0, 0.7);
+      target.frozenTimeLeft = Math.max(target.frozenTimeLeft || 0, 1.2);
     } else if (p.kind === "ice") {
       target.frozenTimeLeft = Math.max(target.frozenTimeLeft || 0, 1.5);
-    } else if (p.kind === "tongue") {
+    } else if (p.kind === "tongue" && attacker) {
       target.poisonTicksLeft = 10;
       target.poisonCdLeft = 1.0;
     }
@@ -460,6 +465,9 @@ export function tickBattle(state: BattleState, dt: number) {
       if (state.battleId) {
         continue; // Multiplayer uses direct human click-synchronization! Skip AI.
       }
+      if (state.arenaId === 1) {
+        continue; // In Arena 1 (first arena), bots play very poorly and do not use their active abilities
+      }
       // Ghost auto invul on low health or when first targeted
       if (u.card.id === "hayalet" && u.hp < u.maxHp * 0.7 && u.immuneTimeLeft === undefined) {
         u.immuneTimeLeft = 2.5; 
@@ -613,7 +621,7 @@ export function tickBattle(state: BattleState, dt: number) {
         if (e.hayaletRevealedByUid === undefined) return false;
       }
       // Melee ground units cannot attack flying/aerial units
-      if (e.flying && u.card.range === "yakın") return false;
+      if (e.flying && !u.flying && u.card.range === "yakın") return false;
       return true;
     });
 
@@ -657,7 +665,7 @@ export function tickBattle(state: BattleState, dt: number) {
         );
         if (activeAuraBarrels.length > 0) {
           const hasSuperBoost = activeAuraBarrels.some((b) => (b.barrelAuraBoostTimeLeft || 0) > 0);
-          dmgValueResult *= hasSuperBoost ? 2.0 : 1.5;
+          dmgValueResult *= hasSuperBoost ? 3.0 : 2.0;
         }
 
         // Apply Hayalet ability damage boost
@@ -821,7 +829,7 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
     }
   }
 
-  // 13. Doktor: can iyileştirme 5x5 alanda +75
+  // 13. Doktor: can iyileştirme 5x5 alanda +60
   else if (unit.card.id === "doktor") {
     if ((unit.doktorAbilityCd || 0) <= 0) {
       unit.doktorAbilityCd = 5.0; // Cooldown 5s
@@ -830,7 +838,7 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
         if (targetUnit.side === unit.side && isUnitTargetable(targetUnit)) {
           // Surrounding blocks (within 5.0 range / 5x5 area)
           if (dist(targetUnit, unit) <= 5.0) {
-            targetUnit.hp = Math.min(targetUnit.maxHp, targetUnit.hp + 75); // heal 75 health
+            targetUnit.hp = Math.min(targetUnit.maxHp, targetUnit.hp + 60); // heal 60 health
           }
         }
       });

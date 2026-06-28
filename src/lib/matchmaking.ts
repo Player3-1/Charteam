@@ -25,10 +25,11 @@ export interface BattleDoc {
   createdAt: any;
 }
 
-export async function findOrCreateMatch(user: UserData): Promise<string> {
+export async function findOrCreateMatch(user: UserData, mode: "standard" | "tournament" = "standard"): Promise<string> {
   const q = query(
     collection(db, "matchmaking"),
     where("status", "==", "searching"),
+    where("mode", "==", mode),
     limit(10)
   );
 
@@ -45,8 +46,19 @@ export async function findOrCreateMatch(user: UserData): Promise<string> {
       // Create battle doc
       await setDoc(doc(db, "battles", battleId), {
         id: battleId,
-        player1: { username: oppData.username, trophies: oppData.trophies, deck: oppData.deck },
-        player2: { username: user.username, trophies: user.trophies, deck: user.deck },
+        mode: mode, // Save mode in battle
+        player1: { 
+          username: oppData.username, 
+          trophies: oppData.trophies, 
+          deck: oppData.deck,
+          wins: oppData.wins ?? 0,
+        },
+        player2: { 
+          username: user.username, 
+          trophies: user.trophies, 
+          deck: user.deck,
+          wins: user.wins ?? 0,
+        },
         player1Placements: [],
         player2Placements: [],
         player1Abilities: [],
@@ -71,8 +83,10 @@ export async function findOrCreateMatch(user: UserData): Promise<string> {
     username: user.username,
     trophies: user.trophies,
     deck: user.deck,
+    mode: mode,
     status: "searching",
     battleId: null,
+    wins: user.wins ?? 0,
     createdAt: serverTimestamp(),
   });
 

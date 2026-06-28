@@ -10,7 +10,9 @@ const STARTER_DECK: UserData["deck"] = ["mizrakli", "kilicli", "okcu", "dev"];
 function defaultState(username: string): UserData {
   const collection: Record<string, number> = {};
   for (const c of CARDS) {
-    if (c.rarity === "common") collection[c.id] = 1;
+    if (c.rarity === "common") {
+      collection[c.id] = 1;
+    }
   }
   return {
     username,
@@ -38,14 +40,19 @@ export function usePlayer(username: string) {
       if (docSnap.exists()) {
         const data = docSnap.data() as UserData;
         
+        const wins = Number(data.wins ?? 0);
+
         const nextState = { 
           ...data, 
           deck: data.deck ?? STARTER_DECK,
           decks: data.decks ?? Object.fromEntries(Array(5).fill(null).map((_, i) => [i.toString(), [...STARTER_DECK]])),
           activeDeckIndex: data.activeDeckIndex ?? 0,
-          wins: data.wins ?? 0,
+          wins: wins,
           losses: data.losses ?? 0,
-          rankProgressTrophies: data.rankProgressTrophies ?? 0
+          rankProgressTrophies: data.rankProgressTrophies ?? 0,
+          unlockedEmojis: data.unlockedEmojis ?? [],
+          selectedEmojis: data.selectedEmojis ?? ["", "", "", ""],
+          claimedMilestones: data.claimedMilestones ?? [],
         };
 
         setState(nextState);
@@ -68,21 +75,27 @@ export function usePlayer(username: string) {
 
   const addCards = useCallback(async (cardIds: string[]) => {
     if (!state) return;
-    const newState = { ...state, collection: { ...state.collection } };
-    for (const id of cardIds) newState.collection[id] = (newState.collection[id] ?? 0) + 1;
+    const newState = { 
+      ...state, 
+      collection: { ...state.collection },
+    };
+    for (const id of cardIds) {
+      newState.collection[id] = (newState.collection[id] ?? 0) + 1;
+    }
     setState(newState);
     await updateFirestore(newState);
   }, [state, updateFirestore]);
 
   const claimChestRewards = useCallback(async (rewards: { card: any; isDuplicate: boolean; refundGold: number }[], cost: number = 0) => {
     if (!state) return;
-    const newState = { ...state, collection: { ...state.collection }, gold: state.gold - cost };
+    const newState = { 
+      ...state, 
+      collection: { ...state.collection }, 
+      gold: state.gold - cost 
+    };
     for (const reward of rewards) {
-      if (reward.isDuplicate) {
-        newState.gold += reward.refundGold;
-      } else {
-        newState.collection[reward.card.id] = 1;
-      }
+      const cardId = reward.card.id;
+      newState.collection[cardId] = (newState.collection[cardId] ?? 0) + 1;
     }
     setState(newState);
     await updateFirestore(newState);
@@ -98,16 +111,19 @@ export function usePlayer(username: string) {
 
   const applyMatchReward = useCallback(async (gold: number, trophy: number, win: boolean) => {
     if (!state) return;
+    
     const progressTrophies = state.rankProgressTrophies ?? 0;
     const nextProgressTrophies = Math.max(0, progressTrophies + trophy);
-    const newState = { 
-      ...state, 
+    
+    const newState = {
+      ...state,
       gold: Math.max(0, state.gold + gold),
       trophies: Math.max(0, Math.min(MAX_TROPHIES, state.trophies + trophy)),
       wins: win ? state.wins + 1 : state.wins,
       losses: !win ? state.losses + 1 : state.losses,
-      rankProgressTrophies: nextProgressTrophies,
+      rankProgressTrophies: nextProgressTrophies
     };
+    
     setState(newState);
     await updateFirestore(newState);
   }, [state, updateFirestore]);

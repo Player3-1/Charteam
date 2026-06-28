@@ -312,11 +312,9 @@ export function ArenaView({ arena, state, onPlace, selectedCardId }: Props) {
               )}
 
               <span className={cn(
-                "grid place-items-center rounded-full border-2 drop-shadow-[0_2px_3px_rgba(0,0,0,0.5)]",
-                isBird ? "h-6.5 w-6.5 text-[15px] border-amber-200" : "h-9 w-9 text-2xl",
-                u.side === "player" 
-                  ? (isBuffedByBarrel ? "border-yellow-300 bg-yellow-500/30" : "border-blue-300 bg-blue-500/30") 
-                  : (isBuffedByBarrel ? "border-yellow-300 bg-yellow-500/30" : "border-red-300 bg-red-500/30")
+                "grid place-items-center rounded-full drop-shadow-[0_2px_3px_rgba(0,0,0,0.8)]",
+                isBird ? "h-6.5 w-6.5 text-[15px]" : "h-9 w-9 text-2xl",
+                isBuffedByBarrel && "ring-2 ring-yellow-400 bg-yellow-500/20"
               )}>
                 {u.card.emoji}
               </span>

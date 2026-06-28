@@ -35,9 +35,10 @@ interface Props {
   selected?: boolean;
   onClick?: () => void;
   key?: any;
+  level?: number;
 }
 
-export function GameCard({ card, size = "md", owned, locked, lockedAtArena, selected, onClick }: Props) {
+export function GameCard({ card, size = "md", owned, locked, lockedAtArena, selected, onClick, level }: Props) {
   const s = RARITY_STYLES[card.rarity];
   const dims = size === "sm" ? "w-20" : size === "lg" ? "w-44" : "w-28";
 
@@ -56,6 +57,11 @@ export function GameCard({ card, size = "md", owned, locked, lockedAtArena, sele
         onClick && "hover:-translate-y-1 active:translate-y-0",
       )}
     >
+      {level !== undefined && (
+        <div className="absolute left-1 top-1 rounded bg-slate-900/90 border border-slate-700/50 px-1 py-0.5 text-[8px] font-black text-amber-400 shadow z-10 font-mono">
+          LV.{level}
+        </div>
+      )}
       {locked && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 rounded-xl backdrop-blur-[1px]">
           <span className="text-white text-xs font-bold font-display text-center p-2">

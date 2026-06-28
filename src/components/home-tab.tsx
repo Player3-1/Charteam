@@ -14,15 +14,15 @@ import {
 import { ARENAS, arenaForTrophies, getUnlockedCardsUpToTrophies, MAX_TROPHIES, getArenaForCard, getRankForTrophies, getRankForWins, getRankForRankProgress } from "@/lib/arenas";
 import { GameCard } from "@/components/game-card";
 import { BattleScreen } from "@/components/battle-screen";
-import { LeaderboardTab } from "@/components/leaderboard";
 import { ArenasView } from "@/components/arenas-view";
 import { MatchmakingModal } from "@/components/matchmaking-modal";
 import { MetaTab } from "@/components/meta-tab";
+import { LeaderboardTab } from "@/components/leaderboard";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { SHOP_EMOJIS } from "@/lib/emojis";
 
-type Tab = "battle" | "cards" | "chests" | "leaderboard" | "meta" | "arenas";
+type Tab = "battle" | "cards" | "chests" | "meta" | "arenas" | "ilk3";
 
 export function Home({ user }: { user: UserData }) {
   const { state, hydrated, claimChestRewards, spendGold, setDeckSlot, setActiveDeck, applyMatchReward, buyEmoji, setEmojiSlot } = usePlayer(user.username);
@@ -30,7 +30,7 @@ export function Home({ user }: { user: UserData }) {
   const [openedRewards, setOpenedRewards] = useState<{ card: CardDef; isDuplicate: boolean; refundGold: number }[] | null>(null);
   const [openedChestName, setOpenedChestName] = useState("");
   const [inBattle, setInBattle] = useState(false);
-  const [opponent, setOpponent] = useState<{name: string, trophies: number, battleId?: string, isPlayer1?: boolean} | null>(null);
+  const [opponent, setOpponent] = useState<{name: string, trophies: number, wins?: number, battleId?: string, isPlayer1?: boolean, mode?: "standard"} | null>(null);
   const [showMatchmaking, setShowMatchmaking] = useState(false);
   const [showArenas, setShowArenas] = useState(false);
 
@@ -43,6 +43,7 @@ export function Home({ user }: { user: UserData }) {
   }
 
   const arena = arenaForTrophies(state.trophies);
+  const hasStar = (state.wins ?? 0) >= 10;
 
   const handleOpenChest = (chestId: string) => {
     const chest = CHESTS.find((c) => c.id === chestId)!;
@@ -94,7 +95,7 @@ export function Home({ user }: { user: UserData }) {
               </div>
               <div>
                 <div className="font-display text-lg leading-none text-stroke text-white">
-                  {state.username}
+                  {state.username} {state.username.toLowerCase() === "dgoa" && "🛠️"}
                 </div>
                 <div className="mt-0.5 text-[11px] text-amber-200/90 underline decoration-amber-500/50 underline-offset-2 flex flex-col gap-0.5">
                   <div>Arena {arena.id} · {arena.name}</div>
@@ -129,19 +130,27 @@ export function Home({ user }: { user: UserData }) {
                 activeDeckIndex={state.activeDeckIndex}
                 selectedEmojis={state.selectedEmojis as [string, string, string, string] | undefined}
                 unlockedEmojis={state.unlockedEmojis ?? []}
+                gold={state.gold}
                 setDeckSlot={setDeckSlot}
                 setActiveDeck={setActiveDeck}
                 setEmojiSlot={setEmojiSlot}
               />
             )}
             {tab === "chests" && (
-              <ChestsTab gold={state.gold} unlockedEmojis={state.unlockedEmojis ?? []} onOpen={handleOpenChest} onBuyEmoji={buyEmoji} />
-            )}
-            {tab === "leaderboard" && (
-              <LeaderboardTab />
+              <ChestsTab 
+                gold={state.gold} 
+                unlockedEmojis={state.unlockedEmojis ?? []} 
+                wins={state.wins}
+                tournamentWins={state.tournamentWins || 0}
+                onOpen={handleOpenChest} 
+                onBuyEmoji={buyEmoji} 
+              />
             )}
             {tab === "meta" && (
               <MetaTab user={user} />
+            )}
+            {tab === "ilk3" && (
+              <LeaderboardTab currentUser={user} currentTrophies={state.trophies} />
             )}
           </main>
 
@@ -151,27 +160,30 @@ export function Home({ user }: { user: UserData }) {
               <NavBtn active={tab === "chests"} onClick={() => setTab("chests")} icon="🎁" label="Mağaza" />
               <NavBtn active={tab === "battle"} onClick={() => setTab("battle")} icon="⚔️" label="Savaş" big />
               <NavBtn active={tab === "cards"} onClick={() => setTab("cards")} icon="🃏" label="Kartlar" />
-              <NavBtn active={tab === "leaderboard"} onClick={() => setTab("leaderboard")} icon="🏆" label="Sıralama" />
+              <NavBtn active={tab === "ilk3"} onClick={() => setTab("ilk3")} icon="🏆" label="İlk 3" />
             </div>
           </nav>
         </>
       )}
 
       {showMatchmaking && (
-    <MatchmakingModal
-      user={{...user, ...state}}
-      onMatchFound={(opp) => {
-        setOpponent(opp);
-        setShowMatchmaking(false);
-        setInBattle(true);
-      }}
-      onCancel={() => setShowMatchmaking(false)}
-    />
+        <MatchmakingModal
+          user={{...user, ...state}}
+          mode="standard"
+          onMatchFound={(opp) => {
+            setOpponent(opp as any);
+            setShowMatchmaking(false);
+            setInBattle(true);
+          }}
+          onCancel={() => setShowMatchmaking(false)}
+        />
       )}
 
-      {showArenas && (
-        <ArenasModal currentTrophies={state.trophies} onClose={() => setShowArenas(false)} />
-      )}
+      <AnimatePresence>
+        {showArenas && (
+          <ArenasModal currentTrophies={state.trophies} onClose={() => setShowArenas(false)} />
+        )}
+      </AnimatePresence>
 
       {openedRewards && (
         <ChestReveal
@@ -188,11 +200,13 @@ export function Home({ user }: { user: UserData }) {
           trophies={state.trophies}
           opponentName={opponent.name}
           opponentTrophies={opponent.trophies}
+          opponentWins={opponent.wins}
           battleId={opponent.battleId}
           isPlayer1={opponent.isPlayer1}
+          mode="standard"
           username={user.username}
           onFinish={(gold, trophy, win) => {
-            applyMatchReward(gold, trophy, win);
+            applyMatchReward(gold, trophy, win, false);
             setInBattle(false);
             setOpponent(null);
           }}
@@ -256,6 +270,7 @@ function CardsTab({
   activeDeckIndex = 0,
   selectedEmojis = ["", "", "", ""],
   unlockedEmojis = [],
+  gold,
   setDeckSlot,
   setActiveDeck,
   setEmojiSlot,
@@ -266,6 +281,7 @@ function CardsTab({
   activeDeckIndex?: number;
   selectedEmojis?: [string, string, string, string];
   unlockedEmojis?: string[];
+  gold: number;
   setDeckSlot: (slot: number, cardId: string) => void;
   setActiveDeck: (index: number) => void;
   setEmojiSlot: (slot: number, emoji: string) => void;
@@ -508,13 +524,15 @@ function CardsTab({
         <h2 className="mb-2 text-stroke text-2xl text-white font-display">
           Koleksiyon · {owned.length}/{CARDS.length}
         </h2>
+
         <div className="grid grid-cols-3 gap-3">
           {[...owned, ...locked].map((card) => {
             const isOwned = (collection[card.id] ?? 0) > 0;
             const inDeck = deck.includes(card.id);
             const ownedVal = isOwned ? Math.max(1, collection[card.id] ?? 0) : 0;
+
             return (
-              <div key={card.id} className="flex justify-center">
+              <div key={card.id} className="flex flex-col items-center gap-1.5 p-1 rounded-xl bg-slate-900/40 border border-slate-800/40">
                 <GameCard
                   card={card}
                   owned={ownedVal}
@@ -721,14 +739,20 @@ function BattleTab({
 function ChestsTab({
   gold,
   unlockedEmojis,
+  wins,
+  tournamentWins,
   onOpen,
   onBuyEmoji,
 }: {
   gold: number;
   unlockedEmojis: string[];
+  wins: number;
+  tournamentWins: number;
   onOpen: (id: string) => void;
   onBuyEmoji: (emoji: string, cost: number) => void;
 }) {
+  const maxWins = Math.max(wins, tournamentWins);
+
   return (
     <div className="space-y-6">
       <div className="space-y-3">
@@ -1057,75 +1081,166 @@ function ChestReveal({
 }
 
 function ArenasModal({ currentTrophies, onClose }: { currentTrophies: number; onClose: () => void }) {
+  const nextArena = ARENAS.find((a) => a.min > currentTrophies);
+  const trophiesToNext = nextArena ? nextArena.min - currentTrophies : 0;
+
   return (
-    <div className="fixed inset-0 z-[999] flex flex-col bg-slate-950 p-4 font-display">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl text-stroke text-white">Arenalar</h2>
-        <button onClick={onClose} className="p-2 text-white bg-slate-800 rounded-full w-10 h-10 flex items-center justify-center">
-          ✕
-        </button>
-      </div>
-      <div className="flex-1 overflow-y-auto space-y-4 pb-12">
-        {ARENAS.map((arena) => {
-          const isUnlocked = currentTrophies >= arena.min;
-          const unlocksCards = CARDS.filter((c) => arena.unlocks.includes(c.id));
-          return (
-            <div
-              key={arena.id}
-              className={cn(
-                "p-4 rounded-xl shadow-inner border border-slate-700/50 relative overflow-hidden",
-                !isUnlocked && "opacity-60 grayscale blur-[1px]"
-              )}
-            >
-              <div 
-                className="absolute inset-0 z-0 opacity-40 mix-blend-overlay pointer-events-none" 
-                style={{ background: arena.bg }} 
-              />
-              <div className="relative z-10 space-y-2">
-                <div className="flex justify-between items-end border-b border-white/10 pb-2">
-                  <div>
-                    <div className="text-xl text-white text-stroke drop-shadow-md">{arena.name}</div>
-                    <div className="text-sm text-white/80 font-sans">Arena {arena.id}</div>
+    <div className="fixed inset-0 z-[1999] flex items-end justify-center bg-black/85 backdrop-blur-sm p-0">
+      <motion.div
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%" }}
+        transition={{ type: "spring", damping: 25, stiffness: 220 }}
+        className="relative w-full max-w-md h-[92vh] flex flex-col bg-slate-950 rounded-t-[32px] border-t border-slate-800/80 p-5 font-display overflow-hidden shadow-[0_-12px_30px_rgba(0,0,0,0.7)]"
+      >
+        {/* Pull Handle to swipe/tap down */}
+        <div 
+          className="w-12 h-1.5 bg-slate-800 hover:bg-slate-700 rounded-full mx-auto mb-4 cursor-pointer transition-colors shrink-0" 
+          onClick={onClose} 
+        />
+
+        {/* Title Header */}
+        <div className="flex items-center justify-between mb-4 shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🗺️</span>
+            <h2 className="text-2xl text-stroke text-white font-black tracking-tight">Arenalar Yolu</h2>
+          </div>
+          <button 
+            onClick={onClose} 
+            className="p-2 text-slate-400 hover:text-white bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-800 rounded-full w-9 h-9 flex items-center justify-center transition-all cursor-pointer shadow-md"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Current Trophy Progress Info Card */}
+        <div className="bg-gradient-to-br from-slate-900/90 to-slate-950 border border-slate-800/90 rounded-2xl p-3.5 flex items-center justify-between gap-3 mb-5 shadow-inner shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="text-3.5xl drop-shadow">🏆</div>
+            <div>
+              <div className="text-[10px] text-slate-400 font-sans uppercase font-black tracking-wider">Mevcut Kupaların</div>
+              <div className="text-lg font-black text-amber-400 leading-none mt-0.5">{currentTrophies} Kupa</div>
+            </div>
+          </div>
+          <div className="text-right font-sans">
+            {nextArena ? (
+              <>
+                <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Sonraki Arena'ya</div>
+                <div className="text-xs font-black text-cyan-400 mt-0.5">{trophiesToNext} 🏆 Kaldı</div>
+              </>
+            ) : (
+              <>
+                <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider animate-pulse">Efsane</div>
+                <div className="text-xs font-black text-amber-300 mt-0.5">Son Sınıra Ulaştın!</div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Scrollable Arenalar List */}
+        <div className="flex-1 overflow-y-auto space-y-4 pb-12 scrollbar-none overscroll-behavior-y-contain">
+          {ARENAS.map((arena) => {
+            const isUnlocked = currentTrophies >= arena.min;
+            const isCurrent = currentTrophies >= arena.min && currentTrophies < arena.max;
+            const unlocksCards = CARDS.filter((c) => arena.unlocks.includes(c.id));
+
+            return (
+              <div
+                key={arena.id}
+                className={cn(
+                  "p-4 rounded-2xl border relative overflow-hidden transition-all duration-300",
+                  isCurrent 
+                    ? "border-emerald-500 bg-slate-900/60 shadow-lg shadow-emerald-500/5 ring-1 ring-emerald-500/20" 
+                    : isUnlocked 
+                      ? "border-slate-800/80 bg-slate-900/30" 
+                      : "border-slate-900/50 bg-slate-950/40 opacity-55 grayscale-[25%]"
+                )}
+              >
+                {/* Arena Biome Background Overlay */}
+                <div 
+                  className="absolute inset-0 z-0 opacity-20 mix-blend-overlay pointer-events-none transition-opacity group-hover:opacity-30" 
+                  style={{ background: arena.bg }} 
+                />
+
+                <div className="relative z-10 space-y-3">
+                  {/* Title Bar inside the Arena Card */}
+                  <div className="flex justify-between items-start border-b border-white/5 pb-2.5">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="text-lg text-white font-black text-stroke drop-shadow-md leading-none">
+                          {arena.name}
+                        </div>
+                      </div>
+                      <div className="text-[11px] text-slate-400 font-sans mt-1">Arena {arena.id}</div>
+                    </div>
+                    
+                    <div className="flex flex-col items-end">
+                      <div className="text-xs font-black text-amber-400 font-sans">
+                        {arena.min}+ 🏆
+                      </div>
+                      <div className="mt-1">
+                        {isCurrent ? (
+                          <span className="px-2 py-0.5 text-[8px] font-black tracking-wider rounded bg-emerald-500 text-slate-950 font-sans shadow shadow-emerald-500/20 uppercase">
+                            Mevcut Arenan
+                          </span>
+                        ) : isUnlocked ? (
+                          <span className="px-2 py-0.5 text-[8px] font-bold rounded bg-slate-800 text-slate-400 font-sans">
+                            Açık
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 text-[8px] font-bold rounded bg-slate-900 text-slate-500 font-sans flex items-center gap-1">
+                            🔒 Kilitli
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-sm font-bold text-amber-400 drop-shadow">
-                    {arena.min}+ 🏆
+
+                  {/* Cards Unlock Area */}
+                  <div>
+                    <div className="text-[10px] text-slate-400 mb-2 font-sans font-bold uppercase tracking-wider">
+                      Açılan Kartlar
+                    </div>
+                    {unlocksCards.length > 0 ? (
+                      <div className="flex gap-2 overflow-x-auto pb-1.5 snap-x scrollbar-none">
+                        {unlocksCards.map((c) => (
+                          <div key={c.id} className="flex-none snap-start relative w-14">
+                            <div className={cn(
+                              "w-14 h-16 rounded-xl border shadow-md bg-gradient-to-br flex items-center justify-center text-3.5xl transition-transform active:scale-95 relative overflow-hidden",
+                              c.rarity === "legendary" ? "from-purple-950 to-indigo-950 border-purple-500/80 shadow-purple-500/10" :
+                              c.rarity === "epic" ? "from-pink-950 to-rose-950 border-pink-500/80 shadow-pink-500/10" :
+                              c.rarity === "rare" ? "from-amber-950 to-orange-950 border-amber-500/80 shadow-amber-500/10" :
+                              "from-slate-800 to-slate-900 border-slate-700/80"
+                            )}>
+                              {c.emoji}
+                              <div className={cn(
+                                "absolute bottom-0 inset-x-0 text-[6.5px] font-black text-center py-0.5 uppercase tracking-wide leading-none",
+                                c.rarity === "legendary" ? "bg-purple-500/30 text-purple-300" :
+                                c.rarity === "epic" ? "bg-pink-500/30 text-pink-300" :
+                                c.rarity === "rare" ? "bg-amber-500/30 text-amber-300" :
+                                "bg-slate-700/30 text-slate-400"
+                              )}>
+                                {c.rarity === "legendary" ? "EFSO" : c.rarity === "epic" ? "DESTAN" : c.rarity === "rare" ? "ENDER" : "SIRA"}
+                              </div>
+                            </div>
+                            <div className="text-[9px] text-center text-slate-300 font-sans mt-1 truncate font-semibold leading-none px-0.5">
+                              {c.name}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-slate-500 italic font-sans py-1">
+                        Bu arenada yeni kart bulunmuyor.
+                      </div>
+                    )}
                   </div>
                 </div>
-                {unlocksCards.length > 0 && (
-                  <div className="pt-2">
-                    <div className="text-xs text-white/90 mb-2 drop-shadow-md font-sans font-semibold text-stroke-sm">
-                      Açılan Kartlar:
-                    </div>
-                    <div className="flex gap-2 overflow-x-auto pb-2 snap-x">
-                      {unlocksCards.map((c) => (
-                        <div key={c.id} className="flex-none snap-start group relative">
-                          <div className={cn(
-                            "w-14 h-16 rounded-xl border border-white/20 shadow-md bg-gradient-to-br flex items-center justify-center text-3xl",
-                            c.rarity === "legendary" ? "from-purple-900 to-indigo-900 shadow-purple-500/50" :
-                            c.rarity === "epic" ? "from-pink-900 to-rose-900 shadow-pink-500/50" :
-                            c.rarity === "rare" ? "from-amber-700 to-orange-700 shadow-amber-500/50" :
-                            "from-slate-700 to-slate-800"
-                          )}>
-                            {c.emoji}
-                          </div>
-                          <div className="text-[9px] text-center text-white/90 font-sans mt-0.5" style={{ textShadow: "0 1px 2px black" }}>
-                            {c.name}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {isUnlocked && (
-                  <div className="absolute top-2 right-2 px-2 py-0.5 text-[10px] rounded-full bg-green-500/20 text-green-300 font-sans">
-                    Açık
-                  </div>
-                )}
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      </motion.div>
     </div>
   );
 }

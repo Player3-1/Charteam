@@ -7,14 +7,16 @@ import { makeOpponentTrophies } from "@/lib/arenas";
 
 export const MatchmakingModal = ({ 
   user,
+  mode = "standard",
   onMatchFound, 
   onCancel 
 }: { 
   user: UserData,
-  onMatchFound: (opponent: {name: string, trophies: number, battleId?: string, isPlayer1?: boolean}) => void, 
+  mode?: "standard" | "tournament",
+  onMatchFound: (opponent: {name: string, trophies: number, wins?: number, tournamentWins?: number, battleId?: string, isPlayer1?: boolean, mode?: "standard" | "tournament"}) => void, 
   onCancel: () => void 
 }) => {
-  const [status, setStatus] = useState("Çevrimiçi rakip aranıyor...");
+  const [status, setStatus] = useState(mode === "tournament" ? "Turnuva için rakip aranıyor..." : "Çevrimiçi rakip aranıyor...");
   const [showBotButton, setShowBotButton] = useState(false);
   const [battleIdState, setBattleIdState] = useState<string | null>(null);
 
@@ -23,7 +25,7 @@ export const MatchmakingModal = ({
 
     const doMatchmaking = async () => {
       try {
-        const battleId = await findOrCreateMatch(user);
+        const battleId = await findOrCreateMatch(user, mode);
         if (!active) return;
         setBattleIdState(battleId);
         setStatus("Rakip bulundu, savaşa bağlanılıyor...");
@@ -38,8 +40,11 @@ export const MatchmakingModal = ({
             onMatchFound({
               name: opp.username,
               trophies: opp.trophies,
+              wins: opp.wins ?? 0,
+              tournamentWins: opp.tournamentWins ?? 0,
               battleId,
-              isPlayer1: isP1
+              isPlayer1: isP1,
+              mode: mode
             });
           }
         });
@@ -53,7 +58,7 @@ export const MatchmakingModal = ({
     const timer = setTimeout(() => {
       if (active) {
         setShowBotButton(true);
-        setStatus("Rakip aranıyor... (Gerçek rakip bulunamazsa botla oynayabilirsiniz)");
+        setStatus(mode === "tournament" ? "Turnuva için rakip aranıyor... (Rakip bulunamazsa botla oynayabilirsiniz)" : "Rakip aranıyor... (Gerçek rakip bulunamazsa botla oynayabilirsiniz)");
       }
     }, 5000);
 
@@ -62,7 +67,7 @@ export const MatchmakingModal = ({
       clearTimeout(timer);
       cancelMatchmaking(user.username);
     };
-  }, [user]);
+  }, [user, mode]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
@@ -72,7 +77,7 @@ export const MatchmakingModal = ({
           <button 
             onClick={() => {
               cancelMatchmaking(user.username);
-              onMatchFound({name: "Bot", trophies: makeOpponentTrophies(user.trophies)});
+              onMatchFound({name: "Bot", trophies: makeOpponentTrophies(user.trophies), mode});
             }}
             className="mt-4 rounded bg-emerald-600 px-4 py-3 font-bold text-white block w-full"
           >

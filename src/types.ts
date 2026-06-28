@@ -9,7 +9,10 @@ export interface UserData {
   activeDeckIndex?: number; // NEW: Index of active deck
   wins: number;
   losses: number;
+  tournamentWins?: number;
+  tournamentLosses?: number;
   unlockedEmojis?: string[];
   selectedEmojis?: string[]; // Max 4
   rankProgressTrophies?: number; // Cumulative rank progression kupa
+  claimedMilestones?: string[]; // Track claimed milestone emojis (🥇, 🥈, 🥉)
 }

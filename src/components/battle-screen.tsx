@@ -22,9 +22,9 @@ import {
   type Unit,
 } from "@/lib/battle";
 
-type Phase = "placing" | "fighting" | "done";
+type Phase = "drafting" | "placing" | "fighting" | "done";
 
-function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[]): { col: number; row: number } {
+function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[], arenaId?: number): { col: number; row: number } {
   const isOccupied = (c: number, r: number) => {
     return existingUnits.some(u => Math.round(u.col) === c && Math.round(u.row) === r);
   };
@@ -63,6 +63,133 @@ function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[]): { col:
     return bestCol !== -1 ? bestCol : null;
   };
 
+  const isSquishyRanged = ["okcu", "sapanci", "topcu", "bombalama-ucagi", "kus-ordusu", "buz-dolabi", "kardan-adam", "volkan"].includes(card.id);
+
+  // --- ARENA 1: VERY POOR PLACEMENT ---
+  if (arenaId === 1) {
+    // 1. Heavy tanks (hp > 110) are hidden in the very back (row 0..2) where they take ages to join the fight
+    if (card.hp > 110) {
+      for (const r of [0, 1, 2]) {
+        const colOpt = findBestColInRow(r, false); // place unaligned to be even worse
+        if (colOpt !== null) return { col: colOpt, row: r };
+      }
+    }
+    // 2. Fragile/ranged units are exposed in the very front line (row 11..9) to be slaughtered quickly
+    if (isSquishyRanged) {
+      for (const r of [11, 10, 9]) {
+        const colOpt = findBestColInRow(r, true);
+        if (colOpt !== null) return { col: colOpt, row: r };
+      }
+    }
+    // 3. Others are randomly scattered without alignment in the middle rows
+    let attempts = 0;
+    while (attempts < 100) {
+      const r = 4 + Math.floor(Math.random() * 5);
+      const colOpt = findBestColInRow(r, false);
+      if (colOpt !== null) return { col: colOpt, row: r };
+      attempts++;
+    }
+  }
+
+  // --- ARENA 2: SIMPLE/LOW-MID PLACEMENT (Semi-Random) ---
+  if (arenaId === 2) {
+    // Tanks placed in rows 9..11 with 40% alignment
+    if (card.hp > 110) {
+      for (const r of [9, 10, 11]) {
+        const colOpt = findBestColInRow(r, Math.random() < 0.4);
+        if (colOpt !== null) return { col: colOpt, row: r };
+      }
+    }
+    // Ranged units placed in back rows (row 1..5) with 40% alignment
+    if (isSquishyRanged) {
+      for (const r of [1, 2, 3, 4, 5]) {
+        const colOpt = findBestColInRow(r, Math.random() < 0.4);
+        if (colOpt !== null) return { col: colOpt, row: r };
+      }
+    }
+    // General units randomly placed in row 3..10 with 40% alignment
+    let attempts = 0;
+    while (attempts < 100) {
+      const r = 3 + Math.floor(Math.random() * 7);
+      const colOpt = findBestColInRow(r, Math.random() < 0.4);
+      if (colOpt !== null) return { col: colOpt, row: r };
+      attempts++;
+    }
+  }
+
+  // --- ARENAS 3, 4, 5, 6: AVERAGE / MID-TIER COORDINATED PLACEMENT ---
+  if (arenaId && arenaId >= 3 && arenaId <= 6) {
+    // Special exception for Madenci (Miner) who digs anywhere:
+    if (card.id === "madenci") {
+      let attempts = 0;
+      while (attempts < 100) {
+        const c = Math.floor(Math.random() * COLS);
+        const r = Math.floor(Math.random() * ROWS);
+        if (r !== RIVER_ROW && !isOccupied(c, r)) {
+          if (playerUnits.length > 0 && Math.random() < 0.5) {
+            const target = playerUnits[Math.floor(Math.random() * playerUnits.length)];
+            const tc = target.col;
+            const tr = target.row;
+            const dCol = Math.floor(Math.random() * 3) - 1;
+            const dRow = Math.floor(Math.random() * 3) - 1;
+            if (!isOccupied(tc + dCol, tr + dRow) && tr + dRow !== RIVER_ROW && tc + dCol >= 0 && tc + dCol < COLS && tr + dRow >= 0 && tr + dRow < ROWS) {
+               return { col: tc + dCol, row: tr + dRow };
+            }
+          } else {
+             return { col: c, row: r };
+          }
+        }
+        attempts++;
+      }
+    }
+
+    // Tanks (hp > 110) are placed in rows 10-11, with 70% alignment to shield allies
+    if (card.hp > 110) {
+      for (const r of [10, 11, 9]) {
+        const colOpt = findBestColInRow(r, Math.random() < 0.7);
+        if (colOpt !== null) return { col: colOpt, row: r };
+      }
+    }
+
+    // Ranged squishies are placed in rows 7-9, somewhat aligned behind front row or threats
+    if (isSquishyRanged) {
+      for (const r of [7, 8, 9]) {
+        const colOpt = findBestColInRow(r, Math.random() < 0.7);
+        if (colOpt !== null) return { col: colOpt, row: r };
+      }
+    }
+
+    // Other units go in rows 8-10 with moderate alignment
+    for (const r of [8, 9, 10]) {
+      const colOpt = findBestColInRow(r, Math.random() < 0.7);
+      if (colOpt !== null) return { col: colOpt, row: r };
+    }
+  }
+
+  // --- LAST ARENAS (7 & 8): HIGHLY COORDINATED SMART PLACEMENT ---
+  if (arenaId && arenaId >= 7) {
+    // 1. Heavy tanks are strictly lined up on the direct frontline (rows 11 or 10) to shield allies
+    if (card.hp > 110) {
+      for (const r of [11, 10]) {
+        const colOpt = findBestColInRow(r, true); // align with player threats
+        if (colOpt !== null) return { col: colOpt, row: r };
+      }
+    }
+    // 2. Ranged and squishies are placed exactly 2-3 blocks behind the tanks (rows 8 or 9)
+    if (isSquishyRanged) {
+      for (const r of [8, 9]) {
+        const colOpt = findBestColInRow(r, true); // align behind tanks / facing threats
+        if (colOpt !== null) return { col: colOpt, row: r };
+      }
+    }
+    // 3. Melee or generic other units go in rows 10, 9 or 8
+    for (const r of [10, 9, 8]) {
+      const colOpt = findBestColInRow(r, true);
+      if (colOpt !== null) return { col: colOpt, row: r };
+    }
+  }
+
+  // --- GENERAL / MID-ARENA PLACEMENT (ARENAS 2-6) ---
   // Special exception for Madenci (Miner) who digs anywhere:
   if (card.id === "madenci") {
     let attempts = 0;
@@ -115,7 +242,6 @@ function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[]): { col:
   }
 
   // Rule 2: Okçu, sapan, topçu, bombalama uçağı, kuş ordusu gibi kartları çok canlı olan kartların 2-3 blok arkasına koysun.
-  const isSquishyRanged = ["okcu", "sapanci", "topcu", "bombalama-ucagi", "kus-ordusu", "buz-dolabi", "kardan-adam", "volkan"].includes(card.id);
   if (isSquishyRanged) {
     // Front line tanks are at 11 or 10. 2-3 blocks behind them is rows 8, 9, 7
     // Try to align behind own tanks
@@ -148,13 +274,18 @@ function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[]): { col:
 
 
 interface Props {
-  deck: [string, string, string, string];
+  deck: string[];
+  playerCardLevels?: Record<string, number>; // Added
+  botDeckOverride?: string[] | null;
   playerEmojis?: [string, string, string, string];
   trophies: number;
   opponentName: string;
   opponentTrophies: number;
+  opponentWins?: number;
+  opponentTournamentWins?: number;
   battleId?: string;
   isPlayer1?: boolean;
+  mode?: "standard" | "tournament";
   onFinish: (gold: number, trophy: number, win: boolean) => void;
   onExit: () => void;
   username: string; // Add this
@@ -163,14 +294,21 @@ interface Props {
 const PLACE_SECONDS = 15;
 const FIGHT_TIMEOUT = 60;
 
-export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, opponentName, opponentTrophies, battleId, isPlayer1, onFinish, onExit, username }: Props) {
+export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, playerEmojis = ["", "", "", ""], trophies, opponentName, opponentTrophies, opponentWins, opponentTournamentWins, battleId, isPlayer1, mode = "standard", onFinish, onExit, username }: Props) {
   const arena = arenaForTrophies(trophies);
+  const oppWinsMax = Math.max(opponentWins ?? 0, opponentTournamentWins ?? 0);
   const playerCards = useMemo(
     () => deck.map((id) => CARDS.find((c) => c.id === id)!).filter(Boolean),
     [deck],
   );
   const [botTrophies] = useState(() => makeOpponentTrophies(trophies));
-  const [botDeck, setBotDeck] = useState(() => battleId ? [] : makeBotDeck(arena));
+  const [opponentCardLevels, setOpponentCardLevels] = useState<Record<string, number>>({});
+  const [botDeck, setBotDeck] = useState<CardDef[]>(() => {
+    if (botDeckOverride) {
+      return botDeckOverride.map(id => typeof id === "string" ? CARDS.find(c => c.id === id)! : id).filter(Boolean) as CardDef[];
+    }
+    return battleId ? [] : makeBotDeck(arena);
+  });
 
   useEffect(() => {
     if (battleId && opponentDeckRef.current.length > 0) {
@@ -182,6 +320,7 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
   const [selected, setSelected] = useState(0);
   const [placedIds, setPlacedIds] = useState<Set<string>>(new Set());
   const stateRef = useRef<BattleState>(makeInitialState());
+  stateRef.current.arenaId = arena.id;
   const [, force] = useState(0);
   const rerender = () => force((x) => x + 1);
   const rafRef = useRef<number | null>(null);
@@ -239,7 +378,8 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
           else { rCol = RIVER_ROW + 1 + Math.floor(Math.random() * (ROWS - RIVER_ROW - 1)); }
           attempts++;
         } while (attempts < 20 && stateRef.current.units.some(u => Math.round(u.col) === cCol && Math.round(u.row) === rCol));
-        spawnUnit(stateRef.current, c, "player", cCol, rCol);
+        const lvl = playerCardLevels[c.id] ?? 1;
+        spawnUnit(stateRef.current, c, "player", cCol, rCol, lvl);
       }
     });
     setPlacedIds(new Set(playerCards.map(c => c.id)));
@@ -253,8 +393,9 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
       while (placedBotRef.current < 4) {
         const i = placedBotRef.current;
         const card = botDeck[i];
-        const { col, row } = getBotPlacementCoordinate(card, stateRef.current.units);
-        spawnUnit(stateRef.current, card, "bot", col, row);
+        const { col, row } = getBotPlacementCoordinate(card, stateRef.current.units, arena.id);
+        const lvl = opponentCardLevels[card.id] ?? 10;
+        spawnUnit(stateRef.current, card, "bot", col, row, lvl);
         placedBotRef.current++;
       }
       startFight();
@@ -300,8 +441,9 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
        while (placedBotRef.current < targetPlaced) {
          const i = placedBotRef.current;
          const card = botDeck[i];
-         const { col, row } = getBotPlacementCoordinate(card, stateRef.current.units);
-         spawnUnit(stateRef.current, card, "bot", col, row);
+         const { col, row } = getBotPlacementCoordinate(card, stateRef.current.units, arena.id);
+         const lvl = opponentCardLevels[card.id] ?? 10;
+         spawnUnit(stateRef.current, card, "bot", col, row, lvl);
          placedBotRef.current++;
        }
        // Update UI after bot places
@@ -330,7 +472,8 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
             const r = ROWS - 1 - p.row;
             const c = COLS - 1 - p.col;
             if (!stateRef.current.units.some(u => u.side === "bot" && Math.round(u.col) === c && Math.round(u.row) === r)) {
-              spawnUnit(stateRef.current, card, "bot", c, r);
+              const lvl = opponentCardLevels[card.id] ?? 10;
+              spawnUnit(stateRef.current, card, "bot", c, r, lvl);
             }
           }
         });
@@ -339,7 +482,7 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
         const oppDeckIds = (opponentDeckRef.current && opponentDeckRef.current.length > 0)
           ? opponentDeckRef.current
           : (botDeck && botDeck.length > 0 ? botDeck : ["mizrakli", "kilicli", "okcu", "dev"]);
-        const oppCards = oppDeckIds.map(id => CARDS.find(c => c.id === id)).filter(Boolean) as CardDef[];
+        const oppCards = oppDeckIds.map((id: any) => typeof id === "string" ? CARDS.find(c => c.id === id) : id).filter(Boolean) as CardDef[];
 
         // 3. Fill up remaining unplaced units
         const spawnedBotCardIds = stateRef.current.units
@@ -349,8 +492,9 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
         const unplacedOppCards = oppCards.filter(card => !spawnedBotCardIds.includes(card.id));
 
         unplacedOppCards.forEach(card => {
-          const { col, row } = getBotPlacementCoordinate(card, stateRef.current.units);
-          spawnUnit(stateRef.current, card, "bot", col, row);
+          const { col, row } = getBotPlacementCoordinate(card, stateRef.current.units, arena.id);
+          const lvl = opponentCardLevels[card.id] ?? 10;
+          spawnUnit(stateRef.current, card, "bot", col, row, lvl);
         });
 
         // 4. Force spawn our player units if they somehow missed spawning
@@ -359,7 +503,10 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
           if (myPlacements.length > 0) {
             myPlacements.forEach((p: any) => {
               const card = CARDS.find(c => c.id === p.cardId);
-              if (card) spawnUnit(stateRef.current, card, "player", p.col, p.row);
+              if (card) {
+                const lvl = playerCardLevels[card.id] ?? 1;
+                spawnUnit(stateRef.current, card, "player", p.col, p.row, lvl);
+              }
             });
           } else {
             // Absolute fallback for player side too just in case
@@ -370,7 +517,8 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
                 rCol = RIVER_ROW + 1 + Math.floor(Math.random() * (ROWS - RIVER_ROW - 1));
                 attempts++;
               } while (attempts < 20 && stateRef.current.units.some(u => Math.round(u.col) === cCol && Math.round(u.row) === rCol));
-              spawnUnit(stateRef.current, c, "player", cCol, rCol);
+              const lvl = playerCardLevels[c.id] ?? 1;
+              spawnUnit(stateRef.current, c, "player", cCol, rCol, lvl);
             });
           }
         }
@@ -427,7 +575,12 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
         }
 
         const oppData = isPlayer1 ? data.player2 : data.player1;
-        if (oppData && oppData.deck) {
+        if (data.mode === "tournament") {
+          const oppDraft = isPlayer1 ? data.player2Draft : data.player1Draft;
+          if (oppDraft && oppDraft.length > 0) {
+            opponentDeckRef.current = oppDraft;
+          }
+        } else if (oppData && oppData.deck) {
           opponentDeckRef.current = oppData.deck;
         }
 
@@ -449,7 +602,10 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
             if (myPlacements && !stateRef.current.units.some(u => u.side === "player")) {
               myPlacements.forEach((p: any) => {
                 const card = CARDS.find(c => c.id === p.cardId);
-                if (card) spawnUnit(stateRef.current, card, "player", p.col, p.row);
+                if (card) {
+                  const lvl = playerCardLevels[card.id] ?? 1;
+                  spawnUnit(stateRef.current, card, "player", p.col, p.row, lvl);
+                }
               });
             }
             // spawn opponent units
@@ -459,7 +615,8 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
                 if (card) {
                   const r = ROWS - 1 - p.row;
                   const c = COLS - 1 - p.col;
-                  spawnUnit(stateRef.current, card, "bot", c, r);
+                  const lvl = opponentCardLevels[card.id] ?? 10;
+                  spawnUnit(stateRef.current, card, "bot", c, r, lvl);
                 }
               });
             }
@@ -481,7 +638,8 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
       return; 
     }
 
-    spawnUnit(stateRef.current, card, "player", col, row);
+    const lvl = playerCardLevels[card.id] ?? 1;
+    spawnUnit(stateRef.current, card, "player", col, row, lvl);
     const next = new Set(placedIds);
     next.add(card.id);
     setPlacedIds(next);
@@ -566,7 +724,7 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
           return (
             <div className="text-center font-display">
               <div className="text-stroke text-base leading-none text-slate-100 font-bold tracking-tight">
-                {opponentName}
+                {opponentName} {opponentName.toLowerCase() === "dgoa" && "🛠️"}
               </div>
               <div className="text-[10px] opacity-95 flex items-center justify-center gap-1.5 mt-0.5">
                 <span>{opponentTrophies} 🏆</span>
@@ -819,12 +977,18 @@ export function BattleScreen({ deck, playerEmojis = ["", "", "", ""], trophies, 
             <div className="text-stroke font-display text-3xl">
               {winner === "player" ? "ZAFER! 🏆" : "MAĞLUBİYET 💀"}
             </div>
-            <div className="mt-2 flex items-center justify-center gap-3 text-lg font-display">
-              <span className={cn(rewards.trophy >= 0 ? "text-amber-300" : "text-red-400")}>
-                {rewards.trophy >= 0 ? "+" : ""}{rewards.trophy} 🏆
-              </span>
-              <span className="text-yellow-200">+{rewards.gold} 🪙</span>
-            </div>
+            {mode === "tournament" ? (
+              <div className="mt-2 flex items-center justify-center gap-3 text-xl font-display text-emerald-300">
+                {winner === "player" ? "+1 Galibiyet" : "1 Mağlubiyet Aldın"}
+              </div>
+            ) : (
+              <div className="mt-2 flex items-center justify-center gap-3 text-lg font-display">
+                <span className={cn(rewards.trophy >= 0 ? "text-amber-300" : "text-red-400")}>
+                  {rewards.trophy >= 0 ? "+" : ""}{rewards.trophy} 🏆
+                </span>
+                <span className="text-yellow-200">+{rewards.gold} 🪙</span>
+              </div>
+            )}
             <button
               onClick={() => { onFinish(rewards.gold, rewards.trophy, winner === "player"); onExit(); }}
               className="mt-3 w-full rounded-2xl py-3 font-display text-xl text-stroke text-primary-foreground btn-pop active:btn-pop-active"
