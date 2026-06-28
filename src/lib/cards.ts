@@ -37,7 +37,7 @@ export const CARDS: CardDef[] = [
   { id: "kopek-baligi", name: "Köpek Balığı", emoji: "🦈", rarity: "rare", hp: 100, dmg: 90, cd: 1.3, range: "yakın", description: "Hızlı yakın menzil birliği." },
   { id: "balik", name: "Balık", emoji: "🐟", rarity: "epic", hp: 90, dmg: 35, cd: 2.0, range: "yakın", description: "Saldırıp geri kaçar sürekli." },
   { id: "mercan", name: "Mercan", emoji: "🪸", rarity: "epic", hp: 50, dmg: 0, cd: 3.0, range: "yakın", description: "Tüm takıma saniyede bir can yükler.", ability: "Her 3 saniyede bir tüm takıma 20 can verir." },
-  { id: "lav-kopegi", name: "Lav Köpeği", emoji: "🐕", rarity: "legendary", hp: 350, dmg: 30, cd: 1.5, range: "yakın", description: "Isırdığında düşmanı yakar (7sn boyunca her saniye 5 hasar). Offense: 3x3 alana alev püskürtür.", ability: "3x3 alandaki düşmanları 3sn boyunca saniyede 20 hasarla yakar." },
+  { id: "lav-kopegi", name: "Lav Köpeği", emoji: "🐕", rarity: "legendary", hp: 400, dmg: 30, cd: 1.5, range: "yakın", description: "Isırdığında düşmanı yakar (7sn boyunca her saniye 5 hasar). Offense: 3x3 alana alev püskürtür.", ability: "3x3 alandaki düşmanları 3sn boyunca saniyede 20 hasarla yakar." },
   { id: "volkan", name: "Volkan", emoji: "🌋", rarity: "common", hp: 80, dmg: 30, cd: 2.5, range: "uzak", description: "Yerden alev topu fırlatır, hedefi her saniye 5 hasarla 4sn yakar." },
   { id: "cehennem-ejderi", name: "Cehennem Ejderi", emoji: "🐲", rarity: "rare", hp: 100, dmg: 30, cd: 1.3, range: "hava", description: "Havadan ateş püskürterek hedefleri her saniye 5 hasarla 4sn yakar." },
 ];
