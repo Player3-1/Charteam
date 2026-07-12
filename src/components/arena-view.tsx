@@ -184,10 +184,12 @@ export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props
           {(() => {
             const tiles: { col: number; row: number }[] = [];
             const isMiner = selectedCardId === "madenci";
-            if (isMiner) {
-              // Miner can be placed on either player side or enemy side, just excluding the river!
+            const isCig = selectedCardId === "cig";
+            if (isMiner || isCig) {
+              // Miner can be placed on either player side or enemy side, just excluding the river
+              // Cig can be placed literally anywhere
               for (let r = 0; r < ROWS; r++) {
-                if (r === RIVER_ROW) continue; // skip river row
+                if (r === RIVER_ROW && !isCig) continue; // skip river row for miner
                 for (let c = 0; c < COLS; c++) {
                   tiles.push({ col: c, row: r });
                 }

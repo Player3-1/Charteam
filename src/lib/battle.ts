@@ -894,12 +894,12 @@ export function tickBattle(state: BattleState, dt: number) {
   for (let pass = 0; pass < 2; pass++) {
     for (let i = 0; i < state.units.length; i++) {
       const u1 = state.units[i];
-      if (u1.hp <= 0 || u1.flying || u1.card.id === "hayalet" || u1.card.id === "madenci" || u1.underground) {
+      if (u1.hp <= 0 || u1.flying || u1.card.id === "hayalet" || u1.card.id === "madenci" || u1.card.id === "cig" || u1.underground) {
         continue;
       }
       for (let j = i + 1; j < state.units.length; j++) {
         const u2 = state.units[j];
-        if (u2.hp <= 0 || u2.flying || u2.card.id === "hayalet" || u2.card.id === "madenci" || u2.underground) {
+        if (u2.hp <= 0 || u2.flying || u2.card.id === "hayalet" || u2.card.id === "madenci" || u2.card.id === "cig" || u2.underground) {
           continue;
         }
         
