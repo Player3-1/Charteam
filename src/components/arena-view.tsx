@@ -335,10 +335,12 @@ export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props
                 <div className="absolute inset-0 -m-1.5 rounded-full border-2 border-slate-500 bg-gradient-to-br from-slate-600 to-slate-800 shadow-[inset_0_2px_4px_rgba(255,255,255,0.35),_0_2px_6px_rgba(0,0,0,0.6)] animate-pulse" />
               )}
               {u.card.id === "cig" && (
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-44 h-44 rounded-full border-2 border-dashed border-sky-400 bg-sky-500/10 flex items-center justify-center animate-pulse">
-                  <div className="text-white font-mono font-bold text-[10px] bg-slate-900/95 border border-slate-700 px-1.5 py-0.5 rounded shadow whitespace-nowrap animate-bounce flex items-center gap-1">
-                    <span>🏔️</span> {Math.max(0, 5 - Math.floor(state.time))}s
-                  </div>
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 rounded-full border-2 border-dashed border-sky-400 bg-sky-500/10 flex items-center justify-center animate-pulse">
+                  {!u.cigTriggered && (
+                    <div className="text-white font-mono font-bold text-[10px] bg-slate-900/95 border border-slate-700 px-1.5 py-0.5 rounded shadow whitespace-nowrap animate-bounce flex items-center gap-1">
+                      <span>🏔️</span> Hazır
+                    </div>
+                  )}
                 </div>
               )}
               {isImmune && (

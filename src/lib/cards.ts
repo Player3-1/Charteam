@@ -43,7 +43,7 @@ export const CARDS: CardDef[] = [
   { id: "cehennem-ejderi", name: "Cehennem Ejderi", emoji: "🐲", rarity: "rare", hp: 100, dmg: 30, cd: 1.3, range: "hava", description: "Havadan ateş püskürterek hedefleri her saniye 5 hasarla 4sn yakar.", stoneCost: 5 },
   { id: "kabile", name: "Kabile", emoji: "👺", rarity: "common", hp: 25, dmg: 15, cd: 1.0, range: "yakın", description: "9. arenada açılan canı 25 hasarı 15 olan basit bir kart. Özellik yok.", stoneCost: 3 },
   { id: "golem", name: "Fil", emoji: "🦣", rarity: "rare", hp: 1000, dmg: 40, cd: 2.0, range: "yakın", description: "Dayanıklı bir fil. Canı 1000, hasarı 40 olan nadir bir tank.", stoneCost: 8 },
-  { id: "cig", name: "Çığ", emoji: "🏔️", rarity: "epic", hp: 0, dmg: 100, cd: 5.0, range: "uzak", description: "Belirlenen yere maç başladıktan 5 saniye sonra düşer ve düştüğü yerin 5 blok ötesine kadar uzanan bir alana 100 hasar verir.", stoneCost: 2 },
+  { id: "cig", name: "Çığ", emoji: "🏔️", rarity: "epic", hp: 0, dmg: 100, cd: 5.0, range: "uzak", description: "Belirlenen yere atılır ve yeteneği kullanıldığında düştüğü yerin 5 blok ötesine kadar uzanan bir alana 100 hasar verir.", stoneCost: 2 },
   { id: "samuray", name: "Samuray", emoji: "🥷", rarity: "legendary", hp: 200, dmg: 70, cd: 0.9, range: "yakın", description: "11. arenada açılan efsanevi bir savaşçı. Özellik: yaptığı vuruş 2x hasar vurur.", ability: "Yaptığı vuruş 2x hasar vurur (yani 140 vurur)", stoneCost: 5 },
 ];
 

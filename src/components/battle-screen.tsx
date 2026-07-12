@@ -796,7 +796,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
           {(() => {
             const playerAbilityUnits = stateRef.current.units.filter((u) => {
               if (u.side !== "player" || u.hp <= 0) return false;
-              return ["hayalet", "madenci", "doktor", "bira-varili", "bombalama-ucagi", "zirhli", "kurbaga", "lav-kopegi", "samuray"].includes(u.card.id);
+              return ["hayalet", "madenci", "doktor", "bira-varili", "bombalama-ucagi", "zirhli", "kurbaga", "lav-kopegi", "samuray", "cig"].includes(u.card.id);
             });
 
             return (
@@ -875,6 +875,13 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
                         if (u.samurayAbilityActive) {
                           statusText = "2x Hasar";
                           isDisabled = true;
+                        }
+                      } else if (u.card.id === "cig") {
+                        if (u.cigTriggered) {
+                          statusText = "✓";
+                          isDisabled = true;
+                        } else {
+                          statusText = "🏔️";
                         }
                       }
 

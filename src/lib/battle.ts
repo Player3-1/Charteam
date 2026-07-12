@@ -521,43 +521,8 @@ export function tickBattle(state: BattleState, dt: number) {
     }
   }
 
-  // Process Çığ (Avalanche) explosion at 5.0 seconds
+  // Delete Process Çığ (Avalanche) explosion from here since it's now ability based
   for (const u of state.units) {
-    if (u.card.id === "cig" && u.hp > 0 && state.time >= 5.0 && !u.cigTriggered) {
-      u.cigTriggered = true;
-      u.hp = 0; // dies/disappears immediately
-
-      // Spawn falling ice projectiles to represent the avalanche
-      for (let i = 0; i < 8; i++) {
-        const offsetCol = (Math.random() - 0.5) * 4;
-        const offsetRow = (Math.random() - 0.5) * 4;
-        state.projectiles.push({
-          uid: nextUid(),
-          side: u.side,
-          attackerUid: u.uid,
-          damage: 0,
-          fromCol: u.col + offsetCol,
-          fromRow: u.row + offsetRow - 5,
-          toCol: u.col + offsetCol,
-          toRow: u.row + offsetRow,
-          t: 0,
-          duration: 0.3 + Math.random() * 0.4,
-          kind: "snowball",
-        });
-      }
-
-      // Deal 100 damage to all enemies within 5 blocks of (u.col, u.row)
-      state.units.forEach((targetUnit) => {
-        if (targetUnit.side !== u.side && isUnitTargetable(targetUnit)) {
-          const d = Math.hypot(targetUnit.col - u.col, targetUnit.row - u.row);
-          if (d <= 5.0) {
-            applyCombatDamage(targetUnit, 100, u);
-            // Also apply a brief freeze (1.5s)
-            targetUnit.frozenTimeLeft = Math.max(targetUnit.frozenTimeLeft || 0, 1.5);
-          }
-        }
-      });
-    }
   }
 
   // BOT AI trigger of active abilities on opportunity
@@ -576,6 +541,13 @@ export function tickBattle(state: BattleState, dt: number) {
       // Zırhlı defense absorption under 60% health
       if (u.card.id === "zirhli" && u.hp < u.maxHp * 0.6 && !u.zirhliDefendingTimeLeft) {
         triggerUnitAbility(u, state);
+      }
+      // Çığ triggers immediately if enemies are near
+      if (u.card.id === "cig" && !u.cigTriggered) {
+        const enemiesNearby = state.units.filter((o) => o.side !== u.side && o.hp > 0 && dist(u, o) <= 5.0);
+        if (enemiesNearby.length >= 1) {
+          triggerUnitAbility(u, state);
+        }
       }
       // Barrel active boost
       if (u.card.id === "bira-varili" && u.barrelAuraBoostTimeLeft === undefined) {
@@ -722,8 +694,8 @@ export function tickBattle(state: BattleState, dt: number) {
       continue;
     }
 
-    // Bira Varili does not move or attack (its health is 1, acts as an aura totem)
-    if (u.card.id === "bira-varili") {
+    // Bira Varili and Cig do not move or attack
+    if (u.card.id === "bira-varili" || u.card.id === "cig") {
       continue;
     }
 
@@ -978,6 +950,7 @@ export function getAbilityStoneCost(cardId: string): number {
     case "doktor": return 1;
     case "bira-varili": return 2;
     case "bombalama-ucagi": return 1;
+    case "cig": return 0;
     case "kurbaga": return 3;
     case "lav-kopegi": return 1;
     case "samuray": return 1;
@@ -1187,6 +1160,42 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
   // 30. Samuray: yaptığı vuruş 2x hasar vurur
   else if (unit.card.id === "samuray") {
     unit.samurayAbilityActive = true;
+  }
+  else if (unit.card.id === "cig") {
+    if (unit.cigTriggered) return;
+    unit.cigTriggered = true;
+    unit.hp = 0; // dies/disappears immediately
+
+    // Spawn falling ice projectiles to represent the avalanche
+    for (let i = 0; i < 8; i++) {
+      const offsetCol = (Math.random() - 0.5) * 4;
+      const offsetRow = (Math.random() - 0.5) * 4;
+      state.projectiles.push({
+        uid: nextUid(),
+        side: unit.side,
+        attackerUid: unit.uid,
+        damage: 0,
+        fromCol: unit.col + offsetCol,
+        fromRow: unit.row + offsetRow - 5,
+        toCol: unit.col + offsetCol,
+        toRow: unit.row + offsetRow,
+        t: 0,
+        duration: 0.3 + Math.random() * 0.4,
+        kind: "snowball",
+      });
+    }
+
+    // Deal 100 damage to all enemies within 5 blocks of (u.col, u.row)
+    state.units.forEach((targetUnit) => {
+      if (targetUnit.side !== unit.side && isUnitTargetable(targetUnit)) {
+        const d = Math.hypot(targetUnit.col - unit.col, targetUnit.row - unit.row);
+        if (d <= 5.0) {
+          applyCombatDamage(targetUnit, 100, unit);
+          // Also apply a brief freeze (1.5s)
+          targetUnit.frozenTimeLeft = Math.max(targetUnit.frozenTimeLeft || 0, 1.5);
+        }
+      }
+    });
   }
 }
 
