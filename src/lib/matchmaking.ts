@@ -25,7 +25,7 @@ export interface BattleDoc {
   createdAt: any;
 }
 
-export async function findOrCreateMatch(user: UserData, mode: "standard" | "tournament" = "standard"): Promise<string> {
+export async function findOrCreateMatch(user: UserData, mode: "standard" | "tournament" | "ranked" = "standard"): Promise<string> {
   const q = query(
     collection(db, "matchmaking"),
     where("status", "==", "searching"),

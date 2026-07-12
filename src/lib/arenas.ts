@@ -93,10 +93,40 @@ export const ARENAS: Arena[] = [
     unlocks: ["lav-kopegi", "volkan", "cehennem-ejderi"],
     bg: "linear-gradient(180deg, #7f1d1d 0%, #450a0a 100%)",
     ground: "#b91c1c",
+  },
+  {
+    id: 9,
+    name: "Tapınak",
+    min: 2500,
+    max: 3000,
+    biome: "legendary",
+    unlocks: ["kabile", "golem"],
+    bg: "linear-gradient(180deg, #374151 0%, #1f2937 100%)",
+    ground: "#2d3748",
+  },
+  {
+    id: 10,
+    name: "Dağ",
+    min: 3000,
+    max: 3250,
+    biome: "desert",
+    unlocks: ["cig"],
+    bg: "linear-gradient(180deg, #9ca3af 0%, #4b5563 100%)",
+    ground: "#6b7280",
+  },
+  {
+    id: 11,
+    name: "Sakura",
+    min: 3250,
+    max: 3500,
+    biome: "grass",
+    unlocks: ["samuray"],
+    bg: "linear-gradient(180deg, #fbcfe8 0%, #f472b6 100%)",
+    ground: "#fce7f3",
   }
 ];
 
-export const MAX_TROPHIES = 2500;
+export const MAX_TROPHIES = 3500;
 
 export function arenaForTrophies(trophies: number): Arena {
   const t = Math.max(0, Math.min(MAX_TROPHIES, trophies));

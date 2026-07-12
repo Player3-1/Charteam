@@ -22,17 +22,57 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { SHOP_EMOJIS } from "@/lib/emojis";
 
+export function getRankedStarsDetails(points: number) {
+  const totalStars = Math.floor(points / 10);
+  const divisions = [
+    { name: "Bronz Lig I", minStars: 0, icon: "🥉", style: "from-amber-700 to-amber-950 text-amber-300 border-amber-600 shadow-amber-900/40" },
+    { name: "Bronz Lig II", minStars: 3, icon: "🥉", style: "from-amber-700 to-amber-950 text-amber-200 border-amber-500 shadow-amber-900/50" },
+    { name: "Bronz Lig III", minStars: 6, icon: "🥉", style: "from-amber-700 to-amber-950 text-amber-100 border-amber-400 shadow-amber-900/60 font-semibold" },
+    { name: "Gümüş Lig I", minStars: 9, icon: "🥈", style: "from-slate-600 to-slate-900 text-slate-200 border-slate-500 shadow-slate-700/40" },
+    { name: "Gümüş Lig II", minStars: 12, icon: "🥈", style: "from-slate-600 to-slate-900 text-slate-100 border-slate-450 shadow-slate-700/50" },
+    { name: "Gümüş Lig III", minStars: 15, icon: "🥈", style: "from-slate-600 to-slate-900 text-white border-slate-400 shadow-slate-700/60 font-semibold" },
+    { name: "Altın Lig I", minStars: 18, icon: "🥇", style: "from-yellow-700 to-yellow-950 text-yellow-300 border-yellow-500 shadow-yellow-600/40 font-semibold" },
+    { name: "Altın Lig II", minStars: 21, icon: "🥇", style: "from-yellow-700 to-yellow-950 text-yellow-200 border-yellow-400 shadow-yellow-600/50 font-bold" },
+    { name: "Altın Lig III", minStars: 24, icon: "🥇", style: "from-yellow-700 to-yellow-950 text-amber-100 border-yellow-350 shadow-yellow-600/60 font-extrabold" },
+    { name: "Elmas Savaşçı", minStars: 27, icon: "💎", style: "from-cyan-600 via-sky-900 to-blue-950 text-cyan-200 border-cyan-400 shadow-cyan-500/50 font-black animate-pulse" },
+  ];
+
+  let currentDiv = divisions[0];
+  for (let i = divisions.length - 1; i >= 0; i--) {
+    if (totalStars >= divisions[i].minStars) {
+      currentDiv = divisions[i];
+      break;
+    }
+  }
+
+  const index = divisions.indexOf(currentDiv);
+  const nextDiv = index < divisions.length - 1 ? divisions[index + 1] : null;
+  const starsInThisDiv = totalStars - currentDiv.minStars;
+  const totalStarsRequired = nextDiv ? (nextDiv.minStars - currentDiv.minStars) : 3;
+
+  return {
+    name: currentDiv.name,
+    icon: currentDiv.icon,
+    style: currentDiv.style,
+    starsInThisDiv: Math.max(0, starsInThisDiv),
+    totalStarsRequired,
+    points,
+    totalStars,
+  };
+}
+
 type Tab = "battle" | "cards" | "chests" | "meta" | "arenas" | "ilk3";
 
 export function Home({ user }: { user: UserData }) {
-  const { state, hydrated, claimChestRewards, spendGold, setDeckSlot, setActiveDeck, applyMatchReward, buyEmoji, setEmojiSlot } = usePlayer(user.username);
+  const { state, hydrated, claimChestRewards, spendGold, setDeckSlot, setActiveDeck, applyMatchReward, buyEmoji, setEmojiSlot, setTrophies, setGold, updateResources, resetRankedStars } = usePlayer(user.username);
   const [tab, setTab] = useState<Tab>("cards");
   const [openedRewards, setOpenedRewards] = useState<{ card: CardDef; isDuplicate: boolean; refundGold: number }[] | null>(null);
   const [openedChestName, setOpenedChestName] = useState("");
   const [inBattle, setInBattle] = useState(false);
-  const [opponent, setOpponent] = useState<{name: string, trophies: number, wins?: number, battleId?: string, isPlayer1?: boolean, mode?: "standard"} | null>(null);
+  const [opponent, setOpponent] = useState<{name: string, trophies: number, rankedStars?: number, wins?: number, battleId?: string, isPlayer1?: boolean, mode?: "standard" | "tournament" | "ranked"} | null>(null);
   const [showMatchmaking, setShowMatchmaking] = useState(false);
   const [showArenas, setShowArenas] = useState(false);
+  const [battleMode, setBattleMode] = useState<"standard" | "ranked">("standard");
 
   if (!hydrated || !state) {
     return (
@@ -99,16 +139,15 @@ export function Home({ user }: { user: UserData }) {
                 </div>
                 <div className="mt-0.5 text-[11px] text-amber-200/90 underline decoration-amber-500/50 underline-offset-2 flex flex-col gap-0.5">
                   <div>Arena {arena.id} · {arena.name}</div>
-                  {(() => {
-                    const r = getRankForRankProgress(state.rankProgressTrophies || 0);
-                    return <div className="text-cyan-400 font-bold font-display decoration-transparent">{r.current.emoji} {r.current.name}</div>;
-                  })()}
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-col items-end gap-1">
+            <div className="flex flex-wrap justify-end gap-1.5">
               <Stat icon="🏆" value={state.trophies} color="from-amber-300 to-orange-500" />
+              {state.rankedStars !== undefined && state.rankedStars > 0 && (
+                <Stat icon="⭐" value={state.rankedStars} color="from-cyan-300 to-blue-500 text-cyan-950 font-black shadow-[0_0_10px_rgba(6,182,212,0.35)] border-cyan-400/40" />
+              )}
               <Stat icon="🪙" value={state.gold} color="from-yellow-200 to-amber-500" />
             </div>
           </header>
@@ -119,6 +158,9 @@ export function Home({ user }: { user: UserData }) {
                 deck={state.deck}
                 trophies={state.trophies}
                 rankProgressTrophies={state.rankProgressTrophies || 0}
+                rankedStars={state.rankedStars || 0}
+                battleMode={battleMode}
+                setBattleMode={setBattleMode}
                 onStart={() => setShowMatchmaking(true)}
               />
             )}
@@ -144,6 +186,10 @@ export function Home({ user }: { user: UserData }) {
                 tournamentWins={state.tournamentWins || 0}
                 onOpen={handleOpenChest} 
                 onBuyEmoji={buyEmoji} 
+                trophies={state.trophies}
+                rankedStars={state.rankedStars || 0}
+                onUpdateResources={updateResources}
+                onResetRankedStars={resetRankedStars}
               />
             )}
             {tab === "meta" && (
@@ -169,7 +215,7 @@ export function Home({ user }: { user: UserData }) {
       {showMatchmaking && (
         <MatchmakingModal
           user={{...user, ...state}}
-          mode="standard"
+          mode={battleMode}
           onMatchFound={(opp) => {
             setOpponent(opp as any);
             setShowMatchmaking(false);
@@ -200,13 +246,14 @@ export function Home({ user }: { user: UserData }) {
           trophies={state.trophies}
           opponentName={opponent.name}
           opponentTrophies={opponent.trophies}
+          opponentRankedStars={opponent.rankedStars}
           opponentWins={opponent.wins}
           battleId={opponent.battleId}
           isPlayer1={opponent.isPlayer1}
-          mode="standard"
+          mode={opponent.mode || "standard"}
           username={user.username}
           onFinish={(gold, trophy, win) => {
-            applyMatchReward(gold, trophy, win, false);
+            applyMatchReward(gold, trophy, win, opponent.mode || "standard");
             setInBattle(false);
             setOpponent(null);
           }}
@@ -340,9 +387,10 @@ function CardsTab({
 
   const handleCollectionCardClick = (cardId: string) => {
     const card = CARDS.find((c) => c.id === cardId);
+    if (!card) return;
     
     // Check if adding this will exceed legendary limit
-    if (card && card.rarity === "legendary") {
+    if (card.rarity === "legendary") {
        const legendaryCount = deck.filter(id => {
          const c = CARDS.find(card => card.id === id);
          return c && c.rarity === "legendary";
@@ -353,7 +401,7 @@ function CardsTab({
          return;
        }
     }
-    
+
     const inDeckIndex = deck.indexOf(cardId);
     if (inDeckIndex >= 0) {
       // It is already in the deck! Remove it immediately.
@@ -361,44 +409,61 @@ function CardsTab({
       // Make that slot the active slot so they can easily replace / fill it.
       setActiveSlot(inDeckIndex);
     } else {
-      // It is not in the deck.
-      // 1. If there's an active slot, put it there.
-      if (activeSlot !== null) {
-        setDeckSlot(activeSlot, cardId);
-        // Simulate new deck to find NEXT empty slot
+      // Find where we are inserting
+      let targetSlot = activeSlot;
+      if (targetSlot === null) {
+        targetSlot = deck.indexOf("");
+      }
+
+      if (targetSlot >= 0) {
+        // Simulate cost
         const simulatedDeck = [...deck];
-        simulatedDeck[activeSlot] = cardId;
+        simulatedDeck[targetSlot] = cardId;
+        const nextCost = simulatedDeck.reduce((sum, id) => {
+          const c = CARDS.find(x => x.id === id);
+          return sum + (c ? c.stoneCost : 0);
+        }, 0);
+
+        if (nextCost > 20) {
+          alert(`Maksimum 20 taş sınırını aşamazsın! Bu kartı eklersen desten ${nextCost} taş olacaktır.`);
+          return;
+        }
+
+        setDeckSlot(targetSlot, cardId);
+        // Simulate new deck to find NEXT empty slot
         const nextEmpty = simulatedDeck.findIndex((id) => id === "");
         if (nextEmpty >= 0) {
           setActiveSlot(nextEmpty);
         } else {
           setActiveSlot(null);
         }
-      } else {
-        // 2. If there's no active slot, check if there's any empty slot in the deck.
-        const firstEmptySlot = deck.indexOf("");
-        if (firstEmptySlot >= 0) {
-          setDeckSlot(firstEmptySlot, cardId);
-          // Simulate new deck to find NEXT empty slot
-          const simulatedDeck = [...deck];
-          simulatedDeck[firstEmptySlot] = cardId;
-          const nextEmpty = simulatedDeck.findIndex((id) => id === "");
-          if (nextEmpty >= 0) {
-            setActiveSlot(nextEmpty);
-          } else {
-            setActiveSlot(null);
-          }
-        }
       }
     }
   };
+
+  const deckStoneCost = deck.reduce((sum, id) => {
+    const c = CARDS.find(x => x.id === id);
+    return sum + (c ? c.stoneCost : 0);
+  }, 0);
 
   return (
     <div className="space-y-6">
       <section>
         <div className="mb-2 flex flex-col justify-start">
           <div className="flex items-center justify-between">
-            <h2 className="text-stroke text-2xl text-white">Destem</h2>
+            <h2 className="text-stroke text-2xl text-white flex items-center gap-2">
+              <span>Destem</span>
+              <span className={cn(
+                "text-xs font-mono font-bold px-2.5 py-0.5 rounded-full border shadow-sm transition-colors",
+                deckStoneCost > 20 
+                  ? "bg-red-950/80 text-red-400 border-red-500/40" 
+                  : deckStoneCost === 20 
+                    ? "bg-emerald-950/80 text-emerald-400 border-emerald-500/40" 
+                    : "bg-indigo-950/80 text-cyan-300 border-indigo-400/40"
+              )}>
+                💎 {deckStoneCost}/20
+              </span>
+            </h2>
             <div className="flex gap-1">
               {Object.keys(decks ?? { "0": deck }).map((key) => {
                 const index = parseInt(key);
@@ -556,15 +621,24 @@ function BattleTab({
   deck,
   trophies,
   rankProgressTrophies,
+  rankedStars,
+  battleMode,
+  setBattleMode,
   onStart,
 }: {
   deck: [string, string, string, string];
   trophies: number;
   rankProgressTrophies: number;
+  rankedStars: number;
+  battleMode: "standard" | "ranked";
+  setBattleMode: (mode: "standard" | "ranked") => void;
   onStart: () => void;
 }) {
   const deckCards = deck.map((id) => CARDS.find((c) => c.id === id));
-  const ready = deckCards.every(Boolean);
+  const deckStoneCost = deckCards.reduce((sum, c) => sum + (c ? c.stoneCost : 0), 0);
+  const isDeckComplete = deckCards.every(Boolean);
+  const isCostValid = deckStoneCost <= 20;
+  const ready = isDeckComplete && isCostValid;
   const arena = arenaForTrophies(trophies);
 
   const arenaIndex = ARENAS.findIndex((a) => a.id === arena.id);
@@ -606,107 +680,188 @@ function BattleTab({
 
   return (
     <div className="space-y-4">
+      {/* Mode Switcher Segment Control */}
+      <div className="grid grid-cols-2 gap-2 bg-slate-900 border border-slate-800 p-1 rounded-2xl shadow-md">
+        <button
+          onClick={() => setBattleMode("standard")}
+          className={cn(
+            "rounded-xl py-2.5 font-display text-sm transition-all duration-300 flex items-center justify-center gap-1.5 cursor-pointer",
+            battleMode === "standard"
+              ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold shadow-md"
+              : "text-slate-400 hover:text-white"
+          )}
+        >
+          <span>🏆</span> Kupa Modu
+        </button>
+        <button
+          onClick={() => {
+            if (trophies >= 3500) {
+              setBattleMode("ranked");
+            }
+          }}
+          className={cn(
+            "rounded-xl py-2.5 font-display text-sm transition-all duration-300 flex items-center justify-center gap-1.5 relative overflow-hidden cursor-pointer",
+            battleMode === "ranked"
+              ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold shadow-md"
+              : "text-slate-400 hover:text-white",
+            trophies < 3500 && "opacity-45 cursor-not-allowed"
+          )}
+        >
+          {trophies < 3500 ? (
+            <span className="flex items-center gap-1 text-slate-400">
+              <span>🔒</span> Aşamalı Mod
+            </span>
+          ) : (
+            <>
+              <div className="absolute top-0 right-0 bg-red-500 text-[7px] font-mono font-bold px-1 rounded-bl-md uppercase animate-pulse leading-none py-0.5">Yeni</div>
+              <span>⭐</span> Aşamalı Mod
+            </>
+          )}
+        </button>
+      </div>
+
+      {trophies < 3500 && (
+        <div className="bg-slate-950/40 border border-slate-900/60 rounded-xl px-3 py-2 text-center shadow-inner">
+          <span className="text-[11px] text-slate-400 font-medium">
+            🔒 Aşamalı Mod sadece <b>3500 Kupada (Efsanevi Arena)</b> açılır. Şampiyonlar ligine girmek için {3500 - trophies} kupa daha kazan!
+          </span>
+        </div>
+      )}
+
       {/* Redesigned Arena Photo with Progress Bar Underneath */}
       <div 
-        className="rounded-2xl border-2 border-black/50 p-4 text-center text-white relative overflow-hidden shadow-xl"
-        style={{ background: arena.bg }}
+        className={cn(
+          "rounded-2xl border-2 p-4 text-center text-white relative overflow-hidden shadow-xl transition-all duration-500",
+          battleMode === "ranked" ? "border-cyan-500 bg-cyan-950/45 shadow-[0_0_20px_rgba(6,182,212,0.25)]" : "border-black/50"
+        )}
+        style={{ background: battleMode === "ranked" ? "radial-gradient(circle at center, #0e2942 0%, #030712 100%)" : arena.bg }}
       >
         {/* Subtle decorative visual overlay */}
         <div className="absolute inset-0 bg-radial-gradient from-transparent to-black/30 pointer-events-none" />
 
         <div className="relative z-10 space-y-1.5">
-          <div className="inline-block uppercase tracking-widest text-[9px] bg-black/50 border border-white/10 text-amber-200 px-2 py-0.5 rounded-full font-mono font-bold">
-            Aktif Lig Derecesi · Arena {arena.id}
+          <div className={cn(
+            "inline-block uppercase tracking-widest text-[9px] border px-2 py-0.5 rounded-full font-mono font-bold",
+            battleMode === "ranked" 
+              ? "bg-cyan-950/80 border-cyan-500/40 text-cyan-300" 
+              : "bg-black/50 border-white/10 text-amber-200"
+          )}>
+            {battleMode === "ranked" ? "AŞAMALI LİG DERECE SİSTEMİ" : `Aktif Lig Derecesi · Arena ${arena.id}`}
           </div>
-          <h2 className="text-stroke text-3xl text-white font-display leading-none">{arena.name}</h2>
-          <p className="text-stroke-sm text-xs text-white/90 italic font-medium leading-none">{visuals.desc}</p>
+          <h2 className="text-stroke text-3xl text-white font-display leading-none">
+            {battleMode === "ranked" ? "Aşamalı Meydan" : arena.name}
+          </h2>
+          <p className="text-stroke-sm text-xs text-white/90 italic font-medium leading-none">
+            {battleMode === "ranked" ? "Yıldızları topla, efsanevi rütbelere ulaş!" : visuals.desc}
+          </p>
 
           <div className="py-4 flex justify-center scale-110 drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]">
-            <span className="text-6xl animate-pulse duration-1000">{visuals.emoji}</span>
+            <span className="text-6xl animate-pulse duration-1000">
+              {battleMode === "ranked" ? "🌟💎⚔️" : visuals.emoji}
+            </span>
           </div>
 
-          {/* Trophy progress slider bar underneath the Arena */}
-          <div className="pt-2 space-y-1">
-            <div className="flex justify-between items-center text-xs font-bold font-display px-0.5">
-              <span className="text-amber-200">Kupa İlerlemesi</span>
-              <span className="text-white bg-black/40 px-2 py-0.5 rounded font-mono">{label}</span>
-            </div>
-            
-            {/* The beautiful fluid progress bar */}
-            <div className="h-5 w-full bg-slate-950 border border-slate-800 rounded-full p-0.5 shadow-inner overflow-hidden relative flex items-center">
-              <div 
-                className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 border border-emerald-300/30 transition-all duration-500 relative flex items-center"
-                style={{ width: `${percent}%` }}
-              >
-                {/* Shiny gloss effect on the progress fill */}
-                <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent pointer-events-none rounded-full" />
+          {battleMode === "standard" ? (
+            /* Trophy progress slider bar underneath the Arena */
+            <div className="pt-2 space-y-1">
+              <div className="flex justify-between items-center text-xs font-bold font-display px-0.5">
+                <span className="text-amber-200">Kupa İlerlemesi</span>
+                <span className="text-white bg-black/40 px-2 py-0.5 rounded font-mono">{label}</span>
+              </div>
+              
+              {/* The beautiful fluid progress bar */}
+              <div className="h-5 w-full bg-slate-950 border border-slate-800 rounded-full p-0.5 shadow-inner overflow-hidden relative flex items-center">
+                <div 
+                  className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 border border-emerald-300/30 transition-all duration-500 relative flex items-center"
+                  style={{ width: `${percent}%` }}
+                >
+                  {/* Shiny gloss effect on the progress fill */}
+                  <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent pointer-events-none rounded-full" />
+                </div>
+              </div>
+
+              {/* Next arena hint detail overlay */}
+              <div className="text-[10px] text-amber-100/80 font-display flex items-center justify-between pt-0.5">
+                <span>{arena.min} 🏆</span>
+                {nextArena ? (
+                  <span>Sonraki arena: <b className="text-white text-[11px] underline font-bold">{nextArena.name}</b> ({nextArena.min} 🏆)</span>
+                ) : (
+                  <span className="text-amber-300 font-bold">🌟 Efsanevi Seviyenin Zirvesi!</span>
+                )}
+                <span>{nextArena ? nextArena.min : MAX_TROPHIES} 🏆</span>
               </div>
             </div>
-
-            {/* Next arena hint detail overlay */}
-            <div className="text-[10px] text-amber-100/80 font-display flex items-center justify-between pt-0.5">
-              <span>{arena.min} 🏆</span>
-              {nextArena ? (
-                <span>Sonraki arena: <b className="text-white text-[11px] underline font-bold">{nextArena.name}</b> ({nextArena.min} 🏆)</span>
-              ) : (
-                <span className="text-amber-300 font-bold">🌟 Efsanevi Seviyenin Zirvesi!</span>
-              )}
-              <span>{nextArena ? nextArena.min : MAX_TROPHIES} 🏆</span>
-            </div>
-          </div>
+          ) : null}
         </div>
       </div>
 
-      {/* Modern Rank Tracking Card */}
-      <div className="panel-3d rounded-2xl p-4 bg-slate-900 border border-slate-800/80 flex items-center justify-between text-white shadow-lg">
-        <div className="flex items-center gap-3">
-          <div className="text-4xl drop-shadow">{rank.current.emoji}</div>
-          <div className="text-left font-display">
-            <div className="text-[9px] text-slate-400 font-semibold tracking-wider uppercase leading-none">Mevcut Rank</div>
-            <div className={cn("text-lg font-black text-stroke-sm tracking-tight leading-tight mt-0.5", 
-              rank.current.name.includes("Bronz") ? "text-amber-600" : 
-              rank.current.name.includes("Gümüş") ? "text-slate-300" : 
-              rank.current.name.includes("Altın") ? "text-yellow-400" : "text-cyan-400"
-            )}>{rank.current.name}</div>
-          </div>
-        </div>
-        <div className="text-right font-display pl-4 flex-1 max-w-[150px]">
-          <div className="flex justify-between items-center text-[9.5px] text-amber-200 font-bold mb-1">
-            <span>Rütbe Gelişimi</span>
-            <span>{rank.next ? `${Math.floor(rank.currentProgressValue)}/${rank.requiredForNext}` : "MAX"}</span>
-          </div>
-          <div className="h-2 w-full bg-slate-950 border border-slate-800 rounded-full overflow-hidden relative">
-            <div 
-              className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-400 transition-all duration-300"
-              style={{ width: `${rank.progress}%` }}
-            />
-          </div>
-          {rank.next && (
-            <div className="text-[10px] text-slate-400 mt-1 leading-none font-medium">
-              Sonraki: <span className="text-white font-bold">{rank.next.name}</span>
+      {/* Modern Rank/League Tracking Card */}
+      {battleMode === "standard" && (
+        <div className="panel-3d rounded-2xl p-4 bg-slate-900 border border-slate-800/80 flex items-center justify-between text-white shadow-lg">
+          <div className="flex items-center gap-3">
+            <div className="text-4xl drop-shadow">{rank.current.emoji}</div>
+            <div className="text-left font-display">
+              <div className="text-[9px] text-slate-400 font-semibold tracking-wider uppercase leading-none">Mevcut Rank</div>
+              <div className={cn("text-lg font-black text-stroke-sm tracking-tight leading-tight mt-0.5", 
+                rank.current.name.includes("Bronz") ? "text-amber-600" : 
+                rank.current.name.includes("Gümüş") ? "text-slate-300" : 
+                rank.current.name.includes("Altın") ? "text-yellow-400" : "text-cyan-400"
+              )}>{rank.current.name}</div>
             </div>
-          )}
+          </div>
+          <div className="text-right font-display pl-4 flex-1 max-w-[150px]">
+            <div className="flex justify-between items-center text-[9.5px] text-amber-200 font-bold mb-1">
+              <span>Rütbe Gelişimi</span>
+              <span>{rank.next ? `${Math.floor(rank.currentProgressValue)}/${rank.requiredForNext}` : "MAX"}</span>
+            </div>
+            <div className="h-2 w-full bg-slate-950 border border-slate-800 rounded-full overflow-hidden relative">
+              <div 
+                className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-400 transition-all duration-300"
+                style={{ width: `${rank.progress}%` }}
+              />
+            </div>
+            {rank.next && (
+              <div className="text-[10px] text-slate-400 mt-1 leading-none font-medium">
+                Sonraki: <span className="text-white font-bold">{rank.next.name}</span>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Savaş Hazırlığı Actions */}
-      <div className="panel-3d rounded-2xl p-4 text-center">
+      <div className={cn(
+        "panel-3d rounded-2xl p-4 text-center transition-all duration-500",
+        battleMode === "ranked" ? "border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)] bg-gradient-to-b from-slate-900 to-cyan-950/20" : ""
+      )}>
         <button
           disabled={!ready}
           onClick={onStart}
           className={cn(
-            "mx-auto block w-full rounded-2xl py-3.5 font-display text-2xl text-primary-foreground text-stroke",
-            "btn-pop active:btn-pop-active shadow-lg",
+            "mx-auto block w-full rounded-2xl py-3.5 font-display text-2xl text-primary-foreground text-stroke transition-all duration-300",
+            battleMode === "ranked" 
+              ? "bg-gradient-to-r from-cyan-500 to-blue-600 border-b-4 border-blue-700 active:border-b-0 shadow-lg hover:shadow-cyan-500/20" 
+              : "btn-pop active:btn-pop-active shadow-lg",
             !ready && "opacity-50",
           )}
         >
-          {ready ? "SAVAŞA GİR! ⚔️" : "Önce desteni kur"}
+          {!isDeckComplete ? "Önce desteni kur" : (!isCostValid ? "Deste Sınırı Aşıldı (Max 20)" : (battleMode === "ranked" ? "AŞAMALI SAVAŞA GİR! ⚔️" : "SAVAŞA GİR! ⚔️"))}
         </button>
       </div>
 
       {/* Savaşçılar Deste List */}
       <div>
-        <h3 className="mb-2 text-stroke text-lg text-white font-display">Aktif Savaş Desten</h3>
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-stroke text-lg text-white font-display">Aktif Savaş Desten</h3>
+          <span className={cn(
+            "text-xs font-mono font-bold px-2.5 py-0.5 rounded-full shadow-sm border",
+            isCostValid 
+              ? "bg-indigo-950/80 text-cyan-300 border-indigo-400/30" 
+              : "bg-red-950/80 text-red-300 border-red-500/50 animate-pulse"
+          )}>
+            💎 {deckStoneCost}/20 Taş
+          </span>
+        </div>
         <div className="grid grid-cols-4 gap-2 rounded-2xl panel-3d p-3">
           {deckCards.map((card, i) =>
             card ? (
@@ -725,12 +880,20 @@ function BattleTab({
 
       <div className="rounded-2xl panel-3d p-3.5 text-xs text-amber-100/90 leading-relaxed">
         <h3 className="text-stroke text-base text-white mb-1 font-display">Savaş Ödülleri</h3>
-        <ul className="space-y-1">
-          <li>• Yakın kupalı rakibi yen: <b>1.000🪙 · +10🏆</b></li>
-          <li>• Üst kupalı rakibi yen: <b>2.000🪙 · +15🏆</b></li>
-          <li>• Düşük kupalı rakibi yen: <b>500🪙 · +7🏆</b></li>
-          <li>• Savaş kaybedilirse: <b>−4 ile −7🏆</b> kupa düşer.</li>
-        </ul>
+        {battleMode === "ranked" ? (
+          <ul className="space-y-1">
+            <li>• Savaşı kazanırsan: <b>1.000🪙 · +10⭐</b> kazanırsın.</li>
+            <li>• Savaşı kaybedersen: <b>−10 ile −20⭐</b> düşersin.</li>
+            <li>• Her kümede gereken ⭐'yı toplayıp efsanevi rütbelere ulaş!</li>
+          </ul>
+        ) : (
+          <ul className="space-y-1">
+            <li>• Yakın kupalı rakibi yen: <b>1.000🪙 · +10🏆</b></li>
+            <li>• Üst kupalı rakibi yen: <b>2.000🪙 · +15🏆</b></li>
+            <li>• Düşük kupalı rakibi yen: <b>500🪙 · +7🏆</b></li>
+            <li>• Savaş kaybedilirse: <b>−4 ile −7🏆</b> kupa düşer.</li>
+          </ul>
+        )}
       </div>
     </div>
   );
@@ -743,6 +906,10 @@ function ChestsTab({
   tournamentWins,
   onOpen,
   onBuyEmoji,
+  trophies,
+  rankedStars,
+  onUpdateResources,
+  onResetRankedStars,
 }: {
   gold: number;
   unlockedEmojis: string[];
@@ -750,11 +917,16 @@ function ChestsTab({
   tournamentWins: number;
   onOpen: (id: string) => void;
   onBuyEmoji: (emoji: string, cost: number) => void;
+  trophies: number;
+  rankedStars: number;
+  onUpdateResources: (trophies: number, gold: number, rankedStars?: number) => void;
+  onResetRankedStars: () => void;
 }) {
   const maxWins = Math.max(wins, tournamentWins);
 
   return (
     <div className="space-y-6">
+
       <div className="space-y-3">
         <h2 className="text-stroke text-2xl text-white">Mağaza</h2>
         
@@ -845,6 +1017,7 @@ function ChestReveal({
   };
 
   const startTapping = () => {
+    if (isShaking || phase !== "intro") return;
     setIsShaking(true);
     setTimeout(() => {
       setIsShaking(false);
@@ -854,18 +1027,26 @@ function ChestReveal({
   };
 
   const handleTapNext = () => {
+    if (isShaking || phase !== "tapping") return;
+    if (tapCount >= rewards.length) {
+      setPhase("summary");
+      return;
+    }
     setIsShaking(true);
     setTimeout(() => {
       setIsShaking(false);
-      if (tapCount < rewards.length) {
-        setTapCount((tc) => tc + 1);
-      } else {
-        setPhase("summary");
-      }
+      setTapCount((tc) => {
+        const nextVal = tc + 1;
+        if (nextVal > rewards.length) {
+          setPhase("summary");
+          return rewards.length;
+        }
+        return nextVal;
+      });
     }, 450);
   };
 
-  const activeReward = rewards[tapCount - 1];
+  const activeReward = rewards[Math.max(0, Math.min(tapCount, rewards.length) - 1)];
   const activeCard = activeReward?.card;
 
   const getRarityGlowClass = (rarity: Rarity) => {

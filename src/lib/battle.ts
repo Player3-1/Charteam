@@ -45,6 +45,12 @@ export interface Unit {
   lavKopegiAbilityUsed?: boolean;
   lavKopegiAbilityTimeLeft?: number;
   hayaletRevealedByUid?: number;
+  laserTargetUid?: number;
+  laserChannelTime?: number;
+  laserTickTimer?: number;
+  ufoAttacking?: boolean;
+  samurayAbilityActive?: boolean;
+  cigTriggered?: boolean;
 }
 
 export interface Projectile {
@@ -72,6 +78,8 @@ export interface BattleState {
   battleId?: string;
   pendingOpponentAbilities?: Map<string, number>;
   arenaId?: number;
+  playerAbilityStones?: number;
+  botAbilityStones?: number;
 }
 
 let _uid = 1;
@@ -95,6 +103,7 @@ export function sortUnitsSymmetrically(units: Unit[], isPlayer1: boolean) {
 
 export function isUnitTargetable(u: Unit): boolean {
   if (u.hp <= 0) return false;
+  if (u.card.id === "cig") return false;
   if (u.underground) return false;
   if (u.emergingTimeLeft !== undefined && u.emergingTimeLeft > 0) return false;
   return true;
@@ -123,7 +132,7 @@ export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: nu
           id: `kus-ordusu-bird-${index}`,
           name: `Kuş ${index + 1}`,
           hp: 20,
-          dmg: 10,
+          dmg: 5,
           cd: 1.0,
         },
         side,
@@ -135,6 +144,58 @@ export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: nu
         flying: true,
         level,
       });
+    });
+    return;
+  }
+
+  // Kabile spawns 6 individual tribe members
+  if (card.id === "kabile") {
+    const offsets = [
+      [0, 0],
+      [-0.4, -0.4],
+      [0.4, -0.4],
+      [-0.4, 0.4],
+      [0.4, 0.4],
+      [0, 0.5]
+    ];
+    const mult = side === "bot" ? -1 : 1;
+    offsets.forEach(([dc, dr], index) => {
+      state.units.push({
+        uid: nextUid(),
+        card: {
+          ...card,
+          id: `kabile-member-${index}`,
+          name: `Kabile Savaşçısı ${index + 1}`,
+          hp: 25,
+          dmg: 15,
+          cd: 1.0,
+        },
+        side,
+        col: Math.max(0, Math.min(COLS - 1, col + dc * mult)),
+        row: Math.max(0, Math.min(ROWS - 1, row + dr * mult)),
+        hp: 25,
+        maxHp: 25,
+        cdLeft: 1.0,
+        flying: false,
+        level,
+      });
+    });
+    return;
+  }
+
+  // Çığ spawns a non-combat placeholder unit that falls after 5 seconds
+  if (card.id === "cig") {
+    state.units.push({
+      uid: nextUid(),
+      card,
+      side,
+      col,
+      row,
+      hp: 1,
+      maxHp: 1,
+      cdLeft: 999,
+      flying: false,
+      level,
     });
     return;
   }
@@ -173,6 +234,7 @@ function attackRange(card: CardDef): number {
 }
 
 function speed(card: CardDef): number {
+  if (card.id === "mercan" || card.id === "volkan") return 0; // Static building/coral
   if (card.id === "kopek-baligi") return 1.5; // Fast shark
   if (card.id === "balik") return 1.3; // Fast fish
   if (card.id === "mercan" || card.id === "volkan") return 0; // Static building/coral
@@ -459,6 +521,45 @@ export function tickBattle(state: BattleState, dt: number) {
     }
   }
 
+  // Process Çığ (Avalanche) explosion at 5.0 seconds
+  for (const u of state.units) {
+    if (u.card.id === "cig" && u.hp > 0 && state.time >= 5.0 && !u.cigTriggered) {
+      u.cigTriggered = true;
+      u.hp = 0; // dies/disappears immediately
+
+      // Spawn falling ice projectiles to represent the avalanche
+      for (let i = 0; i < 8; i++) {
+        const offsetCol = (Math.random() - 0.5) * 4;
+        const offsetRow = (Math.random() - 0.5) * 4;
+        state.projectiles.push({
+          uid: nextUid(),
+          side: u.side,
+          attackerUid: u.uid,
+          damage: 0,
+          fromCol: u.col + offsetCol,
+          fromRow: u.row + offsetRow - 5,
+          toCol: u.col + offsetCol,
+          toRow: u.row + offsetRow,
+          t: 0,
+          duration: 0.3 + Math.random() * 0.4,
+          kind: "snowball",
+        });
+      }
+
+      // Deal 100 damage to all enemies within 5 blocks of (u.col, u.row)
+      state.units.forEach((targetUnit) => {
+        if (targetUnit.side !== u.side && isUnitTargetable(targetUnit)) {
+          const d = Math.hypot(targetUnit.col - u.col, targetUnit.row - u.row);
+          if (d <= 5.0) {
+            applyCombatDamage(targetUnit, 100, u);
+            // Also apply a brief freeze (1.5s)
+            targetUnit.frozenTimeLeft = Math.max(targetUnit.frozenTimeLeft || 0, 1.5);
+          }
+        }
+      });
+    }
+  }
+
   // BOT AI trigger of active abilities on opportunity
   for (const u of state.units) {
     if (u.side === "bot" && u.hp > 0) {
@@ -470,15 +571,22 @@ export function tickBattle(state: BattleState, dt: number) {
       }
       // Ghost auto invul on low health or when first targeted
       if (u.card.id === "hayalet" && u.hp < u.maxHp * 0.7 && u.immuneTimeLeft === undefined) {
-        u.immuneTimeLeft = 2.5; 
+        triggerUnitAbility(u, state);
       }
       // Zırhlı defense absorption under 60% health
       if (u.card.id === "zirhli" && u.hp < u.maxHp * 0.6 && !u.zirhliDefendingTimeLeft) {
-        u.zirhliDefendingTimeLeft = 8.0;
+        triggerUnitAbility(u, state);
       }
       // Barrel active boost
       if (u.card.id === "bira-varili" && u.barrelAuraBoostTimeLeft === undefined) {
-        u.barrelAuraBoostTimeLeft = 10.0;
+        triggerUnitAbility(u, state);
+      }
+      // Samuray active double damage boost if in combat
+      if (u.card.id === "samuray" && !u.samurayAbilityActive && u.cdLeft <= 0.1) {
+        const enemiesNearby = state.units.filter((o) => o.side !== u.side && o.hp > 0 && dist(u, o) <= attackRange(u.card));
+        if (enemiesNearby.length > 0) {
+          triggerUnitAbility(u, state);
+        }
       }
       // Doktor heal if allies are injured
       if (u.card.id === "doktor" && (u.doktorAbilityCd || 0) <= 0) {
@@ -504,6 +612,14 @@ export function tickBattle(state: BattleState, dt: number) {
           triggerUnitAbility(u, state);
         }
       }
+      // Lav kopegi ability if enemies are near
+      if (u.card.id === "lav-kopegi" && !u.lavKopegiAbilityUsed) {
+        const enemiesNearby = state.units.filter((o) => o.side !== u.side && o.hp > 0 && dist(u, o) <= 2.5);
+        if (enemiesNearby.length >= 2 || (enemiesNearby.length === 1 && enemiesNearby[0].hp > 200)) {
+          triggerUnitAbility(u, state);
+        }
+      }
+      
       // Miner automatically emerges after 4 seconds underground
       if (u.card.id === "madenci" && u.underground && state.time >= 4.0) {
         emergeMiner(u);
@@ -673,6 +789,12 @@ export function tickBattle(state: BattleState, dt: number) {
           dmgValueResult *= 2.0;
         }
 
+        // Apply Samuray ability damage boost
+        if (u.card.id === "samuray" && u.samurayAbilityActive) {
+          dmgValueResult *= 2.0;
+          u.samurayAbilityActive = false; // consume the active ability
+        }
+
         const kind = projectileKind(u.card);
         if (kind) {
           let aoeRange = 0;
@@ -680,7 +802,8 @@ export function tickBattle(state: BattleState, dt: number) {
           else if (u.card.id === "sapanci") aoeRange = 1.5;
           else if (u.card.id === "ejder") aoeRange = 1.5;
           else if (u.card.id === "topcu") aoeRange = 2.0;
-          else if (u.card.id === "buz-dolabi") aoeRange = 1.0;
+          else if (u.card.id === "buz-dolabi") aoeRange = 1.5;
+          else if (u.card.id === "volkan") aoeRange = 1.5;
 
           state.projectiles.push({
             uid: nextUid(),
@@ -763,7 +886,41 @@ export function tickBattle(state: BattleState, dt: number) {
     }
   }
 
+  // Filter out any units that died in this tick
   state.units = state.units.filter((u) => u.hp > 0);
+
+  // --- 3. Collision Resolution (Ground units cannot pass through/stack on each other) ---
+  // Run 2 relaxation passes to spread out overlapping ground units
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < state.units.length; i++) {
+      const u1 = state.units[i];
+      if (u1.hp <= 0 || u1.flying || u1.card.id === "hayalet" || u1.card.id === "madenci" || u1.underground) {
+        continue;
+      }
+      for (let j = i + 1; j < state.units.length; j++) {
+        const u2 = state.units[j];
+        if (u2.hp <= 0 || u2.flying || u2.card.id === "hayalet" || u2.card.id === "madenci" || u2.underground) {
+          continue;
+        }
+        
+        const dx = u2.col - u1.col;
+        const dy = u2.row - u1.row;
+        const distVal = Math.hypot(dx, dy);
+        const minDist = 0.65; // minimum padding between ground units
+        
+        if (distVal < minDist) {
+          const overlap = minDist - distVal;
+          const pushX = (dx / (distVal || 1)) * overlap * 0.5;
+          const pushY = (dy / (distVal || 1)) * overlap * 0.5;
+          
+          u1.col = Math.max(0, Math.min(COLS - 1, u1.col - pushX));
+          u1.row = Math.max(0, Math.min(ROWS - 1, u1.row - pushY));
+          u2.col = Math.max(0, Math.min(COLS - 1, u2.col + pushX));
+          u2.row = Math.max(0, Math.min(ROWS - 1, u2.row + pushY));
+        }
+      }
+    }
+  }
 
   const playerAlive = state.units.some((u) => u.side === "player");
   const botAlive = state.units.some((u) => u.side === "bot");
@@ -791,9 +948,9 @@ function applyCombatDamage(defender: Unit, dmg: number, attacker?: Unit, isProje
     return; // takes 0 damage
   }
   
-  // Zırhlı defense absorption (absorbs 40%, takes 60%)
+  // Zırhlı defense absorption (absorbs 25%, takes 75%)
   let finalDmg = defender.zirhliDefendingTimeLeft !== undefined && defender.zirhliDefendingTimeLeft > 0
-    ? dmg * 0.6
+    ? dmg * 0.75
     : dmg;
 
   // Custom balance: Slinger/Dragon deal partial damage to birds
@@ -813,9 +970,39 @@ function applyCombatDamage(defender: Unit, dmg: number, attacker?: Unit, isProje
   }
 }
 
+export function getAbilityStoneCost(cardId: string): number {
+  switch (cardId) {
+    case "zirhli": return 2;
+    case "hayalet": return 1;
+    case "madenci": return 0;
+    case "doktor": return 1;
+    case "bira-varili": return 2;
+    case "bombalama-ucagi": return 1;
+    case "kurbaga": return 3;
+    case "lav-kopegi": return 1;
+    case "samuray": return 1;
+    default: return 0;
+  }
+}
+
 /** Explicitly triggers a units active ability */
 export function triggerUnitAbility(unit: Unit, state: BattleState) {
   if (unit.hp <= 0) return;
+
+  const cost = getAbilityStoneCost(unit.card.id);
+  if (unit.side === "player") {
+    if (state.playerAbilityStones === undefined) {
+      state.playerAbilityStones = 20; // Fallback
+    }
+    if (state.playerAbilityStones < cost) return;
+    state.playerAbilityStones -= cost;
+  } else {
+    if (state.botAbilityStones === undefined) {
+      state.botAbilityStones = 20; // Fallback
+    }
+    if (state.botAbilityStones < cost) return;
+    state.botAbilityStones -= cost;
+  }
 
   // 11. Hayalet: Hasar almaz olma 5sn
   if (unit.card.id === "hayalet") {
@@ -829,7 +1016,7 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
     }
   }
 
-  // 13. Doktor: can iyileştirme 5x5 alanda +60
+  // 13. Doktor: can iyileştirme 5x5 alanda +90
   else if (unit.card.id === "doktor") {
     if ((unit.doktorAbilityCd || 0) <= 0) {
       unit.doktorAbilityCd = 5.0; // Cooldown 5s
@@ -838,7 +1025,7 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
         if (targetUnit.side === unit.side && isUnitTargetable(targetUnit)) {
           // Surrounding blocks (within 5.0 range / 5x5 area)
           if (dist(targetUnit, unit) <= 5.0) {
-            targetUnit.hp = Math.min(targetUnit.maxHp, targetUnit.hp + 60); // heal 60 health
+            targetUnit.hp = Math.min(targetUnit.maxHp, targetUnit.hp + 90); // heal 90 health
           }
         }
       });
@@ -938,6 +1125,7 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
                 t: 0,
                 duration: 0.5,
                 kind: "ice",
+                aoeRange: 1.5,
                 targetUid: best.uid,
             });
        }
@@ -996,6 +1184,10 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
       });
     });
   }
+  // 30. Samuray: yaptığı vuruş 2x hasar vurur
+  else if (unit.card.id === "samuray") {
+    unit.samurayAbilityActive = true;
+  }
 }
 
 // ---------- helpers ----------
@@ -1049,7 +1241,13 @@ export function computeRewards(
   win: boolean,
   playerTrophies: number,
   opponentTrophies: number,
+  mode: "standard" | "tournament" | "ranked" = "standard"
 ): { gold: number; trophy: number } {
+  if (mode === "ranked") {
+    if (win) return { gold: 1000, trophy: 10 };
+    return { gold: 0, trophy: -(Math.floor(Math.random() * 11) + 10) };
+  }
+
   const diff = opponentTrophies - playerTrophies;
   if (!win) {
     const loss = -(4 + Math.floor(Math.random() * 4));

@@ -15,4 +15,6 @@ export interface UserData {
   selectedEmojis?: string[]; // Max 4
   rankProgressTrophies?: number; // Cumulative rank progression kupa
   claimedMilestones?: string[]; // Track claimed milestone emojis (🥇, 🥈, 🥉)
+  maxTrophies?: number; // Lifetime highest trophy record achieved
+  rankedStars?: number; // Rank star system for max trophy players
 }

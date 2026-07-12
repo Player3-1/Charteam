@@ -57,8 +57,13 @@ export function GameCard({ card, size = "md", owned, locked, lockedAtArena, sele
         onClick && "hover:-translate-y-1 active:translate-y-0",
       )}
     >
+      {/* Stone Cost (Taş Maliyeti) */}
+      <div className="absolute right-1 top-1 rounded-full bg-indigo-950/95 border border-indigo-400/70 px-2 py-0.5 text-xs font-black text-cyan-300 shadow-md z-10 flex items-center gap-0.5 font-mono leading-none">
+        💎{card.stoneCost}
+      </div>
+
       {level !== undefined && (
-        <div className="absolute left-1 top-1 rounded bg-slate-900/90 border border-slate-700/50 px-1 py-0.5 text-[8px] font-black text-amber-400 shadow z-10 font-mono">
+        <div className="absolute left-1 top-1 rounded bg-slate-900/95 border border-slate-700/60 px-1.5 py-0.5 text-[10px] font-black text-amber-400 shadow-md z-10 font-mono">
           LV.{level}
         </div>
       )}
@@ -90,30 +95,30 @@ export function GameCard({ card, size = "md", owned, locked, lockedAtArena, sele
           {card.emoji}
         </span>
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-white/10" />
-        <div className="absolute inset-x-1 bottom-1 flex justify-between text-[10px] font-bold">
-          <span className="rounded bg-red-600/90 px-1.5 py-0.5 text-white shadow">
+        <div className="absolute inset-x-1 bottom-1 flex justify-between text-[11px] font-black">
+          <span className="rounded bg-red-600/95 px-2 py-0.5 text-white shadow-md">
             ♥ {card.hp}
           </span>
-          <span className="rounded bg-amber-500/90 px-1.5 py-0.5 text-amber-950 shadow">
+          <span className="rounded bg-amber-500/95 px-2 py-0.5 text-amber-950 shadow-md">
             ⚔ {card.dmg}
           </span>
         </div>
         {owned !== undefined && size !== "sm" && (
-          <div className="absolute right-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-bold text-white">
+          <div className="absolute right-1 top-1 rounded bg-black/75 px-1.5 py-0.5 text-xs font-bold text-white">
             x{owned}
           </div>
         )}
       </div>
       <div
         className={cn(
-          "rounded-b-xl border-t border-black/30 px-2 py-1 text-center font-display",
+          "rounded-b-xl border-t border-black/30 px-2 py-1.5 text-center font-display",
           s.banner,
-          size === "sm" ? "text-[10px]" : "text-xs",
+          size === "sm" ? "text-[11px]" : "text-sm",
         )}
       >
-        <div className="truncate">{card.name}</div>
+        <div className="truncate font-black leading-tight">{card.name}</div>
         {size !== "sm" && (
-          <div className="text-[9px] uppercase tracking-wider opacity-80">
+          <div className="text-[10px] uppercase font-bold tracking-wider opacity-90">
             {RARITY_LABEL[card.rarity]}
           </div>
         )}

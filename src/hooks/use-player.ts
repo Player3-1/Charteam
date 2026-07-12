@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { CARDS } from "@/lib/cards";
 import { db, handleFirestoreError, OperationType } from "@/firebase";
-import { doc, onSnapshot, updateDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { UserData } from "@/types";
-import { MAX_TROPHIES } from "@/lib/arenas";
+import { MAX_TROPHIES, arenaForTrophies } from "@/lib/arenas";
 
 const STARTER_DECK: UserData["deck"] = ["mizrakli", "kilicli", "okcu", "dev"];
 
@@ -25,6 +25,7 @@ function defaultState(username: string): UserData {
     wins: 0,
     losses: 0,
     rankProgressTrophies: 0,
+    rankedStars: 0,
   };
 }
 
@@ -50,6 +51,7 @@ export function usePlayer(username: string) {
           wins: wins,
           losses: data.losses ?? 0,
           rankProgressTrophies: data.rankProgressTrophies ?? 0,
+          rankedStars: data.rankedStars ?? 0,
           unlockedEmojis: data.unlockedEmojis ?? [],
           selectedEmojis: data.selectedEmojis ?? ["", "", "", ""],
           claimedMilestones: data.claimedMilestones ?? [],
@@ -70,7 +72,12 @@ export function usePlayer(username: string) {
   const updateFirestore = useCallback(async (newState: UserData) => {
     if (!username) return;
     const userRef = doc(db, "users", username);
-    await updateDoc(userRef, newState as any);
+    try {
+      const cleanState = JSON.parse(JSON.stringify(newState));
+      await setDoc(userRef, cleanState, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `users/${username}`);
+    }
   }, [username]);
 
   const addCards = useCallback(async (cardIds: string[]) => {
@@ -109,21 +116,55 @@ export function usePlayer(username: string) {
     return true;
   }, [state, updateFirestore]);
 
-  const applyMatchReward = useCallback(async (gold: number, trophy: number, win: boolean) => {
+  const applyMatchReward = useCallback(async (gold: number, trophy: number, win: boolean, matchMode: "standard" | "tournament" | "ranked" = "standard") => {
     if (!state) return;
     
-    const progressTrophies = state.rankProgressTrophies ?? 0;
-    const nextProgressTrophies = Math.max(0, progressTrophies + trophy);
-    
-    const newState = {
+    let nextTrophies = state.trophies;
+    let nextMaxTrophies = state.maxTrophies ?? state.trophies;
+    let nextProgressTrophies = state.rankProgressTrophies ?? 0;
+    let nextRankedStars = state.rankedStars ?? 0;
+
+    if (matchMode === "ranked") {
+      // Ranked stars logic (+10 for win, -10 to -20 for loss)
+      const starsChange = trophy;
+      nextRankedStars = Math.max(0, (state.rankedStars ?? 0) + starsChange);
+      // Trophies remain completely unchanged
+      nextTrophies = state.trophies;
+      nextMaxTrophies = state.maxTrophies ?? state.trophies;
+    } else {
+      // Standard trophies logic
+      const progressTrophies = state.rankProgressTrophies ?? 0;
+      nextProgressTrophies = Math.max(0, progressTrophies + trophy);
+      
+      const proposedTrophies = state.trophies + trophy;
+      
+      const currentArena = arenaForTrophies(state.trophies);
+      const minArenaTrophies = currentArena.min;
+      
+      const finalTrophies = Math.max(minArenaTrophies, proposedTrophies);
+      
+      nextTrophies = Math.max(0, Math.min(MAX_TROPHIES, finalTrophies));
+      nextMaxTrophies = Math.max(state.maxTrophies ?? 0, nextTrophies);
+    }
+
+    const newState: UserData = {
       ...state,
       gold: Math.max(0, state.gold + gold),
-      trophies: Math.max(0, Math.min(MAX_TROPHIES, state.trophies + trophy)),
+      trophies: nextTrophies,
+      maxTrophies: nextMaxTrophies,
       wins: win ? state.wins + 1 : state.wins,
       losses: !win ? state.losses + 1 : state.losses,
-      rankProgressTrophies: nextProgressTrophies
+      rankProgressTrophies: nextProgressTrophies,
+      rankedStars: nextRankedStars,
     };
     
+    setState(newState);
+    await updateFirestore(newState);
+  }, [state, updateFirestore]);
+
+  const resetRankedStars = useCallback(async () => {
+    if (!state) return;
+    const newState = { ...state, rankedStars: 0 };
     setState(newState);
     await updateFirestore(newState);
   }, [state, updateFirestore]);
@@ -187,5 +228,39 @@ export function usePlayer(username: string) {
     return true;
   }, [state, updateFirestore]);
 
-  return { state, hydrated, addCards, claimChestRewards, spendGold, setDeckSlot, setActiveDeck, applyMatchReward, setEmojiSlot, buyEmoji };
+  const setTrophies = useCallback(async (trophies: number) => {
+    if (!state) return;
+    const newState = {
+      ...state,
+      trophies: Math.max(0, Math.min(MAX_TROPHIES, trophies)),
+      maxTrophies: Math.max(state.maxTrophies ?? 0, trophies)
+    };
+    setState(newState);
+    await updateFirestore(newState);
+  }, [state, updateFirestore]);
+
+  const setGold = useCallback(async (gold: number) => {
+    if (!state) return;
+    const newState = {
+      ...state,
+      gold: Math.max(0, gold)
+    };
+    setState(newState);
+    await updateFirestore(newState);
+  }, [state, updateFirestore]);
+
+  const updateResources = useCallback(async (trophies: number, gold: number, rankedStars?: number) => {
+    if (!state) return;
+    const newState = {
+      ...state,
+      trophies: Math.max(0, Math.min(MAX_TROPHIES, trophies)),
+      maxTrophies: Math.max(state.maxTrophies ?? 0, trophies),
+      gold: Math.max(0, gold),
+      rankedStars: rankedStars !== undefined ? Math.max(0, rankedStars) : (state.rankedStars ?? 0)
+    };
+    setState(newState);
+    await updateFirestore(newState);
+  }, [state, updateFirestore]);
+
+  return { state, hydrated, addCards, claimChestRewards, spendGold, setDeckSlot, setActiveDeck, applyMatchReward, setEmojiSlot, buyEmoji, setTrophies, setGold, updateResources, resetRankedStars };
 }

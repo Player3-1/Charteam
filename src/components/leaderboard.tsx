@@ -19,13 +19,12 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
     const fetchLeaderboardData = async () => {
       try {
         setLoading(true);
-        // 1. Fetch top 3 players
-        const qTop = query(collection(db, "users"), orderBy("trophies", "desc"), limit(3));
-        const querySnapshot = await getDocs(qTop);
-        const players: UserData[] = [];
+        // 1. Fetch all players to sort in-memory (highly robust, no index required, handles infinite stars)
+        const querySnapshot = await getDocs(collection(db, "users"));
+        const allPlayers: UserData[] = [];
         querySnapshot.forEach((doc) => {
           const data = doc.data();
-          players.push({
+          allPlayers.push({
             id: doc.id,
             username: data.username || "Oyuncu",
             gold: data.gold ?? 0,
@@ -35,14 +34,28 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
             wins: data.wins ?? 0,
             losses: data.losses ?? 0,
             rankProgressTrophies: data.rankProgressTrophies ?? 0,
+            rankedStars: data.rankedStars ?? 0,
           });
         });
-        setTopPlayers(players);
 
-        // 2. Fetch the rank of the current user
-        const qCount = query(collection(db, "users"), where("trophies", ">", currentTrophies));
-        const countSnapshot = await getCountFromServer(qCount);
-        const rank = countSnapshot.data().count + 1;
+        // Sort in-memory: 
+        // 1. rankedStars descending
+        // 2. trophies descending
+        allPlayers.sort((a, b) => {
+          const starsA = a.rankedStars ?? 0;
+          const starsB = b.rankedStars ?? 0;
+          if (starsB !== starsA) {
+            return starsB - starsA;
+          }
+          return b.trophies - a.trophies;
+        });
+
+        // Top 3 players
+        setTopPlayers(allPlayers.slice(0, 3));
+
+        // 2. Find the rank of the current user from the sorted list
+        const myIndex = allPlayers.findIndex(p => p.username === currentUser.username);
+        const rank = myIndex !== -1 ? myIndex + 1 : 1;
         setUserRank(rank);
       } catch (error) {
         console.error("Liderlik tablosu verileri yüklenirken hata oluştu:", error);
@@ -83,9 +96,14 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
                     <div className="font-display text-lg text-white font-black tracking-wide flex items-center gap-1.5">
                       {player.username} {player.username.toLowerCase() === "dgoa" && <span className="text-sm">🛠️</span>}
                     </div>
-                    <div className="text-sm font-bold text-amber-300 flex items-center gap-1">
+                    <div className="text-sm font-bold text-amber-300 flex items-center gap-1.5 flex-wrap">
                       <span>{player.trophies}</span>
                       <span className="text-xs opacity-85">Kupa 🏆</span>
+                      {player.rankedStars !== undefined && player.rankedStars > 0 && (
+                        <span className="text-cyan-300 font-extrabold flex items-center gap-0.5 bg-cyan-950/45 border border-cyan-800/30 px-1.5 py-0.5 rounded-full text-[11px] leading-none shadow shadow-cyan-500/10">
+                          ⭐ {player.rankedStars}
+                        </span>
+                      )}
                     </div>
                  </div>
               </div>
@@ -226,8 +244,8 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
     const fetchTop100 = async () => {
       try {
         setLoading(true);
-        const q = query(collection(db, "users"), orderBy("trophies", "desc"), limit(100));
-        const querySnapshot = await getDocs(q);
+        // Fetch all users to robustly sort them in-memory
+        const querySnapshot = await getDocs(collection(db, "users"));
         const fetchedPlayers: UserData[] = [];
         querySnapshot.forEach((doc) => {
           const data = doc.data();
@@ -241,8 +259,22 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
             wins: data.wins ?? 0,
             losses: data.losses ?? 0,
             rankProgressTrophies: data.rankProgressTrophies ?? 0,
+            rankedStars: data.rankedStars ?? 0,
           });
         });
+
+        // Sort in-memory: 
+        // 1. rankedStars descending
+        // 2. trophies descending
+        fetchedPlayers.sort((a, b) => {
+          const starsA = a.rankedStars ?? 0;
+          const starsB = b.rankedStars ?? 0;
+          if (starsB !== starsA) {
+            return starsB - starsA;
+          }
+          return b.trophies - a.trophies;
+        });
+
         setPlayers(fetchedPlayers);
       } catch (error) {
         console.error("İlk 100 oyuncu yüklenirken hata oluştu:", error);
@@ -339,8 +371,13 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
                         {player.username.toLowerCase() === "dgoa" && <span className="text-xs">🛠️</span>}
                         {isMe && <span className="text-[9px] bg-indigo-500/20 text-indigo-300 font-sans px-1.5 py-0.5 rounded uppercase font-black tracking-wider ml-1">Siz</span>}
                       </div>
-                      <div className="text-[11px] text-amber-400/90 font-bold flex items-center gap-1.5 mt-0.5">
+                      <div className="text-[11px] text-amber-400/90 font-bold flex items-center gap-1.5 mt-0.5 flex-wrap">
                         <span>{player.trophies} 🏆</span>
+                        {player.rankedStars !== undefined && player.rankedStars > 0 && (
+                          <span className="text-cyan-300 font-extrabold flex items-center gap-0.5 bg-cyan-950/45 border border-cyan-800/30 px-1 py-0.2 rounded-full text-[10px] leading-none shadow shadow-cyan-500/10">
+                            ⭐ {player.rankedStars}
+                          </span>
+                        )}
                         <span className="text-slate-600 font-normal">·</span>
                         <span className="text-slate-400 font-sans font-medium">{player.wins} G</span>
                       </div>

@@ -15,6 +15,7 @@ import {
   spawnUnit,
   tickBattle,
   triggerUnitAbility,
+  getAbilityStoneCost,
   COLS,
   ROWS,
   RIVER_ROW,
@@ -24,7 +25,7 @@ import {
 
 type Phase = "drafting" | "placing" | "fighting" | "done";
 
-function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[], arenaId?: number): { col: number; row: number } {
+function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[], arenaId?: number, mode?: string): { col: number; row: number } {
   const isOccupied = (c: number, r: number) => {
     return existingUnits.some(u => Math.round(u.col) === c && Math.round(u.row) === r);
   };
@@ -33,7 +34,7 @@ function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[], arenaId
   
   // Calculate column weight based on player units to try to align tanks or avoid threats
   // Player is at row 13..24. We are at row 0..11.
-  const getColWeight = (c: number, wantAlign: boolean) => {
+  const getColWeight = (c: number, r: number, wantAlign: boolean) => {
     let w = 0;
     for (const pu of playerUnits) {
       const distCol = Math.abs(pu.col - c);
@@ -43,6 +44,16 @@ function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[], arenaId
         w -= Math.max(0, 5 - distCol); // lower weight if closer column
       }
     }
+
+    // Spread bot units out so they aren't clustered together
+    const botUnits = existingUnits.filter(u => u.side === "bot");
+    for (const bu of botUnits) {
+      const dist = Math.abs(bu.col - c) + Math.abs(bu.row - r);
+      if (dist < 4) {
+        w -= (5 - dist) * 2; // Penalize placing too close
+      }
+    }
+
     return w;
   };
 
@@ -53,7 +64,7 @@ function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[], arenaId
     const cols = Array.from({ length: COLS }, (_, idx) => idx).sort(() => Math.random() - 0.5);
     for (const c of cols) {
       if (!isOccupied(c, r)) {
-        const w = getColWeight(c, wantAlign);
+        const w = getColWeight(c, r, wantAlign);
         if (w > bestW) {
           bestW = w;
           bestCol = c;
@@ -63,146 +74,20 @@ function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[], arenaId
     return bestCol !== -1 ? bestCol : null;
   };
 
-  const isSquishyRanged = ["okcu", "sapanci", "topcu", "bombalama-ucagi", "kus-ordusu", "buz-dolabi", "kardan-adam", "volkan"].includes(card.id);
+  const isSquishyRanged = ["okcu", "topcu", "bombalama-ucagi", "kus-ordusu", "kardan-adam", "volkan"].includes(card.id);
+  const isExtremeBack = ["sapanci", "buz-dolabi", "bira-varili", "cig"].includes(card.id);
 
-  // --- ARENA 1: VERY POOR PLACEMENT ---
-  if (arenaId === 1) {
-    // 1. Heavy tanks (hp > 110) are hidden in the very back (row 0..2) where they take ages to join the fight
-    if (card.hp > 110) {
-      for (const r of [0, 1, 2]) {
-        const colOpt = findBestColInRow(r, false); // place unaligned to be even worse
-        if (colOpt !== null) return { col: colOpt, row: r };
-      }
-    }
-    // 2. Fragile/ranged units are exposed in the very front line (row 11..9) to be slaughtered quickly
-    if (isSquishyRanged) {
-      for (const r of [11, 10, 9]) {
-        const colOpt = findBestColInRow(r, true);
-        if (colOpt !== null) return { col: colOpt, row: r };
-      }
-    }
-    // 3. Others are randomly scattered without alignment in the middle rows
-    let attempts = 0;
-    while (attempts < 100) {
-      const r = 4 + Math.floor(Math.random() * 5);
-      const colOpt = findBestColInRow(r, false);
-      if (colOpt !== null) return { col: colOpt, row: r };
-      attempts++;
-    }
-  }
-
-  // --- ARENA 2: SIMPLE/LOW-MID PLACEMENT (Semi-Random) ---
-  if (arenaId === 2) {
-    // Tanks placed in rows 9..11 with 40% alignment
-    if (card.hp > 110) {
-      for (const r of [9, 10, 11]) {
-        const colOpt = findBestColInRow(r, Math.random() < 0.4);
-        if (colOpt !== null) return { col: colOpt, row: r };
-      }
-    }
-    // Ranged units placed in back rows (row 1..5) with 40% alignment
-    if (isSquishyRanged) {
-      for (const r of [1, 2, 3, 4, 5]) {
-        const colOpt = findBestColInRow(r, Math.random() < 0.4);
-        if (colOpt !== null) return { col: colOpt, row: r };
-      }
-    }
-    // General units randomly placed in row 3..10 with 40% alignment
-    let attempts = 0;
-    while (attempts < 100) {
-      const r = 3 + Math.floor(Math.random() * 7);
-      const colOpt = findBestColInRow(r, Math.random() < 0.4);
-      if (colOpt !== null) return { col: colOpt, row: r };
-      attempts++;
-    }
-  }
-
-  // --- ARENAS 3, 4, 5, 6: AVERAGE / MID-TIER COORDINATED PLACEMENT ---
-  if (arenaId && arenaId >= 3 && arenaId <= 6) {
-    // Special exception for Madenci (Miner) who digs anywhere:
-    if (card.id === "madenci") {
-      let attempts = 0;
-      while (attempts < 100) {
-        const c = Math.floor(Math.random() * COLS);
-        const r = Math.floor(Math.random() * ROWS);
-        if (r !== RIVER_ROW && !isOccupied(c, r)) {
-          if (playerUnits.length > 0 && Math.random() < 0.5) {
-            const target = playerUnits[Math.floor(Math.random() * playerUnits.length)];
-            const tc = target.col;
-            const tr = target.row;
-            const dCol = Math.floor(Math.random() * 3) - 1;
-            const dRow = Math.floor(Math.random() * 3) - 1;
-            if (!isOccupied(tc + dCol, tr + dRow) && tr + dRow !== RIVER_ROW && tc + dCol >= 0 && tc + dCol < COLS && tr + dRow >= 0 && tr + dRow < ROWS) {
-               return { col: tc + dCol, row: tr + dRow };
-            }
-          } else {
-             return { col: c, row: r };
-          }
-        }
-        attempts++;
-      }
-    }
-
-    // Tanks (hp > 110) are placed in rows 10-11, with 70% alignment to shield allies
-    if (card.hp > 110) {
-      for (const r of [10, 11, 9]) {
-        const colOpt = findBestColInRow(r, Math.random() < 0.7);
-        if (colOpt !== null) return { col: colOpt, row: r };
-      }
-    }
-
-    // Ranged squishies are placed in rows 7-9, somewhat aligned behind front row or threats
-    if (isSquishyRanged) {
-      for (const r of [7, 8, 9]) {
-        const colOpt = findBestColInRow(r, Math.random() < 0.7);
-        if (colOpt !== null) return { col: colOpt, row: r };
-      }
-    }
-
-    // Other units go in rows 8-10 with moderate alignment
-    for (const r of [8, 9, 10]) {
-      const colOpt = findBestColInRow(r, Math.random() < 0.7);
-      if (colOpt !== null) return { col: colOpt, row: r };
-    }
-  }
-
-  // --- LAST ARENAS (7 & 8): HIGHLY COORDINATED SMART PLACEMENT ---
-  if (arenaId && arenaId >= 7) {
-    // 1. Heavy tanks are strictly lined up on the direct frontline (rows 11 or 10) to shield allies
-    if (card.hp > 110) {
-      for (const r of [11, 10]) {
-        const colOpt = findBestColInRow(r, true); // align with player threats
-        if (colOpt !== null) return { col: colOpt, row: r };
-      }
-    }
-    // 2. Ranged and squishies are placed exactly 2-3 blocks behind the tanks (rows 8 or 9)
-    if (isSquishyRanged) {
-      for (const r of [8, 9]) {
-        const colOpt = findBestColInRow(r, true); // align behind tanks / facing threats
-        if (colOpt !== null) return { col: colOpt, row: r };
-      }
-    }
-    // 3. Melee or generic other units go in rows 10, 9 or 8
-    for (const r of [10, 9, 8]) {
-      const colOpt = findBestColInRow(r, true);
-      if (colOpt !== null) return { col: colOpt, row: r };
-    }
-  }
-
-  // --- GENERAL / MID-ARENA PLACEMENT (ARENAS 2-6) ---
-  // Special exception for Madenci (Miner) who digs anywhere:
+  // Exception for Madenci
   if (card.id === "madenci") {
     let attempts = 0;
     while (attempts < 100) {
       const c = Math.floor(Math.random() * COLS);
       const r = Math.floor(Math.random() * ROWS);
       if (r !== RIVER_ROW && !isOccupied(c, r)) {
-        // If there are player units, miner prefers to dig near them
-        if (playerUnits.length > 0 && Math.random() < 0.7) {
+        if (playerUnits.length > 0 && Math.random() < 0.9) {
           const target = playerUnits[Math.floor(Math.random() * playerUnits.length)];
           const tc = target.col;
           const tr = target.row;
-          // Place nearby target
           const dCol = Math.floor(Math.random() * 3) - 1;
           const dRow = Math.floor(Math.random() * 3) - 1;
           if (!isOccupied(tc + dCol, tr + dRow) && tr + dRow !== RIVER_ROW && tc + dCol >= 0 && tc + dCol < COLS && tr + dRow >= 0 && tr + dRow < ROWS) {
@@ -216,53 +101,54 @@ function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[], arenaId
     }
   }
 
-  // Rule 3: En köşelere ve en arka sıraya sapan ve bira varilini koysun.
-  if (card.id === "sapanci" || card.id === "bira-varili") {
-    // Prefer row 0, col 0 or 11
-    if (!isOccupied(0, 0)) return { col: 0, row: 0 };
-    if (!isOccupied(11, 0)) return { col: 11, row: 0 };
-    
-    // Else try other columns in row 0
-    const colOpt = findBestColInRow(0, false); // avoid alignment for squishy
-    if (colOpt !== null) return { col: colOpt, row: 0 };
-    
-    // If entire row 0 is full, fallback to row 1 corners
-    if (!isOccupied(0, 1)) return { col: 0, row: 1 };
-    if (!isOccupied(11, 1)) return { col: 11, row: 1 };
+  // Extreme back cards
+  if (isExtremeBack) {
+    const rowsToTry = Math.random() > 0.5 ? [0, 1, 2] : [1, 2, 0];
+    for (const r of rowsToTry) {
+      const colOpt = findBestColInRow(r, Math.random() > 0.5);
+      if (colOpt !== null) return { col: colOpt, row: r };
+    }
   }
 
-  // Rule 1: Dev, zırhlı gibi canı 110'un üstünde olan kartları öne koysun.
+  // Heavy tanks: Mostly front, sometimes mid
   if (card.hp > 110) {
-    // Front rows (closest to river): row 11, then row 10, then row 9
-    // Try to align with player units
-    for (const r of [11, 10, 9]) {
-      const colOpt = findBestColInRow(r, true);
+    const rowsToTry = Math.random() > 0.3 ? [11, 10, 9] : [7, 8, 9];
+    for (const r of rowsToTry) {
+      const colOpt = findBestColInRow(r, Math.random() > 0.2);
       if (colOpt !== null) return { col: colOpt, row: r };
     }
   }
 
-  // Rule 2: Okçu, sapan, topçu, bombalama uçağı, kuş ordusu gibi kartları çok canlı olan kartların 2-3 blok arkasına koysun.
+  // Ranged squishies: Mostly mid to back
   if (isSquishyRanged) {
-    // Front line tanks are at 11 or 10. 2-3 blocks behind them is rows 8, 9, 7
-    // Try to align behind own tanks
-    for (const r of [8, 9, 7, 6]) {
-      const colOpt = findBestColInRow(r, true);
+    const rowsToTry = Math.random() > 0.4 ? [8, 9, 7] : [4, 5, 6];
+    for (const r of rowsToTry) {
+      const colOpt = findBestColInRow(r, Math.random() > 0.3);
       if (colOpt !== null) return { col: colOpt, row: r };
     }
   }
 
-  // Rule 4: Diğerlerini random yerleştirebilir. Ama oyuncuya göre hizalayarak
+  // Other units: Sometimes front, sometimes mid, sometimes back
+  const placementStyle = Math.random();
+  let rowsToTry = [5, 6, 7];
+  if (placementStyle > 0.6) rowsToTry = [10, 9, 8];
+  else if (placementStyle > 0.3) rowsToTry = [3, 4, 5];
+
+  for (const r of rowsToTry) {
+    const colOpt = findBestColInRow(r, Math.random() > 0.3);
+    if (colOpt !== null) return { col: colOpt, row: r };
+  }
+
+  // Fallback
   let attempts = 0;
   while (attempts < 100) {
-    const r = 1 + Math.floor(Math.random() * (RIVER_ROW - 2));
-    const colOpt = findBestColInRow(r, true);
-    if (colOpt !== null) {
-      return { col: colOpt, row: r };
-    }
+    const c = Math.floor(Math.random() * COLS);
+    const r = Math.floor(Math.random() * RIVER_ROW);
+    if (!isOccupied(c, r)) return { col: c, row: r };
     attempts++;
   }
 
-  // Absolute fallback: find ANY completely free tile in bot side
+  // Absolute fallback
   for (let r = 0; r < RIVER_ROW; r++) {
     for (let c = 0; c < COLS; c++) {
       if (!isOccupied(c, r)) return { col: c, row: r };
@@ -281,11 +167,12 @@ interface Props {
   trophies: number;
   opponentName: string;
   opponentTrophies: number;
+  opponentRankedStars?: number;
   opponentWins?: number;
   opponentTournamentWins?: number;
   battleId?: string;
   isPlayer1?: boolean;
-  mode?: "standard" | "tournament";
+  mode?: "standard" | "tournament" | "ranked";
   onFinish: (gold: number, trophy: number, win: boolean) => void;
   onExit: () => void;
   username: string; // Add this
@@ -294,18 +181,54 @@ interface Props {
 const PLACE_SECONDS = 15;
 const FIGHT_TIMEOUT = 60;
 
-export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, playerEmojis = ["", "", "", ""], trophies, opponentName, opponentTrophies, opponentWins, opponentTournamentWins, battleId, isPlayer1, mode = "standard", onFinish, onExit, username }: Props) {
+const RANKED_PREDEFINED_DECKS: Array<{ cards: string[] }> = [
+  { cards: ["golem", "bombalama-ucagi", "hayalet", "doktor"] }, // Tank & Area Control
+  { cards: ["samuray", "kopek-baligi", "kus-ordusu", "kardan-adam"] }, // Fast Push
+  { cards: ["dev-sinek", "ejder", "cehennem-ejderi", "mercan"] }, // Air Supremacy
+  { cards: ["lav-kopegi", "volkan", "topcu", "zirhli"] }, // Heavy Burn
+  { cards: ["golem", "buz-dolabi", "kurbaga", "madenci"] }, // Freeze & Strike
+  { cards: ["bira-varili", "samuray", "tufekci", "dev"] }, // Pure Damage
+  { cards: ["hayalet", "madenci", "balik", "cig"] }, // Annoying Tactics
+  { cards: ["zirhli", "doktor", "mercan", "kilicli"] }, // High Sustain
+  { cards: ["lav-kopegi", "buz-dolabi", "cehennem-ejderi", "kardan-adam"] }, // Fire & Ice
+  { cards: ["samuray", "bombalama-ucagi", "doktor", "golem"] } // Meta Meta
+];
+
+export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, playerEmojis = ["", "", "", ""], trophies, opponentName, opponentTrophies, opponentRankedStars, opponentWins, opponentTournamentWins, battleId, isPlayer1, mode = "standard", onFinish, onExit, username }: Props) {
   const arena = arenaForTrophies(trophies);
   const oppWinsMax = Math.max(opponentWins ?? 0, opponentTournamentWins ?? 0);
   const playerCards = useMemo(
     () => deck.map((id) => CARDS.find((c) => c.id === id)!).filter(Boolean),
     [deck],
   );
+  const [selectedPredefinedDeck] = useState(() => {
+    if (mode === "ranked") {
+      const idx = Math.floor(Math.random() * RANKED_PREDEFINED_DECKS.length);
+      return RANKED_PREDEFINED_DECKS[idx];
+    }
+    return null;
+  });
   const [botTrophies] = useState(() => makeOpponentTrophies(trophies));
   const [opponentCardLevels, setOpponentCardLevels] = useState<Record<string, number>>({});
   const [botDeck, setBotDeck] = useState<CardDef[]>(() => {
     if (botDeckOverride) {
       return botDeckOverride.map(id => typeof id === "string" ? CARDS.find(c => c.id === id)! : id).filter(Boolean) as CardDef[];
+    }
+    if (mode === "ranked" && selectedPredefinedDeck) {
+      let cards = selectedPredefinedDeck.cards.map(id => CARDS.find(c => c.id === id)!).filter(Boolean);
+      const rand = Math.random();
+      if (rand < 0.4) {
+        // 40% chance to swap cards
+        const swaps = rand < 0.1 ? 2 : 1; // 10% chance for 2 swaps, 30% chance for 1 swap
+        const availableCards = CARDS.filter(c => !cards.some(hc => hc.id === c.id));
+        for (let i = 0; i < swaps && availableCards.length > 0; i++) {
+          const swapIdx = Math.floor(Math.random() * cards.length);
+          const newCardIdx = Math.floor(Math.random() * availableCards.length);
+          cards[swapIdx] = availableCards[newCardIdx];
+          availableCards.splice(newCardIdx, 1);
+        }
+      }
+      return cards;
     }
     return battleId ? [] : makeBotDeck(arena);
   });
@@ -321,6 +244,25 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
   const [placedIds, setPlacedIds] = useState<Set<string>>(new Set());
   const stateRef = useRef<BattleState>(makeInitialState());
   stateRef.current.arenaId = arena.id;
+
+  const playerDeckCost = useMemo(() => {
+    return deck.reduce((acc, id) => {
+      const card = CARDS.find(c => c.id === id);
+      return acc + (card ? card.stoneCost : 0);
+    }, 0);
+  }, [deck]);
+
+  const botDeckCost = useMemo(() => {
+    return botDeck.reduce((acc, card) => {
+      return acc + (card ? card.stoneCost : 0);
+    }, 0);
+  }, [botDeck]);
+
+  useEffect(() => {
+    stateRef.current.playerAbilityStones = Math.max(0, 20 - playerDeckCost);
+    stateRef.current.botAbilityStones = Math.max(0, 20 - botDeckCost);
+  }, [playerDeckCost, botDeckCost]);
+
   const [, force] = useState(0);
   const rerender = () => force((x) => x + 1);
   const rafRef = useRef<number | null>(null);
@@ -369,7 +311,12 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
 
     // Auto-fill player's missing cards if any are unplaced
     playerCards.forEach(c => {
-      const isPlaced = stateRef.current.units.some(u => u.side === "player" && (u.card.id === c.id || (c.id === "kus-ordusu" && u.card.id.startsWith("kus-ordusu"))));
+      const isPlaced = stateRef.current.units.some(u => u.side === "player" && (
+        u.card.id === c.id || 
+        (c.id === "kus-ordusu" && u.card.id.startsWith("kus-ordusu")) ||
+        (c.id === "karinca-ordusu" && u.card.id.startsWith("karinca-")) ||
+        (c.id === "kabile" && u.card.id.startsWith("kabile-"))
+      ));
       if (!isPlaced) {
         let cCol: number; let rCol: number; let attempts = 0;
         do {
@@ -393,15 +340,21 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
       while (placedBotRef.current < 4) {
         const i = placedBotRef.current;
         const card = botDeck[i];
-        const { col, row } = getBotPlacementCoordinate(card, stateRef.current.units, arena.id);
+        const coords = getBotPlacementCoordinate(card, stateRef.current.units, arena.id, mode);
+        const col = coords.col;
+        const row = coords.row;
         const lvl = opponentCardLevels[card.id] ?? 10;
         spawnUnit(stateRef.current, card, "bot", col, row, lvl);
         placedBotRef.current++;
       }
       startFight();
     } else {
-      const placements = stateRef.current.units.filter(u => u.side === "player" && (!u.card.id.startsWith("kus-ordusu") || u.card.id === "kus-ordusu-bird-0")).map(u => ({
-        cardId: u.card.id.startsWith("kus-ordusu") ? "kus-ordusu" : u.card.id,
+      const placements = stateRef.current.units.filter(u => u.side === "player" && (
+        (!u.card.id.startsWith("kus-ordusu") || u.card.id === "kus-ordusu-bird-0") &&
+        (!u.card.id.startsWith("karinca-") || u.card.id === "karinca-0") &&
+        (!u.card.id.startsWith("kabile-") || u.card.id === "kabile-member-0")
+      )).map(u => ({
+        cardId: u.card.id.startsWith("kus-ordusu") ? "kus-ordusu" : (u.card.id.startsWith("karinca-") ? "karinca-ordusu" : (u.card.id.startsWith("kabile-") ? "kabile" : u.card.id)),
         col: u.col,
         row: u.row
       }));
@@ -441,7 +394,9 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
        while (placedBotRef.current < targetPlaced) {
          const i = placedBotRef.current;
          const card = botDeck[i];
-         const { col, row } = getBotPlacementCoordinate(card, stateRef.current.units, arena.id);
+         const coords = getBotPlacementCoordinate(card, stateRef.current.units, arena.id, mode);
+         const col = coords.col;
+         const row = coords.row;
          const lvl = opponentCardLevels[card.id] ?? 10;
          spawnUnit(stateRef.current, card, "bot", col, row, lvl);
          placedBotRef.current++;
@@ -487,12 +442,14 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
         // 3. Fill up remaining unplaced units
         const spawnedBotCardIds = stateRef.current.units
           .filter(u => u.side === "bot")
-          .map(u => u.card.id.startsWith("kus-ordusu") ? "kus-ordusu" : u.card.id);
+          .map(u => u.card.id.startsWith("kus-ordusu") ? "kus-ordusu" : (u.card.id.startsWith("karinca-") ? "karinca-ordusu" : (u.card.id.startsWith("kabile-") ? "kabile" : u.card.id)));
 
         const unplacedOppCards = oppCards.filter(card => !spawnedBotCardIds.includes(card.id));
 
         unplacedOppCards.forEach(card => {
-          const { col, row } = getBotPlacementCoordinate(card, stateRef.current.units, arena.id);
+          const coords = getBotPlacementCoordinate(card, stateRef.current.units, arena.id, mode);
+          const col = coords.col;
+          const row = coords.row;
           const lvl = opponentCardLevels[card.id] ?? 10;
           spawnUnit(stateRef.current, card, "bot", col, row, lvl);
         });
@@ -563,7 +520,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
         if (data.winner && !winner) {
             const didIWin = isPlayer1 ? (data.winner === "player1") : (data.winner === "player2");
             setWinner(didIWin ? "player" : "bot");
-            const r = computeRewards(didIWin, trophies, opponentTrophies);
+            const r = computeRewards(didIWin, trophies, opponentTrophies, mode);
             setRewards(r); setPhase("done");
         }
 
@@ -652,8 +609,12 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
     if (next.size === 4) {
       handleReadyUp();
     } else if (battleId) {
-      const placements = stateRef.current.units.filter(u => u.side === "player" && (!u.card.id.startsWith("kus-ordusu") || u.card.id === "kus-ordusu-bird-0")).map(u => ({
-        cardId: u.card.id.startsWith("kus-ordusu") ? "kus-ordusu" : u.card.id,
+      const placements = stateRef.current.units.filter(u => u.side === "player" && (
+        (!u.card.id.startsWith("kus-ordusu") || u.card.id === "kus-ordusu-bird-0") &&
+        (!u.card.id.startsWith("karinca-") || u.card.id === "karinca-0") &&
+        (!u.card.id.startsWith("kabile-") || u.card.id === "kabile-member-0")
+      )).map(u => ({
+        cardId: u.card.id.startsWith("kus-ordusu") ? "kus-ordusu" : (u.card.id.startsWith("karinca-") ? "karinca-ordusu" : (u.card.id.startsWith("kabile-") ? "kabile" : u.card.id)),
         col: u.col,
         row: u.row
       }));
@@ -687,7 +648,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
         }
         if (!battleId || isPlayer1 || isBotFallbackRef.current) {
             setWinner(w);
-            const r = computeRewards(w === "player", trophies, opponentTrophies);
+            const r = computeRewards(w === "player", trophies, opponentTrophies, mode);
             setRewards(r); setPhase("done");
         }
         return;
@@ -702,7 +663,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
         }
         if (!battleId || isPlayer1 || isBotFallbackRef.current) {
             setWinner(w);
-            const r = computeRewards(w === "player", trophies, opponentTrophies);
+            const r = computeRewards(w === "player", trophies, opponentTrophies, mode);
             setRewards(r); setPhase("done");
         }
         return;
@@ -727,9 +688,17 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
                 {opponentName} {opponentName.toLowerCase() === "dgoa" && "🛠️"}
               </div>
               <div className="text-[10px] opacity-95 flex items-center justify-center gap-1.5 mt-0.5">
-                <span>{opponentTrophies} 🏆</span>
-                <span className="w-1 h-1 rounded-full bg-slate-600"></span>
-                <span className="text-cyan-400 font-medium">{oppRank.current.name} {oppRank.current.emoji}</span>
+                {mode === "ranked" ? (
+                  <>
+                    <span className="text-cyan-300 font-medium">{opponentRankedStars ?? 0} ⭐</span>
+                  </>
+                ) : (
+                  <>
+                    <span>{opponentTrophies} 🏆</span>
+                    <span className="w-1 h-1 rounded-full bg-slate-600"></span>
+                    <span className="text-cyan-400 font-medium">{oppRank.current.name} {oppRank.current.emoji}</span>
+                  </>
+                )}
               </div>
             </div>
           );
@@ -747,9 +716,14 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <ArenaView
           arena={arena}
-          state={stateRef.current}
+          state={
+            phase === "placing" && mode === "ranked"
+              ? { ...stateRef.current, units: stateRef.current.units.filter(u => u.side !== "bot") }
+              : stateRef.current
+          }
           onPlace={phase === "placing" ? placeAt : undefined}
           selectedCardId={playerCards[selected]?.id}
+          mode={mode}
         />
 
         {/* Display Opponent Emoji */}
@@ -813,13 +787,16 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
 
       {phase === "fighting" && (
         <div className="bg-slate-950/95 border-t border-slate-900 p-2">
-          <div className="text-center text-[10px] font-display text-amber-300 mb-1.5 tracking-wide font-medium">
-            ⚡ AKTİF ÖZEL YETENEKLER (TIKLA) ⚡
+          <div className="text-center text-[10px] font-display text-amber-300 mb-1.5 tracking-wide font-medium flex items-center justify-center gap-2">
+            <span>⚡ AKTİF ÖZEL YETENEKLER (TIKLA) ⚡</span>
+            <span className="bg-amber-500/20 text-amber-300 border border-amber-500/35 px-2 py-0.5 rounded-full text-[9px] font-mono">
+              💎 Taş: {stateRef.current.playerAbilityStones ?? 0}
+            </span>
           </div>
           {(() => {
             const playerAbilityUnits = stateRef.current.units.filter((u) => {
               if (u.side !== "player" || u.hp <= 0) return false;
-              return ["hayalet", "madenci", "doktor", "bira-varili", "bombalama-ucagi", "zirhli", "kurbaga", "lav-kopegi"].includes(u.card.id);
+              return ["hayalet", "madenci", "doktor", "bira-varili", "bombalama-ucagi", "zirhli", "kurbaga", "lav-kopegi", "samuray"].includes(u.card.id);
             });
 
             return (
@@ -894,12 +871,21 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
                           statusText = "✓";
                           isDisabled = true;
                         }
+                      } else if (u.card.id === "samuray") {
+                        if (u.samurayAbilityActive) {
+                          statusText = "2x Hasar";
+                          isDisabled = true;
+                        }
                       }
+
+                      const stoneCost = getAbilityStoneCost(u.card.id);
+                      const hasEnoughStones = (stateRef.current.playerAbilityStones ?? 0) >= stoneCost;
+                      const buttonDisabled = isDisabled || !hasEnoughStones;
 
                       return (
                         <div key={u.uid} className="relative flex items-center gap-1.5 bg-slate-900/40 p-1 rounded-full border border-slate-800/40">
                           <button
-                            disabled={isDisabled}
+                            disabled={buttonDisabled}
                             onClick={() => {
                               triggerUnitAbility(u, stateRef.current);
                               rerender();
@@ -910,12 +896,15 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
                             }}
                             className={cn(
                               "w-12 h-12 rounded-full flex items-center justify-center text-2xl border-2 transition-all relative",
-                              isDisabled
+                              buttonDisabled
                                 ? "bg-slate-950 border-slate-800 opacity-65 text-slate-500 scale-95"
                                 : "bg-gradient-to-b from-amber-500/10 to-amber-600/30 border-amber-500/80 hover:scale-105 active:scale-95 cursor-pointer shadow-[0_0_12px_rgba(245,158,11,0.25)] animate-pulse"
                             )}
                           >
                             <span>{u.card.emoji}</span>
+                            <div className="absolute -top-1 -left-1 bg-sky-500 text-slate-950 font-mono font-extrabold text-[8px] rounded-full w-4 h-4 flex items-center justify-center border border-slate-950 shadow" title={`Gereken Taş: ${stoneCost}`}>
+                              {stoneCost}
+                            </div>
                             {isDisabled && statusText === "✓" && (
                               <div className="absolute -bottom-1 -right-1 bg-green-600 text-white rounded-full w-4.5 h-4.5 flex items-center justify-center text-[9px] font-bold border border-slate-950 shadow">
                                 ✓
@@ -980,6 +969,13 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
             {mode === "tournament" ? (
               <div className="mt-2 flex items-center justify-center gap-3 text-xl font-display text-emerald-300">
                 {winner === "player" ? "+1 Galibiyet" : "1 Mağlubiyet Aldın"}
+              </div>
+            ) : mode === "ranked" ? (
+              <div className="mt-2 flex items-center justify-center gap-3 text-lg font-display">
+                <span className={cn(rewards.trophy >= 0 ? "text-cyan-300" : "text-red-400")}>
+                  {rewards.trophy >= 0 ? "+" : ""}{rewards.trophy} ⭐
+                </span>
+                <span className="text-yellow-200">+{rewards.gold} 🪙</span>
               </div>
             ) : (
               <div className="mt-2 flex items-center justify-center gap-3 text-lg font-display">
