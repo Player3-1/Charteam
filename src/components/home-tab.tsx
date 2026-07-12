@@ -663,19 +663,24 @@ function BattleTab({
     label = `${trophies} / ${MAX_TROPHIES} 🏆`;
   }
 
-  // Visual features of biochem
-  const getArenaVisuals = (biome: typeof arena.biome) => {
-    switch (biome) {
-      case "grass": return { emoji: "🌳🏡🏰", desc: "Bol çimenli savaş alanı" };
-      case "desert": return { emoji: "🏜️🌵🦂", desc: "Zorlu çöl fırtınası" };
-      case "snow": return { emoji: "❄️🏔️⛄", desc: "Dondurucu buz kalesi" };
-      case "sea": return { emoji: "🌊🦈🐠", desc: "Derin okyanus dalgaları" };
-      case "hell": return { emoji: "🌋🔥👿", desc: "Lavların fışkırdığı cehennem" };
-      default: return { emoji: "🏛️👑💫", desc: "Büyük şampiyonlar geçidi" };
+  const getArenaVisuals = (arenaId: number) => {
+    switch (arenaId) {
+      case 1: return { emoji: "🌳🏡🏰", desc: "Bol çimenli savaş alanı" };
+      case 2: return { emoji: "🏜️🌵🦂", desc: "Zorlu çöl fırtınası" };
+      case 3: return { emoji: "❄️🏔️⛄", desc: "Dondurucu karlar arası" };
+      case 4: return { emoji: "🏛️👑💫", desc: "Büyük şampiyonlar geçidi" };
+      case 5: return { emoji: "❄️🧊🌨️", desc: "Soğuk buz krallığı" };
+      case 6: return { emoji: "🐸🌿🌾", desc: "Tehlikeli yeşil bataklık" };
+      case 7: return { emoji: "🌊🦈🐠", desc: "Derin okyanus dalgaları" };
+      case 8: return { emoji: "🌋🔥👿", desc: "Lavların fışkırdığı cehennem" };
+      case 9: return { emoji: "⛩️🏯🏮", desc: "Antik ruhların uyandığı tapınak" };
+      case 10: return { emoji: "🏔️🧗‍♂️🐐", desc: "Bulutlara uzanan dondurucu zirve" };
+      case 11: return { emoji: "🌸🌸🍡", desc: "Pembe yaprakların döküldüğü bahçe" };
+      default: return { emoji: "⚔️🏆🌟", desc: "Efsanevi Savaş Alanı" };
     }
   };
 
-  const visuals = getArenaVisuals(arena.biome);
+  const visuals = getArenaVisuals(arena.id);
   const rank = getRankForRankProgress(rankProgressTrophies);
 
   return (
