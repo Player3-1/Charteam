@@ -308,6 +308,7 @@ function handleProjectileImpact(p: Projectile, state: BattleState) {
   if (p.aoeRange) {
     state.units.forEach((targetUnit) => {
       if (targetUnit.side !== p.side && isUnitTargetable(targetUnit)) {
+        if (targetUnit.card.id === "doktor") return; // Doktor does not take AOE damage
         if (Math.abs(targetUnit.col - p.toCol) <= p.aoeRange! && Math.abs(targetUnit.row - p.toRow) <= p.aoeRange!) {
           applyEffects(targetUnit);
         }
@@ -1048,6 +1049,7 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
 
     state.units.forEach((targetUnit) => {
       if (targetUnit.side !== unit.side && isUnitTargetable(targetUnit)) {
+        if (targetUnit.card.id === "doktor") return; // Doktor does not take AOE damage
         // Check 6x6 bounding box (within 3 blocks)
         if (Math.abs(targetUnit.col - explodeCol) <= 3 && Math.abs(targetUnit.row - explodeRow) <= 3) {
           applyCombatDamage(targetUnit, 50, unit);
@@ -1117,6 +1119,7 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
 
     state.units.forEach((target) => {
       if (target.side !== unit.side && isUnitTargetable(target)) {
+        if (target.card.id === "doktor") return; // Doktor does not take AOE damage
         const colDiff = Math.abs(target.col - unit.col);
         const rowDiff = Math.abs(target.row - unit.row);
         // 3x3 area is within 1.5 distance in columns and rows
@@ -1188,6 +1191,7 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
     // Deal 100 damage to all enemies within 5 blocks of (u.col, u.row)
     state.units.forEach((targetUnit) => {
       if (targetUnit.side !== unit.side && isUnitTargetable(targetUnit)) {
+        if (targetUnit.card.id === "doktor") return; // Doktor does not take AOE damage
         const d = Math.hypot(targetUnit.col - unit.col, targetUnit.row - unit.row);
         if (d <= 5.0) {
           applyCombatDamage(targetUnit, 100, unit);

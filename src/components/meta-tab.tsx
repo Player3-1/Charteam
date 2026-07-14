@@ -22,18 +22,20 @@ export function MetaTab({ user }: { user: UserData }) {
 
         snapshot.forEach((doc) => {
           const data = doc.data();
-          if (data.deck && Array.isArray(data.deck) && data.deck.length === 4) {
-            totalUsers++;
-            const deck = data.deck as string[];
-            
-            // Count cards
-            for (const c of deck) {
-              cardCounts[c] = (cardCounts[c] || 0) + 1;
+          if (data.deck && Array.isArray(data.deck)) {
+            const deck = (data.deck as string[]).filter(c => c && typeof c === "string" && c.trim() !== "");
+            if (deck.length === 4) {
+              totalUsers++;
+              
+              // Count cards
+              for (const c of deck) {
+                cardCounts[c] = (cardCounts[c] || 0) + 1;
+              }
+              
+              // Count decks (sorted so order doesn't matter)
+              const sortedDeck = [...deck].sort().join(",");
+              deckCounts[sortedDeck] = (deckCounts[sortedDeck] || 0) + 1;
             }
-            
-            // Count decks (sorted so order doesn't matter)
-            const sortedDeck = [...deck].sort().join(",");
-            deckCounts[sortedDeck] = (deckCounts[sortedDeck] || 0) + 1;
           }
         });
 
