@@ -338,7 +338,7 @@ export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-72 h-72 rounded-full border-2 border-dashed border-sky-400 bg-sky-500/10 flex items-center justify-center animate-pulse">
                   {!u.cigTriggered && (
                     <div className="text-white font-mono font-bold text-[10px] bg-slate-900/95 border border-slate-700 px-1.5 py-0.5 rounded shadow whitespace-nowrap animate-bounce flex items-center gap-1">
-                      <span>🏔️</span> Hazır
+                      <span>🏔️</span> Ready
                     </div>
                   )}
                 </div>
@@ -365,7 +365,7 @@ export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props
                 </>
               )}
               {isFleeing && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 text-[10px] bg-red-600 text-white rounded px-1 scale-90 font-display font-medium leading-none whitespace-nowrap">KAÇIYOR! 💨</div>
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2 text-[10px] bg-red-600 text-white rounded px-1 scale-90 font-display font-medium leading-none whitespace-nowrap">FLEEING! 💨</div>
               )}
               {isTonguing && (
                 <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-2xl animate-pulse">👅</div>

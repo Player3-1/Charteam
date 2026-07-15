@@ -11,7 +11,7 @@ const App: React.FC = () => {
     setLoading(false);
   }, []);
 
-  if (loading) return <div className="flex h-screen items-center justify-center bg-slate-950 text-white">Yükleniyor...</div>;
+  if (loading) return <div className="flex h-screen items-center justify-center bg-slate-950 text-white">Loading...</div>;
 
   return (
     <div className="min-h-screen bg-slate-950 font-body antialiased selection:bg-amber-300 selection:text-slate-900">

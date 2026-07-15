@@ -25,16 +25,16 @@ import { SHOP_EMOJIS } from "@/lib/emojis";
 export function getRankedStarsDetails(points: number) {
   const totalStars = Math.floor(points / 10);
   const divisions = [
-    { name: "Bronz Lig I", minStars: 0, icon: "🥉", style: "from-amber-700 to-amber-950 text-amber-300 border-amber-600 shadow-amber-900/40" },
-    { name: "Bronz Lig II", minStars: 3, icon: "🥉", style: "from-amber-700 to-amber-950 text-amber-200 border-amber-500 shadow-amber-900/50" },
-    { name: "Bronz Lig III", minStars: 6, icon: "🥉", style: "from-amber-700 to-amber-950 text-amber-100 border-amber-400 shadow-amber-900/60 font-semibold" },
-    { name: "Gümüş Lig I", minStars: 9, icon: "🥈", style: "from-slate-600 to-slate-900 text-slate-200 border-slate-500 shadow-slate-700/40" },
-    { name: "Gümüş Lig II", minStars: 12, icon: "🥈", style: "from-slate-600 to-slate-900 text-slate-100 border-slate-450 shadow-slate-700/50" },
-    { name: "Gümüş Lig III", minStars: 15, icon: "🥈", style: "from-slate-600 to-slate-900 text-white border-slate-400 shadow-slate-700/60 font-semibold" },
-    { name: "Altın Lig I", minStars: 18, icon: "🥇", style: "from-yellow-700 to-yellow-950 text-yellow-300 border-yellow-500 shadow-yellow-600/40 font-semibold" },
-    { name: "Altın Lig II", minStars: 21, icon: "🥇", style: "from-yellow-700 to-yellow-950 text-yellow-200 border-yellow-400 shadow-yellow-600/50 font-bold" },
-    { name: "Altın Lig III", minStars: 24, icon: "🥇", style: "from-yellow-700 to-yellow-950 text-amber-100 border-yellow-350 shadow-yellow-600/60 font-extrabold" },
-    { name: "Elmas Savaşçı", minStars: 27, icon: "💎", style: "from-cyan-600 via-sky-900 to-blue-950 text-cyan-200 border-cyan-400 shadow-cyan-500/50 font-black animate-pulse" },
+    { name: "Bronze League I", minStars: 0, icon: "🥉", style: "from-amber-700 to-amber-950 text-amber-300 border-amber-600 shadow-amber-900/40" },
+    { name: "Bronze League II", minStars: 3, icon: "🥉", style: "from-amber-700 to-amber-950 text-amber-200 border-amber-500 shadow-amber-900/50" },
+    { name: "Bronze League III", minStars: 6, icon: "🥉", style: "from-amber-700 to-amber-950 text-amber-100 border-amber-400 shadow-amber-900/60 font-semibold" },
+    { name: "Silver League I", minStars: 9, icon: "🥈", style: "from-slate-600 to-slate-900 text-slate-200 border-slate-500 shadow-slate-700/40" },
+    { name: "Silver League II", minStars: 12, icon: "🥈", style: "from-slate-600 to-slate-900 text-slate-100 border-slate-450 shadow-slate-700/50" },
+    { name: "Silver League III", minStars: 15, icon: "🥈", style: "from-slate-600 to-slate-900 text-white border-slate-400 shadow-slate-700/60 font-semibold" },
+    { name: "Gold League I", minStars: 18, icon: "🥇", style: "from-yellow-700 to-yellow-950 text-yellow-300 border-yellow-500 shadow-yellow-600/40 font-semibold" },
+    { name: "Gold League II", minStars: 21, icon: "🥇", style: "from-yellow-700 to-yellow-950 text-yellow-200 border-yellow-400 shadow-yellow-600/50 font-bold" },
+    { name: "Gold League III", minStars: 24, icon: "🥇", style: "from-yellow-700 to-yellow-950 text-amber-100 border-yellow-350 shadow-yellow-600/60 font-extrabold" },
+    { name: "Diamond Fighter", minStars: 27, icon: "💎", style: "from-cyan-600 via-sky-900 to-blue-950 text-cyan-200 border-cyan-400 shadow-cyan-500/50 font-black animate-pulse" },
   ];
 
   let currentDiv = divisions[0];
@@ -61,7 +61,7 @@ export function getRankedStarsDetails(points: number) {
   };
 }
 
-type Tab = "battle" | "cards" | "chests" | "meta" | "arenas" | "ilk3";
+type Tab = "battle" | "cards" | "chests" | "meta" | "arenas" | "top3";
 
 export function Home({ user }: { user: UserData }) {
   const { state, hydrated, claimChestRewards, spendGold, setDeckSlot, setActiveDeck, applyMatchReward, buyEmoji, setEmojiSlot, setTrophies, setGold, updateResources, resetRankedStars } = usePlayer(user.username);
@@ -77,7 +77,7 @@ export function Home({ user }: { user: UserData }) {
   if (!hydrated || !state) {
     return (
       <div className="flex min-h-screen items-center justify-center text-2xl font-display">
-        Yükleniyor…
+        Loading…
       </div>
     );
   }
@@ -170,8 +170,8 @@ export function Home({ user }: { user: UserData }) {
                 deck={state.deck}
                 decks={state.decks}
                 activeDeckIndex={state.activeDeckIndex}
-                selectedEmojis={state.selectedEmojis as [string, string, string, string] | undefined}
-                unlockedEmojis={state.unlockedEmojis ?? []}
+                selectedEmojies={state.selectedEmojies as [string, string, string, string] | undefined}
+                unlockedEmojies={state.unlockedEmojies ?? []}
                 gold={state.gold}
                 setDeckSlot={setDeckSlot}
                 setActiveDeck={setActiveDeck}
@@ -181,7 +181,7 @@ export function Home({ user }: { user: UserData }) {
             {tab === "chests" && (
               <ChestsTab 
                 gold={state.gold} 
-                unlockedEmojis={state.unlockedEmojis ?? []} 
+                unlockedEmojies={state.unlockedEmojies ?? []} 
                 wins={state.wins}
                 tournamentWins={state.tournamentWins || 0}
                 onOpen={handleOpenChest} 
@@ -195,7 +195,7 @@ export function Home({ user }: { user: UserData }) {
             {tab === "meta" && (
               <MetaTab user={user} />
             )}
-            {tab === "ilk3" && (
+            {tab === "top3" && (
               <LeaderboardTab currentUser={user} currentTrophies={state.trophies} />
             )}
           </main>
@@ -203,10 +203,10 @@ export function Home({ user }: { user: UserData }) {
           <nav className="fixed inset-x-0 bottom-0 z-[1000] mx-auto max-w-md panel-3d rounded-t-2xl rounded-b-none px-2 py-2">
             <div className="grid grid-cols-5 gap-1">
               <NavBtn active={tab === "meta"} onClick={() => setTab("meta")} icon="📊" label="Meta" />
-              <NavBtn active={tab === "chests"} onClick={() => setTab("chests")} icon="🎁" label="Mağaza" />
-              <NavBtn active={tab === "battle"} onClick={() => setTab("battle")} icon="⚔️" label="Savaş" big />
-              <NavBtn active={tab === "cards"} onClick={() => setTab("cards")} icon="🃏" label="Kartlar" />
-              <NavBtn active={tab === "ilk3"} onClick={() => setTab("ilk3")} icon="🏆" label="İlk 3" />
+              <NavBtn active={tab === "chests"} onClick={() => setTab("chests")} icon="🎁" label="Shop" />
+              <NavBtn active={tab === "battle"} onClick={() => setTab("battle")} icon="⚔️" label="Battle" big />
+              <NavBtn active={tab === "cards"} onClick={() => setTab("cards")} icon="🃏" label="Cards" />
+              <NavBtn active={tab === "top3"} onClick={() => setTab("top3")} icon="🏆" label="Top 3" />
             </div>
           </nav>
         </>
@@ -242,7 +242,7 @@ export function Home({ user }: { user: UserData }) {
       {inBattle && opponent && (
         <BattleScreen
           deck={state.deck}
-          playerEmojis={(state.selectedEmojis as [string, string, string, string]) || ["", "", "", ""]}
+          playerEmojis={(state.selectedEmojies as [string, string, string, string]) || ["", "", "", ""]}
           trophies={state.trophies}
           opponentName={opponent.name}
           opponentTrophies={opponent.trophies}
@@ -315,8 +315,8 @@ function CardsTab({
   deck,
   decks,
   activeDeckIndex = 0,
-  selectedEmojis = ["", "", "", ""],
-  unlockedEmojis = [],
+  selectedEmojies = ["", "", "", ""],
+  unlockedEmojies = [],
   gold,
   setDeckSlot,
   setActiveDeck,
@@ -326,8 +326,8 @@ function CardsTab({
   deck: [string, string, string, string];
   decks?: Record<string, [string, string, string, string]>;
   activeDeckIndex?: number;
-  selectedEmojis?: [string, string, string, string];
-  unlockedEmojis?: string[];
+  selectedEmojies?: [string, string, string, string];
+  unlockedEmojies?: string[];
   gold: number;
   setDeckSlot: (slot: number, cardId: string) => void;
   setActiveDeck: (index: number) => void;
@@ -339,7 +339,7 @@ function CardsTab({
   const owned = CARDS.filter((c) => (collection[c.id] ?? 0) > 0);
   const locked = CARDS.filter((c) => (collection[c.id] ?? 0) === 0);
 
-  // When a user clicks a slot in their deck (Destem)
+  // When a user clicks a slot in their deck (Deck)
   const handleSlotClick = (i: number, hasCard: boolean) => {
     setActiveEmojiSlot(null);
     if (hasCard) {
@@ -361,22 +361,22 @@ function CardsTab({
   };
 
   const handleEmojiSelect = (emoji: string) => {
-    const inDeckIndex = selectedEmojis.indexOf(emoji);
+    const inDeckIndex = selectedEmojies.indexOf(emoji);
     if (inDeckIndex >= 0) {
       setEmojiSlot(inDeckIndex, "");
       setActiveEmojiSlot(inDeckIndex);
     } else {
       if (activeEmojiSlot !== null) {
         setEmojiSlot(activeEmojiSlot, emoji);
-        const next = [...selectedEmojis];
+        const next = [...selectedEmojies];
         next[activeEmojiSlot] = emoji;
         const nextEmpty = next.findIndex(e => e === "");
         setActiveEmojiSlot(nextEmpty >= 0 ? nextEmpty : null);
       } else {
-        const firstEmpty = selectedEmojis.findIndex(e => e === "");
+        const firstEmpty = selectedEmojies.findIndex(e => e === "");
         if (firstEmpty >= 0) {
           setEmojiSlot(firstEmpty, emoji);
-          const next = [...selectedEmojis];
+          const next = [...selectedEmojies];
           next[firstEmpty] = emoji;
           const nextEmpty = next.findIndex(e => e === "");
           setActiveEmojiSlot(nextEmpty >= 0 ? nextEmpty : null);
@@ -425,7 +425,7 @@ function CardsTab({
         }, 0);
 
         if (nextCost > 20) {
-          alert(`Maksimum 20 taş sınırını aşamazsın! Bu kartı eklersen desten ${nextCost} taş olacaktır.`);
+          alert(`You can't exceed the 20 stone limit! Adding this card will make your dect cost ${nextCost} stones.`);
           return;
         }
 
@@ -452,7 +452,7 @@ function CardsTab({
         <div className="mb-2 flex flex-col justify-start">
           <div className="flex items-center justify-between">
             <h2 className="text-stroke text-2xl text-white flex items-center gap-2">
-              <span>Destem</span>
+              <span>dect</span>
               <span className={cn(
                 "text-xs font-mono font-bold px-2.5 py-0.5 rounded-full border shadow-sm transition-colors",
                 deckStoneCost > 20 
@@ -486,8 +486,8 @@ function CardsTab({
           </div>
           <p className="text-[11px] text-amber-200/90 mt-0.5 font-medium min-h-[16px] leading-tight">
             {activeSlot !== null 
-              ? "👉 Doldurmak için alttaki karakterlerden birine bas!" 
-              : "ℹ️ Savaşçıyı çıkartmak için üstüne dokun."}
+              ? "👉 Tap a character below to equip!" 
+              : "ℹ️ Tap on a fighter to unequip."}
           </p>
         </div>
         <div className="grid grid-cols-4 gap-2 rounded-2xl panel-3d p-3">
@@ -520,7 +520,7 @@ function CardsTab({
                     <span className="text-3xl font-display leading-none">+</span>
                     {isActive && (
                       <span className="absolute -bottom-2 bg-amber-500 text-amber-950 text-[8px] font-black tracking-wider px-1.5 py-0.5 rounded-full border border-black shadow">
-                        SEÇİLİ
+                        SELECTED
                       </span>
                     )}
                   </button>
@@ -533,15 +533,15 @@ function CardsTab({
 
       <section>
         <div className="mb-2 flex flex-col justify-start">
-          <h2 className="text-stroke text-xl text-white">Seçili Emojiler</h2>
+          <h2 className="text-stroke text-xl text-white">Selected Emojies</h2>
           <p className="text-[11px] text-amber-200/90 mt-0.5 font-medium min-h-[16px] leading-tight">
             {activeEmojiSlot !== null 
-              ? "👉 Emojiyi değiştirmek için aşağıdaki koleksiyondan seç!" 
-              : "ℹ️ Savaşta kullanacağın 4 emojiyi seç."}
+              ? "👉 Select from the collection below to change emoji!" 
+              : "ℹ️ Select 4 emojis to use in battle."}
           </p>
         </div>
         <div className="flex gap-2 justify-center mb-4 panel-3d border border-slate-700 p-2 rounded-xl bg-slate-900/60">
-          {selectedEmojis.map((emoji, i) => {
+          {selectedEmojies.map((emoji, i) => {
             const isActive = activeEmojiSlot === i;
             return (
               <button
@@ -556,7 +556,7 @@ function CardsTab({
                 {emoji || "?"}
                 {isActive && (
                   <span className="absolute -bottom-1.5 bg-amber-500 text-amber-950 text-[6px] font-black tracking-wider px-1 py-0 rounded border border-black shadow">
-                    SEÇİLİ
+                    SELECTED
                   </span>
                 )}
               </button>
@@ -566,12 +566,12 @@ function CardsTab({
 
         {activeEmojiSlot !== null && (
           <div className="grid grid-cols-4 gap-2 p-2 border border-dashed border-amber-500/30 bg-amber-500/10 rounded-xl mb-4">
-            {unlockedEmojis.length === 0 ? (
+            {unlockedEmojies.length === 0 ? (
               <div className="col-span-4 text-center text-sm text-amber-200/70 py-2">
-                Hiç emojin yok! Sandıklar menüsünden satın alabilirsin.
+                You have no emojis! Buy them from the Chests menu.
               </div>
             ) : (
-              Array.from(new Set(unlockedEmojis)).map((emoji, index) => (
+              Array.from(new Set(unlockedEmojies)).map((emoji, index) => (
                 <button
                   key={`${emoji}_${index}`}
                   onClick={() => handleEmojiSelect(emoji)}
@@ -665,18 +665,18 @@ function BattleTab({
 
   const getArenaVisuals = (arenaId: number) => {
     switch (arenaId) {
-      case 1: return { emoji: "🌳🏡🏰", desc: "Bol çimenli savaş alanı" };
-      case 2: return { emoji: "🏜️🌵🦂", desc: "Zorlu çöl fırtınası" };
+      case 1: return { emoji: "🌳🏡🏰", desc: "Battlefield with lots of grass" };
+      case 2: return { emoji: "🏜️🌵🦂", desc: "Harsh desert storm" };
       case 3: return { emoji: "❄️🏔️⛄", desc: "Dondurucu karlar arası" };
-      case 4: return { emoji: "🏛️👑💫", desc: "Büyük şampiyonlar geçidi" };
-      case 5: return { emoji: "❄️🧊🌨️", desc: "Soğuk buz krallığı" };
-      case 6: return { emoji: "🐸🌿🌾", desc: "Tehlikeli yeşil bataklık" };
+      case 4: return { emoji: "🏛️👑💫", desc: "Parade of grand champions" };
+      case 5: return { emoji: "❄️🧊🌨️", desc: "Cold ice kingdom" };
+      case 6: return { emoji: "🐸🌿🌾", desc: "Dangerous green swamp" };
       case 7: return { emoji: "🌊🦈🐠", desc: "Derin okyanus dalgaları" };
-      case 8: return { emoji: "🌋🔥👿", desc: "Lavların fışkırdığı cehennem" };
-      case 9: return { emoji: "⛩️🏯🏮", desc: "Antik ruhların uyandığı tapınak" };
+      case 8: return { emoji: "🌋🔥👿", desc: "Hell erupting with lava" };
+      case 9: return { emoji: "⛩️🏯🏮", desc: "Temple where ancient spirits awaken" };
       case 10: return { emoji: "🏔️🧗‍♂️🐐", desc: "Bulutlara uzanan dondurucu zirve" };
-      case 11: return { emoji: "🌸🌸🍡", desc: "Pembe yaprakların döküldüğü bahçe" };
-      default: return { emoji: "⚔️🏆🌟", desc: "Efsanevi Savaş Alanı" };
+      case 11: return { emoji: "🌸🌸🍡", desc: "Garden with falling pink petals" };
+      default: return { emoji: "⚔️🏆🌟", desc: "Efsanevi Battle Alanı" };
     }
   };
 
@@ -696,7 +696,7 @@ function BattleTab({
               : "text-slate-400 hover:text-white"
           )}
         >
-          <span>🏆</span> Kupa Modu
+          <span>🏆</span> Trophy Mode
         </button>
         <button
           onClick={() => {
@@ -714,12 +714,12 @@ function BattleTab({
         >
           {trophies < 3500 ? (
             <span className="flex items-center gap-1 text-slate-400">
-              <span>🔒</span> Aşamalı Mod
+              <span>🔒</span> Ranked Mode
             </span>
           ) : (
             <>
               <div className="absolute top-0 right-0 bg-red-500 text-[7px] font-mono font-bold px-1 rounded-bl-md uppercase animate-pulse leading-none py-0.5">Yeni</div>
-              <span>⭐</span> Aşamalı Mod
+              <span>⭐</span> Ranked Mode
             </>
           )}
         </button>
@@ -728,7 +728,7 @@ function BattleTab({
       {trophies < 3500 && (
         <div className="bg-slate-950/40 border border-slate-900/60 rounded-xl px-3 py-2 text-center shadow-inner">
           <span className="text-[11px] text-slate-400 font-medium">
-            🔒 Aşamalı Mod sadece <b>3500 Kupada (Efsanevi Arena)</b> açılır. Şampiyonlar ligine girmek için {3500 - trophies} kupa daha kazan!
+            🔒 Ranked Mode unlocks at <b>3500 Trophies (Legendary Arena)</b>. Win {3500 - trophies} more trophies to enter the Champions League!
           </span>
         </div>
       )}
@@ -751,13 +751,13 @@ function BattleTab({
               ? "bg-cyan-950/80 border-cyan-500/40 text-cyan-300" 
               : "bg-black/50 border-white/10 text-amber-200"
           )}>
-            {battleMode === "ranked" ? "AŞAMALI LİG DERECE SİSTEMİ" : `Aktif Lig Derecesi · Arena ${arena.id}`}
+            {battleMode === "ranked" ? "RANKED LEAGUE SYSTEM" : `Active League Rank · Arena ${arena.id}`}
           </div>
           <h2 className="text-stroke text-3xl text-white font-display leading-none">
-            {battleMode === "ranked" ? "Aşamalı Meydan" : arena.name}
+            {battleMode === "ranked" ? "Ranked Arena" : arena.name}
           </h2>
           <p className="text-stroke-sm text-xs text-white/90 italic font-medium leading-none">
-            {battleMode === "ranked" ? "Yıldızları topla, efsanevi rütbelere ulaş!" : visuals.desc}
+            {battleMode === "ranked" ? "Collect stars, reach legendary ranks!" : ""}
           </p>
 
           <div className="py-4 flex justify-center scale-110 drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]">
@@ -770,7 +770,7 @@ function BattleTab({
             /* Trophy progress slider bar underneath the Arena */
             <div className="pt-2 space-y-1">
               <div className="flex justify-between items-center text-xs font-bold font-display px-0.5">
-                <span className="text-amber-200">Kupa İlerlemesi</span>
+                <span className="text-amber-200">Trophy Progress</span>
                 <span className="text-white bg-black/40 px-2 py-0.5 rounded font-mono">{label}</span>
               </div>
               
@@ -789,7 +789,7 @@ function BattleTab({
               <div className="text-[10px] text-amber-100/80 font-display flex items-center justify-between pt-0.5">
                 <span>{arena.min} 🏆</span>
                 {nextArena ? (
-                  <span>Sonraki arena: <b className="text-white text-[11px] underline font-bold">{nextArena.name}</b> ({nextArena.min} 🏆)</span>
+                  <span>Next arena: <b className="text-white text-[11px] underline font-bold">{nextArena.name}</b> ({nextArena.min} 🏆)</span>
                 ) : (
                   <span className="text-amber-300 font-bold">🌟 Efsanevi Seviyenin Zirvesi!</span>
                 )}
@@ -809,14 +809,14 @@ function BattleTab({
               <div className="text-[9px] text-slate-400 font-semibold tracking-wider uppercase leading-none">Mevcut Rank</div>
               <div className={cn("text-lg font-black text-stroke-sm tracking-tight leading-tight mt-0.5", 
                 rank.current.name.includes("Bronz") ? "text-amber-600" : 
-                rank.current.name.includes("Gümüş") ? "text-slate-300" : 
-                rank.current.name.includes("Altın") ? "text-yellow-400" : "text-cyan-400"
+                rank.current.name.includes("Silver") ? "text-slate-300" : 
+                rank.current.name.includes("Gold") ? "text-yellow-400" : "text-cyan-400"
               )}>{rank.current.name}</div>
             </div>
           </div>
           <div className="text-right font-display pl-4 flex-1 max-w-[150px]">
             <div className="flex justify-between items-center text-[9.5px] text-amber-200 font-bold mb-1">
-              <span>Rütbe Gelişimi</span>
+              <span>Rank Progression</span>
               <span>{rank.next ? `${Math.floor(rank.currentProgressValue)}/${rank.requiredForNext}` : "MAX"}</span>
             </div>
             <div className="h-2 w-full bg-slate-950 border border-slate-800 rounded-full overflow-hidden relative">
@@ -834,7 +834,7 @@ function BattleTab({
         </div>
       )}
 
-      {/* Savaş Hazırlığı Actions */}
+      {/* Battle Readylığı Actions */}
       <div className={cn(
         "panel-3d rounded-2xl p-4 text-center transition-all duration-500",
         battleMode === "ranked" ? "border-cyan-500/30 shadow-[0_0_15px_rgba(6,182,212,0.15)] bg-gradient-to-b from-slate-900 to-cyan-950/20" : ""
@@ -850,21 +850,21 @@ function BattleTab({
             !ready && "opacity-50",
           )}
         >
-          {!isDeckComplete ? "Önce desteni kur" : (!isCostValid ? "Deste Sınırı Aşıldı (Max 20)" : (battleMode === "ranked" ? "AŞAMALI SAVAŞA GİR! ⚔️" : "SAVAŞA GİR! ⚔️"))}
+          {!isDeckComplete ? "Build your dect first" : (!isCostValid ? "dect Limit Exceeded (Max 20)" : (battleMode === "ranked" ? "RANKED ENTER BATTLE! ⚔️" : "ENTER BATTLE! ⚔️"))}
         </button>
       </div>
 
-      {/* Savaşçılar Deste List */}
+      {/* Fighters Deck List */}
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-stroke text-lg text-white font-display">Aktif Savaş Desten</h3>
+          <h3 className="text-stroke text-lg text-white font-display">Active Battle dect</h3>
           <span className={cn(
             "text-xs font-mono font-bold px-2.5 py-0.5 rounded-full shadow-sm border",
             isCostValid 
               ? "bg-indigo-950/80 text-cyan-300 border-indigo-400/30" 
               : "bg-red-950/80 text-red-300 border-red-500/50 animate-pulse"
           )}>
-            💎 {deckStoneCost}/20 Taş
+            💎 {deckStoneCost}/20 Stone
           </span>
         </div>
         <div className="grid grid-cols-4 gap-2 rounded-2xl panel-3d p-3">
@@ -884,19 +884,19 @@ function BattleTab({
       </div>
 
       <div className="rounded-2xl panel-3d p-3.5 text-xs text-amber-100/90 leading-relaxed">
-        <h3 className="text-stroke text-base text-white mb-1 font-display">Savaş Ödülleri</h3>
+        <h3 className="text-stroke text-base text-white mb-1 font-display">Battle Rewardsi</h3>
         {battleMode === "ranked" ? (
           <ul className="space-y-1">
-            <li>• Savaşı kazanırsan: <b>1.000🪙 · +10⭐</b> kazanırsın.</li>
-            <li>• Savaşı kaybedersen: <b>−10 ile −20⭐</b> düşersin.</li>
-            <li>• Her kümede gereken ⭐'yı toplayıp efsanevi rütbelere ulaş!</li>
+            <li>• Battleı kazanırsan: <b>1.000🪙 · +10⭐</b> kazanırsın.</li>
+            <li>• If you lose the battle: you drop <b>-10 to -20⭐</b>.</li>
+            <li>• Collect required ⭐ in each division and reach legendary ranks!</li>
           </ul>
         ) : (
           <ul className="space-y-1">
-            <li>• Yakın kupalı rakibi yen: <b>1.000🪙 · +10🏆</b></li>
-            <li>• Üst kupalı rakibi yen: <b>2.000🪙 · +15🏆</b></li>
-            <li>• Düşük kupalı rakibi yen: <b>500🪙 · +7🏆</b></li>
-            <li>• Savaş kaybedilirse: <b>−4 ile −7🏆</b> kupa düşer.</li>
+            <li>• Defeat opponent with similar trophies: <b>1.000🪙 · +10🏆</b></li>
+            <li>• Defeat opponent with higher trophies: <b>2.000🪙 · +15🏆</b></li>
+            <li>• Defeat opponent with lower trophies: <b>500🪙 · +7🏆</b></li>
+            <li>• If battle is lost: <b>-4 to -7🏆</b> trophies dropped.</li>
           </ul>
         )}
       </div>
@@ -906,7 +906,7 @@ function BattleTab({
 
 function ChestsTab({
   gold,
-  unlockedEmojis,
+  unlockedEmojies,
   wins,
   tournamentWins,
   onOpen,
@@ -917,7 +917,7 @@ function ChestsTab({
   onResetRankedStars,
 }: {
   gold: number;
-  unlockedEmojis: string[];
+  unlockedEmojies: string[];
   wins: number;
   tournamentWins: number;
   onOpen: (id: string) => void;
@@ -933,7 +933,7 @@ function ChestsTab({
     <div className="space-y-6">
 
       <div className="space-y-3">
-        <h2 className="text-stroke text-2xl text-white">Mağaza</h2>
+        <h2 className="text-stroke text-2xl text-white">Shop</h2>
         
         <div className="grid grid-cols-1 gap-3">
           {CHESTS.map((chest) => {
@@ -973,10 +973,10 @@ function ChestsTab({
       </div>
 
       <div className="space-y-3 pt-6 border-t border-slate-800">
-        <h2 className="text-stroke text-2xl text-white">Emojiler</h2>
+        <h2 className="text-stroke text-2xl text-white">Emojies</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {SHOP_EMOJIS.map(({ emoji, cost }) => {
-            const hasEmoji = unlockedEmojis.includes(emoji);
+            const hasEmoji = unlockedEmojies.includes(emoji);
             const can = !hasEmoji && gold >= cost;
             return (
               <div key={emoji} className="panel-3d flex flex-col items-center gap-2 p-3 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 text-center">
@@ -1094,7 +1094,7 @@ function ChestReveal({
             className="w-full max-w-sm rounded-[24px] panel-3d p-6 text-center cursor-pointer transition-all active:scale-95 space-y-5 bg-gradient-to-b from-slate-900/90 to-black/95 border border-slate-800/60"
           >
             <div className="text-stroke text-3xl text-yellow-400 font-display uppercase tracking-widest">{chestName}</div>
-            <p className="text-amber-200/90 text-sm font-medium animate-pulse">Açmak için sandığa dokun! 👇</p>
+            <p className="text-amber-200/90 text-sm font-medium animate-pulse">Tap the chest to open! 👇</p>
             
             <div className="relative py-6 flex justify-center">
               <div className="absolute inset-0 bg-yellow-500/10 blur-3xl rounded-full scale-75 animate-pulse" />
@@ -1114,11 +1114,11 @@ function ChestReveal({
             </div>
 
             <div className="text-slate-400 text-xs font-mono bg-black/50 py-2.5 rounded-xl border border-slate-900">
-              Sandık İçeriği: {rewards.length} Adet Karakter Kartı
+              Chest Content: {rewards.length} Character Cards
             </div>
             
             <button className="mx-auto block w-full py-3 font-display text-lg text-primary-foreground text-stroke btn-pop active:btn-pop-active mt-2">
-              AÇMAYA BAŞLA! ⚔️
+              START OPENING! ⚔️
             </button>
           </motion.div>
         )}
@@ -1137,7 +1137,7 @@ function ChestReveal({
               className="relative transition-transform hover:scale-105 bg-black/40 p-3 rounded-2xl border border-slate-850 flex flex-col items-center justify-center gap-1"
             >
               <div className="absolute -top-2.5 bg-yellow-500 text-amber-950 font-mono font-bold text-[10px] px-2.5 py-0.5 rounded-full border border-black shadow">
-                {tapCount} / {rewards.length} KART AÇILDI
+                {tapCount} / {rewards.length} CARD OPENED
               </div>
               
               <div className="relative pt-1 flex justify-center">
@@ -1159,7 +1159,7 @@ function ChestReveal({
                 </motion.span>
               </div>
               <div className="text-[10px] text-amber-300 font-bold font-display tracking-wider animate-pulse uppercase">
-                {tapCount < rewards.length ? "Sandığa Tıkla! 👆" : "Özet İçin Tıkla! 👆"}
+                {tapCount < rewards.length ? "Tap the Chest! 👆" : "Tap for Summary! 👆"}
               </div>
             </div>
 
@@ -1184,14 +1184,14 @@ function ChestReveal({
                 {/* Duplicate gold conversion or shiny new badge */}
                 {activeReward.isDuplicate ? (
                   <div className="mt-4 flex flex-col items-center justify-center gap-1 rounded-2xl bg-yellow-500/15 border border-yellow-500/40 px-5 py-2 text-center animate-pulse shadow-md w-full max-w-[240px]">
-                    <span className="text-[11px] text-yellow-500 font-bold uppercase tracking-wider">Zaten Açılmış!</span>
+                    <span className="text-[11px] text-yellow-500 font-bold uppercase tracking-wider">Already Unlocked!</span>
                     <span className="font-display text-base font-black text-amber-400 flex items-center justify-center gap-1 text-stroke-sm">
-                      Altın Dönüşümü: +{activeReward.refundGold} 🪙
+                      Gold Conversion: +{activeReward.refundGold} 🪙
                     </span>
                   </div>
                 ) : (
                   <div className="mt-4 inline-block rounded-full bg-emerald-500/30 border border-emerald-400/50 px-5 py-2 text-[11px] font-black text-emerald-300 animate-bounce tracking-widest shadow-md">
-                    🎉 YENİ SAVAŞÇI AÇILDI!
+                    🎉 NEW FIGHTER UNLOCKED!
                   </div>
                 )}
               </motion.div>
@@ -1200,16 +1200,16 @@ function ChestReveal({
             {/* Stat Box Details */}
             <div className="space-y-1.5 bg-black/60 p-3 rounded-2xl border border-slate-800/80">
               <div className="text-xs text-slate-350 flex justify-between">
-                <span>HP Gelişimi:</span>
+                <span>HP Progression:</span>
                 <span className="font-bold text-white">❤️ {activeCard.hp}</span>
               </div>
               <div className="text-xs text-slate-355 flex justify-between">
-                <span>Maksimum Hasar:</span>
+                <span>Maksimum Damage:</span>
                 <span className="font-bold text-white">⚔️ {activeCard.dmg}</span>
               </div>
               <div className="text-xs text-slate-356 flex justify-between">
                 <span>Saldırı Tipi:</span>
-                <span className="font-bold text-amber-300 capitalize">{activeCard.range}</span>
+                <span className="font-bold text-amber-300 capitalize">{activeCard.range === "yakın" ? "Melee" : activeCard.range === "uzak" ? "Ranged" : "Air"}</span>
               </div>
             </div>
           </motion.div>
@@ -1223,9 +1223,9 @@ function ChestReveal({
             exit={{ scale: 0.9, opacity: 0 }}
             className="w-full max-w-sm rounded-[24px] panel-3d p-5 text-center space-y-4 bg-gradient-to-b from-slate-900/95 to-black/95 border border-slate-800/80 shadow-2xl"
           >
-            <div className="text-stroke text-3xl text-yellow-400 font-display uppercase tracking-widest leading-none">TEBRİKLER! 🎉</div>
+            <div className="text-stroke text-3xl text-yellow-400 font-display uppercase tracking-widest leading-none">CONGRATULATIONS! 🎉</div>
             <p className="text-xs text-slate-300 font-medium px-2 leading-relaxed">
-              Sandıktan çıkan ödüller başarıyla hesabına yüklendi. Koleksiyonunda bulunan karakterler otomatik olarak altına dönüştürüldü!
+              Rewards from chest successfully added to your account. Duplicate characters were automatically converted to Gold!
             </p>
 
             <div className="grid grid-cols-3 gap-2.5 max-h-[30vh] overflow-y-auto p-1.5 bg-black/40 border border-slate-950 rounded-2xl my-4">
@@ -1245,7 +1245,7 @@ function ChestReveal({
                       </span>
                     ) : (
                       <span className="absolute -top-1.5 -right-1 bg-emerald-500 text-white font-black text-[9px] px-1.5 py-0.5 rounded-full border border-black shadow animate-pulse">
-                        YENİ!
+                        NEW!
                       </span>
                     )}
                   </div>
@@ -1289,7 +1289,7 @@ function ArenasModal({ currentTrophies, onClose }: { currentTrophies: number; on
         <div className="flex items-center justify-between mb-4 shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-2xl">🗺️</span>
-            <h2 className="text-2xl text-stroke text-white font-black tracking-tight">Arenalar Yolu</h2>
+            <h2 className="text-2xl text-stroke text-white font-black tracking-tight">Arena Path</h2>
           </div>
           <button 
             onClick={onClose} 
@@ -1304,26 +1304,26 @@ function ArenasModal({ currentTrophies, onClose }: { currentTrophies: number; on
           <div className="flex items-center gap-3">
             <div className="text-3.5xl drop-shadow">🏆</div>
             <div>
-              <div className="text-[10px] text-slate-400 font-sans uppercase font-black tracking-wider">Mevcut Kupaların</div>
-              <div className="text-lg font-black text-amber-400 leading-none mt-0.5">{currentTrophies} Kupa</div>
+              <div className="text-[10px] text-slate-400 font-sans uppercase font-black tracking-wider">Current Trophies</div>
+              <div className="text-lg font-black text-amber-400 leading-none mt-0.5">{currentTrophies} Trophy</div>
             </div>
           </div>
           <div className="text-right font-sans">
             {nextArena ? (
               <>
-                <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Sonraki Arena'ya</div>
-                <div className="text-xs font-black text-cyan-400 mt-0.5">{trophiesToNext} 🏆 Kaldı</div>
+                <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">To Next Arena</div>
+                <div className="text-xs font-black text-cyan-400 mt-0.5">{trophiesToNext} 🏆 Left</div>
               </>
             ) : (
               <>
                 <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider animate-pulse">Efsane</div>
-                <div className="text-xs font-black text-amber-300 mt-0.5">Son Sınıra Ulaştın!</div>
+                <div className="text-xs font-black text-amber-300 mt-0.5">Max Limit Reached!</div>
               </>
             )}
           </div>
         </div>
 
-        {/* Scrollable Arenalar List */}
+        {/* Scrollable Arenas List */}
         <div className="flex-1 overflow-y-auto space-y-4 pb-12 scrollbar-none overscroll-behavior-y-contain">
           {ARENAS.map((arena) => {
             const isUnlocked = currentTrophies >= arena.min;
@@ -1367,15 +1367,15 @@ function ArenasModal({ currentTrophies, onClose }: { currentTrophies: number; on
                       <div className="mt-1">
                         {isCurrent ? (
                           <span className="px-2 py-0.5 text-[8px] font-black tracking-wider rounded bg-emerald-500 text-slate-950 font-sans shadow shadow-emerald-500/20 uppercase">
-                            Mevcut Arenan
+                            Current Arena
                           </span>
                         ) : isUnlocked ? (
                           <span className="px-2 py-0.5 text-[8px] font-bold rounded bg-slate-800 text-slate-400 font-sans">
-                            Açık
+                            Unlocked
                           </span>
                         ) : (
                           <span className="px-2 py-0.5 text-[8px] font-bold rounded bg-slate-900 text-slate-500 font-sans flex items-center gap-1">
-                            🔒 Kilitli
+                            🔒 Locked
                           </span>
                         )}
                       </div>
@@ -1385,7 +1385,7 @@ function ArenasModal({ currentTrophies, onClose }: { currentTrophies: number; on
                   {/* Cards Unlock Area */}
                   <div>
                     <div className="text-[10px] text-slate-400 mb-2 font-sans font-bold uppercase tracking-wider">
-                      Açılan Kartlar
+                      Unlocked Cards
                     </div>
                     {unlocksCards.length > 0 ? (
                       <div className="flex gap-2 overflow-x-auto pb-1.5 snap-x scrollbar-none">
@@ -1406,7 +1406,7 @@ function ArenasModal({ currentTrophies, onClose }: { currentTrophies: number; on
                                 c.rarity === "rare" ? "bg-amber-500/30 text-amber-300" :
                                 "bg-slate-700/30 text-slate-400"
                               )}>
-                                {c.rarity === "legendary" ? "EFSO" : c.rarity === "epic" ? "DESTAN" : c.rarity === "rare" ? "ENDER" : "SIRA"}
+                                {c.rarity === "legendary" ? "LEG" : c.rarity === "epic" ? "EPIC" : c.rarity === "rare" ? "RARE" : "COM"}
                               </div>
                             </div>
                             <div className="text-[9px] text-center text-slate-300 font-sans mt-1 truncate font-semibold leading-none px-0.5">
@@ -1417,7 +1417,7 @@ function ArenasModal({ currentTrophies, onClose }: { currentTrophies: number; on
                       </div>
                     ) : (
                       <div className="text-[11px] text-slate-500 italic font-sans py-1">
-                        Bu arenada yeni kart bulunmuyor.
+                        No new cards in this arena.
                       </div>
                     )}
                   </div>

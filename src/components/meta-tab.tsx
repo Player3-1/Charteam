@@ -67,15 +67,15 @@ export function MetaTab({ user }: { user: UserData }) {
   }, []);
 
   if (loading) {
-    return <div className="p-4 text-center text-white">Yükleniyor...</div>;
+    return <div className="p-4 text-center text-white">Loading...</div>;
   }
 
   return (
     <div className="space-y-6">
-      <h2 className="text-stroke text-2xl text-white">Oyun Metası</h2>
+      <h2 className="text-stroke text-2xl text-white">Game Meta</h2>
       
       <div className="panel-3d bg-slate-800 p-4 rounded-xl">
-        <h3 className="text-xl text-yellow-400 mb-3 font-display">En Çok Kullanılan Kartlar</h3>
+        <h3 className="text-xl text-yellow-400 mb-3 font-display">Most Used Cards</h3>
         <div className="space-y-3">
           {topCards.map((tc, i) => {
             const card = CARDS.find((c) => c.id === tc.id);
@@ -100,12 +100,12 @@ export function MetaTab({ user }: { user: UserData }) {
       </div>
 
       <div className="panel-3d bg-slate-800 p-4 rounded-xl">
-        <h3 className="text-xl text-amber-500 mb-3 font-display">En Popüler Desteler</h3>
+        <h3 className="text-xl text-amber-500 mb-3 font-display">Most Popular Decks</h3>
         <div className="space-y-4">
           {topDecks.map((td, i) => (
             <div key={i} className="flex flex-col gap-2 bg-slate-900/50 p-3 rounded-lg flex-wrap">
               <div className="flex justify-between items-center text-white font-bold">
-                <span>Deste #{i + 1}</span>
+                <span>Deck #{i + 1}</span>
                 <span>%{td.percentage}</span>
               </div>
               <div className="flex gap-2">

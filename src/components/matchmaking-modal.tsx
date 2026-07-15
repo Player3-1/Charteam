@@ -18,8 +18,8 @@ export const MatchmakingModal = ({
 }) => {
   const [status, setStatus] = useState(
     mode === "tournament" 
-      ? "Turnuva için rakip aranıyor..." 
-      : (mode === "ranked" ? "Aşamalı Mod için rakip aranıyor..." : "Çevrimiçi rakip aranıyor...")
+      ? "Searching for tournament opponent..." 
+      : (mode === "ranked" ? "Searching for ranked opponent..." : "Searching for online opponent...")
   );
   const [showBotButton, setShowBotButton] = useState(false);
   const [battleIdState, setBattleIdState] = useState<string | null>(null);
@@ -32,7 +32,7 @@ export const MatchmakingModal = ({
         const battleId = await findOrCreateMatch(user, mode);
         if (!active) return;
         setBattleIdState(battleId);
-        setStatus("Rakip bulundu, savaşa bağlanılıyor...");
+        setStatus("Opponent found, connecting to battle...");
         
         // Listen to battle doc to get opponent data
         const unsub = onSnapshot(doc(db, "battles", battleId), (d) => {
@@ -65,8 +65,8 @@ export const MatchmakingModal = ({
         setShowBotButton(true);
         setStatus(
           mode === "tournament" 
-            ? "Turnuva için rakip aranıyor... (Rakip bulunamazsa botla oynayabilirsiniz)" 
-            : (mode === "ranked" ? "Aşamalı Mod için rakip aranıyor... (Gerçek rakip bulunamazsa botla oynayabilirsiniz)" : "Rakip aranıyor... (Gerçek rakip bulunamazsa botla oynayabilirsiniz)")
+            ? "Searching for tournament opponent... (You can play with a bot if no opponent is found)" 
+            : (mode === "ranked" ? "Searching for ranked opponent... (You can play with a bot if no opponent is found)" : "Searching for opponent... (You can play with a bot if no opponent is found)")
         );
       }
     }, 5000);
@@ -92,10 +92,10 @@ export const MatchmakingModal = ({
             }}
             className="mt-4 rounded bg-emerald-600 px-4 py-3 font-bold text-white block w-full"
           >
-            Bot ile Savaş
+            Battle with Bot
           </button>
         )}
-        <button onClick={onCancel} className="mt-4 text-sm text-slate-400 p-2 w-full">İptal</button>
+        <button onClick={onCancel} className="mt-4 text-sm text-slate-400 p-2 w-full">Cancel</button>
       </div>
     </div>
   );

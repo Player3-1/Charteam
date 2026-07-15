@@ -749,14 +749,14 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
           {battleId && isReady ? (
             <div className="flex flex-col items-center justify-center p-4">
               <div className="text-amber-300 font-bold mb-2 animate-pulse">
-                {placeTimer > 0 ? "Hazırsınız! Rakip bekleniyor..." : "Süre doldu, rakip bekleniyor..."}
+                {placeTimer > 0 ? "You are ready! Waiting for opponent..." : "Time's up, waiting for opponent..."}
               </div>
-              {opponentReady && <div className="text-emerald-400 text-sm font-semibold">Rakip hazır! Savaş başlıyor...</div>}
+              {opponentReady && <div className="text-emerald-400 text-sm font-semibold">Opponent ready! Battle starting...</div>}
             </div>
           ) : (
             <>
               <div className="text-center text-[11.5px] text-amber-200/90 mb-1.5 font-medium leading-none">
-                Kart seç ve kendi alanına dokun ({placedIds.size}/4) — {battleId ? (opponentReady ? "Rakip hazır! 👍" : "Rakip yerleştiriyor... ⏳") : "Bot yerleştiriyor..."}
+                Select card and tap your area ({placedIds.size}/4) — {battleId ? (opponentReady ? "Opponent ready! 👍" : "Opponent is placing... ⏳") : "Bot is placing..."}
               </div>
               
               <div className="grid grid-cols-4 gap-2">
@@ -788,9 +788,9 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
       {phase === "fighting" && (
         <div className="bg-slate-950/95 border-t border-slate-900 p-2">
           <div className="text-center text-[10px] font-display text-amber-300 mb-1.5 tracking-wide font-medium flex items-center justify-center gap-2">
-            <span>⚡ AKTİF ÖZEL YETENEKLER (TIKLA) ⚡</span>
+            <span>⚡ ACTIVE SPECIAL ABILITIES (CLICK) ⚡</span>
             <span className="bg-amber-500/20 text-amber-300 border border-amber-500/35 px-2 py-0.5 rounded-full text-[9px] font-mono">
-              💎 Taş: {stateRef.current.playerAbilityStones ?? 0}
+              💎 Stone: {stateRef.current.playerAbilityStones ?? 0}
             </span>
           </div>
           {(() => {
@@ -803,7 +803,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
               <div className="flex gap-2 items-stretch" style={{ minHeight: "60px" }}>
                 {playerAbilityUnits.length === 0 ? (
                   <div className="flex-1 text-center text-[10px] text-slate-500 py-3 font-sans italic flex items-center justify-center bg-slate-900/50 rounded-xl border border-slate-800">
-                    Savaş alanında aktif yetenekli canlı birliğiniz yok.
+                    No live unit with active ability on the battlefield.
                   </div>
                 ) : (
                   <div className="flex-1 flex flex-wrap justify-center items-center gap-4 py-1.5 max-h-[100px] overflow-y-auto">
@@ -873,7 +873,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
                         }
                       } else if (u.card.id === "samuray") {
                         if (u.samurayAbilityActive) {
-                          statusText = "2x Hasar";
+                          statusText = "2x Damage";
                           isDisabled = true;
                         }
                       } else if (u.card.id === "cig") {
@@ -909,7 +909,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
                             )}
                           >
                             <span>{u.card.emoji}</span>
-                            <div className="absolute -top-1 -left-1 bg-sky-500 text-slate-950 font-mono font-extrabold text-[8px] rounded-full w-4 h-4 flex items-center justify-center border border-slate-950 shadow" title={`Gereken Taş: ${stoneCost}`}>
+                            <div className="absolute -top-1 -left-1 bg-sky-500 text-slate-950 font-mono font-extrabold text-[8px] rounded-full w-4 h-4 flex items-center justify-center border border-slate-950 shadow" title={`Required Stone: ${stoneCost}`}>
                               {stoneCost}
                             </div>
                             {isDisabled && statusText === "✓" && (
@@ -971,11 +971,11 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-md panel-3d rounded-2xl p-4 text-center text-white">
             <div className="text-stroke font-display text-3xl">
-              {winner === "player" ? "ZAFER! 🏆" : "MAĞLUBİYET 💀"}
+              {winner === "player" ? "VICTORY! 🏆" : "DEFEAT 💀"}
             </div>
             {mode === "tournament" ? (
               <div className="mt-2 flex items-center justify-center gap-3 text-xl font-display text-emerald-300">
-                {winner === "player" ? "+1 Galibiyet" : "1 Mağlubiyet Aldın"}
+                {winner === "player" ? "+1 Win" : "1 Defeat"}
               </div>
             ) : mode === "ranked" ? (
               <div className="mt-2 flex items-center justify-center gap-3 text-lg font-display">

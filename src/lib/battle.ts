@@ -114,7 +114,7 @@ export function makeInitialState(): BattleState {
 }
 
 export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: number, row: number, level: number = 1) {
-  // Kuş ordusu spawns 5 individual birds
+  // Bird ordusu spawns 5 individual birds
   if (card.id === "kus-ordusu") {
     const offsets = [
       [0, 0],
@@ -130,7 +130,7 @@ export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: nu
         card: {
           ...card,
           id: `kus-ordusu-bird-${index}`,
-          name: `Kuş ${index + 1}`,
+          name: `Bird ${index + 1}`,
           hp: 20,
           dmg: 5,
           cd: 1.0,
@@ -165,7 +165,7 @@ export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: nu
         card: {
           ...card,
           id: `kabile-member-${index}`,
-          name: `Kabile Savaşçısı ${index + 1}`,
+          name: `Tribe Fighter ${index + 1}`,
           hp: 25,
           dmg: 15,
           cd: 1.0,
@@ -978,7 +978,7 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
     state.botAbilityStones -= cost;
   }
 
-  // 11. Hayalet: Hasar almaz olma 5sn
+  // 11. Hayalet: Damage almaz olma 5sn
   if (unit.card.id === "hayalet") {
     unit.immuneTimeLeft = 5.0;
   }
@@ -990,7 +990,7 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
     }
   }
 
-  // 13. Doktor: can iyileştirme 5x5 alanda +90
+  // 13. Doktor: hp healing 5x5 alanda +90
   else if (unit.card.id === "doktor") {
     if ((unit.doktorAbilityCd || 0) <= 0) {
       unit.doktorAbilityCd = 5.0; // Cooldown 5s
@@ -1160,7 +1160,7 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
       });
     });
   }
-  // 30. Samuray: yaptığı vuruş 2x hasar vurur
+  // 30. Samuray: strike deals 2x damage
   else if (unit.card.id === "samuray") {
     unit.samurayAbilityActive = true;
   }

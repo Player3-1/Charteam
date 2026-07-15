@@ -16,7 +16,7 @@ export interface Arena {
 export const ARENAS: Arena[] = [
   {
     id: 1,
-    name: "Bahçe",
+    name: "Garden",
     min: 0,
     max: 120,
     biome: "grass",
@@ -26,7 +26,7 @@ export const ARENAS: Arena[] = [
   },
   {
     id: 2,
-    name: "Çöl",
+    name: "Desert",
     min: 120,
     max: 250,
     biome: "desert",
@@ -36,7 +36,7 @@ export const ARENAS: Arena[] = [
   },
   {
     id: 3,
-    name: "Karlar",
+    name: "Snow",
     min: 250,
     max: 400,
     biome: "snow",
@@ -46,7 +46,7 @@ export const ARENAS: Arena[] = [
   },
   {
     id: 4,
-    name: "Efsanevi Arena",
+    name: "Legendary Arena",
     min: 400,
     max: 750,
     biome: "legendary",
@@ -56,7 +56,7 @@ export const ARENAS: Arena[] = [
   },
   {
     id: 5,
-    name: "Buz Krallığı",
+    name: "Ice Kingdom",
     min: 750,
     max: 1000,
     biome: "snow",
@@ -66,7 +66,7 @@ export const ARENAS: Arena[] = [
   },
   {
     id: 6,
-    name: "Bataklık",
+    name: "Swamp",
     min: 1000,
     max: 1500,
     biome: "grass",
@@ -76,7 +76,7 @@ export const ARENAS: Arena[] = [
   },
   {
     id: 7,
-    name: "Deniz",
+    name: "Sea",
     min: 1500,
     max: 2000,
     biome: "sea",
@@ -86,7 +86,7 @@ export const ARENAS: Arena[] = [
   },
   {
     id: 8,
-    name: "Cehennem",
+    name: "Hell",
     min: 2000,
     max: 2500,
     biome: "hell",
@@ -96,7 +96,7 @@ export const ARENAS: Arena[] = [
   },
   {
     id: 9,
-    name: "Tapınak",
+    name: "Temple",
     min: 2500,
     max: 3000,
     biome: "legendary",
@@ -106,7 +106,7 @@ export const ARENAS: Arena[] = [
   },
   {
     id: 10,
-    name: "Dağ",
+    name: "Mountain",
     min: 3000,
     max: 3250,
     biome: "desert",
@@ -172,16 +172,16 @@ export interface RankInfo {
 export function getRankForRankProgress(progressTrophies: number) {
   const p = Math.max(0, progressTrophies);
   const ranks: RankInfo[] = [
-    { name: "Bronz 1", emoji: "🥉", style: "from-amber-700 to-amber-900 border-amber-600 text-amber-400 shadow-amber-900/40", min: 0, next: 100 },
-    { name: "Bronz 2", emoji: "🥉", style: "from-amber-700 to-amber-900 border-amber-500 text-amber-200 shadow-amber-900/50", min: 100, next: 200 },
-    { name: "Bronz 3", emoji: "🥉", style: "from-amber-700 to-amber-900 border-amber-400 text-amber-100 shadow-amber-900/60 font-semibold", min: 300, next: 300 },
-    { name: "Gümüş 1", emoji: "🥈", style: "from-slate-400 to-slate-600 border-slate-350 text-slate-100 shadow-slate-700/40", min: 600, next: 350 },
-    { name: "Gümüş 2", emoji: "🥈", style: "from-slate-400 to-slate-600 border-slate-300 text-slate-50 shadow-slate-700/50", min: 950, next: 400 },
-    { name: "Gümüş 3", emoji: "🥈", style: "from-slate-400 to-slate-600 border-slate-200 text-white shadow-slate-700/60 font-semibold", min: 1350, next: 500 },
-    { name: "Altın 1", emoji: "🥇", style: "from-amber-400 to-yellow-600 border-amber-300 text-yellow-105 shadow-yellow-600/40 font-semibold", min: 1850, next: 400 },
-    { name: "Altın 2", emoji: "🥇", style: "from-amber-400 to-yellow-600 border-amber-200 text-yellow-50 shadow-yellow-600/50 font-bold", min: 2250, next: 400 },
-    { name: "Altın 3", emoji: "🥇", style: "from-amber-400 to-yellow-600 border-amber-100 text-amber-100 shadow-yellow-600/60 font-extrabold", min: 2650, next: 500 },
-    { name: "Altın 4", emoji: "👑", style: "from-purple-500 via-pink-500 to-red-500 border-pink-400 text-white shadow-pink-500/50 font-black animate-pulse", min: 3150, next: 999999 }
+    { name: "Bronze 1", emoji: "🥉", style: "from-amber-700 to-amber-900 border-amber-600 text-amber-400 shadow-amber-900/40", min: 0, next: 100 },
+    { name: "Bronze 2", emoji: "🥉", style: "from-amber-700 to-amber-900 border-amber-500 text-amber-200 shadow-amber-900/50", min: 100, next: 200 },
+    { name: "Bronze 3", emoji: "🥉", style: "from-amber-700 to-amber-900 border-amber-400 text-amber-100 shadow-amber-900/60 font-semibold", min: 300, next: 300 },
+    { name: "Silver 1", emoji: "🥈", style: "from-slate-400 to-slate-600 border-slate-350 text-slate-100 shadow-slate-700/40", min: 600, next: 350 },
+    { name: "Silver 2", emoji: "🥈", style: "from-slate-400 to-slate-600 border-slate-300 text-slate-50 shadow-slate-700/50", min: 950, next: 400 },
+    { name: "Silver 3", emoji: "🥈", style: "from-slate-400 to-slate-600 border-slate-200 text-white shadow-slate-700/60 font-semibold", min: 1350, next: 500 },
+    { name: "Gold 1", emoji: "🥇", style: "from-amber-400 to-yellow-600 border-amber-300 text-yellow-105 shadow-yellow-600/40 font-semibold", min: 1850, next: 400 },
+    { name: "Gold 2", emoji: "🥇", style: "from-amber-400 to-yellow-600 border-amber-200 text-yellow-50 shadow-yellow-600/50 font-bold", min: 2250, next: 400 },
+    { name: "Gold 3", emoji: "🥇", style: "from-amber-400 to-yellow-600 border-amber-100 text-amber-100 shadow-yellow-600/60 font-extrabold", min: 2650, next: 500 },
+    { name: "Gold 4", emoji: "👑", style: "from-purple-500 via-pink-500 to-red-500 border-pink-400 text-white shadow-pink-500/50 font-black animate-pulse", min: 3150, next: 999999 }
   ];
 
   let rank = ranks[0];

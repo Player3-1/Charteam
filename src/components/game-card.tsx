@@ -57,7 +57,7 @@ export function GameCard({ card, size = "md", owned, locked, lockedAtArena, sele
         onClick && "hover:-translate-y-1 active:translate-y-0",
       )}
     >
-      {/* Stone Cost (Taş Maliyeti) */}
+      {/* Stone Cost (Stone Cost) */}
       <div className="absolute right-1 top-1 rounded-full bg-indigo-950/95 border border-indigo-400/70 px-2 py-0.5 text-xs font-black text-cyan-300 shadow-md z-10 flex items-center gap-0.5 font-mono leading-none">
         💎{card.stoneCost}
       </div>
@@ -70,14 +70,14 @@ export function GameCard({ card, size = "md", owned, locked, lockedAtArena, sele
       {locked && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 rounded-xl backdrop-blur-[1px]">
           <span className="text-white text-xs font-bold font-display text-center p-2">
-            {lockedAtArena ? `Arena ${lockedAtArena}'de açılır` : "Kilitli"}
+            {lockedAtArena ? `Unlocks at Arena ${lockedAtArena}` : "Locked"}
           </span>
         </div>
       )}
       {selected && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 rounded-xl backdrop-blur-[1px]">
           <span className="bg-amber-500 text-amber-950 font-display font-black text-[11px] px-2 py-0.5 rounded-full border border-black shadow-lg uppercase tracking-wider scale-105">
-            SEÇİLİ
+            SELECTED
           </span>
         </div>
       )}
