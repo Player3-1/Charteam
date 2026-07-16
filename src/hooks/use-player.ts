@@ -26,6 +26,8 @@ function defaultState(username: string): UserData {
     losses: 0,
     rankProgressTrophies: 0,
     rankedStars: 0,
+    unlockedEmojis: ["👍", "😂", "😡", "😱"],
+    selectedEmojis: ["👍", "😂", "😡", "😱"],
   };
 }
 
@@ -52,8 +54,8 @@ export function usePlayer(username: string) {
           losses: data.losses ?? 0,
           rankProgressTrophies: data.rankProgressTrophies ?? 0,
           rankedStars: data.rankedStars ?? 0,
-          unlockedEmojis: data.unlockedEmojis ?? [],
-          selectedEmojis: data.selectedEmojis ?? ["", "", "", ""],
+          unlockedEmojis: (data.unlockedEmojis && data.unlockedEmojis.length > 0) ? data.unlockedEmojis : ["👍", "😂", "😡", "😱"],
+          selectedEmojis: (data.selectedEmojis && data.selectedEmojis.length > 0) ? data.selectedEmojis : ["👍", "😂", "😡", "😱"],
           claimedMilestones: data.claimedMilestones ?? [],
         };
 

@@ -75,7 +75,7 @@ function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[], arenaId
   };
 
   const isSquishyRanged = ["okcu", "topcu", "bombalama-ucagi", "kus-ordusu", "kardan-adam", "volkan"].includes(card.id);
-  const isExtremeBack = ["sapanci", "buz-dolabi", "bira-varili", "cig"].includes(card.id);
+  const isExtremeBack = ["sapanci", "buz-dolabi", "bira-varili"].includes(card.id);
 
   // Exception for Madenci
   if (card.id === "madenci") {
@@ -98,6 +98,15 @@ function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[], arenaId
         }
       }
       attempts++;
+    }
+  }
+
+  // Exception for Çığ
+  if (card.id === "cig") {
+    const rowsToTry = [10, 11, 9, 8];
+    for (const r of rowsToTry) {
+      const colOpt = findBestColInRow(r, true);
+      if (colOpt !== null) return { col: colOpt, row: r };
     }
   }
 

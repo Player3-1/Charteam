@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { usePlayer } from "@/hooks/use-player";
 import { UserData } from "@/types";
 import {
@@ -66,6 +66,45 @@ type Tab = "battle" | "cards" | "chests" | "meta" | "arenas" | "top3";
 export function Home({ user }: { user: UserData }) {
   const { state, hydrated, claimChestRewards, spendGold, setDeckSlot, setActiveDeck, applyMatchReward, buyEmoji, setEmojiSlot, setTrophies, setGold, updateResources, resetRankedStars } = usePlayer(user.username);
   const [tab, setTab] = useState<Tab>("cards");
+  const [direction, setDirection] = useState<"left" | "right">("right");
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const diffX = e.changedTouches[0].clientX - touchStartX.current;
+    const diffY = e.changedTouches[0].clientY - touchStartY.current;
+
+    // Check if swipe is horizontal and meets minimum threshold
+    if (Math.abs(diffX) > 60 && Math.abs(diffX) > Math.abs(diffY) * 1.5) {
+      const tabs: Tab[] = ["meta", "chests", "battle", "cards", "top3"];
+      const currentIndex = tabs.indexOf(tab);
+      if (diffX < 0) {
+        if (currentIndex < tabs.length - 1) {
+          setDirection("right");
+          setTab(tabs[currentIndex + 1]);
+        }
+      } else {
+        if (currentIndex > 0) {
+          setDirection("left");
+          setTab(tabs[currentIndex - 1]);
+        }
+      }
+    }
+  };
+
+  const handleTabChange = (newTab: Tab) => {
+    const tabs: Tab[] = ["meta", "chests", "battle", "cards", "top3"];
+    const fromIndex = tabs.indexOf(tab);
+    const toIndex = tabs.indexOf(newTab);
+    setDirection(toIndex > fromIndex ? "right" : "left");
+    setTab(newTab);
+  };
+
   const [openedRewards, setOpenedRewards] = useState<{ card: CardDef; isDuplicate: boolean; refundGold: number }[] | null>(null);
   const [openedChestName, setOpenedChestName] = useState("");
   const [inBattle, setInBattle] = useState(false);
@@ -125,7 +164,7 @@ export function Home({ user }: { user: UserData }) {
   };
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col bg-slate-950">
+    <div className="mx-auto flex h-full max-w-md flex-col bg-slate-950 overflow-y-auto overflow-x-hidden relative scrollbar-none">
       {!(inBattle && opponent) && (
         <>
           <header className="sticky top-0 z-20 panel-3d px-3 pb-3 pt-8 flex items-center justify-between gap-3 relative">
@@ -152,61 +191,76 @@ export function Home({ user }: { user: UserData }) {
             </div>
           </header>
 
-          <main className="flex-1 px-3 pb-28 pt-4">
-            {tab === "battle" && (
-              <BattleTab
-                deck={state.deck}
-                trophies={state.trophies}
-                rankProgressTrophies={state.rankProgressTrophies || 0}
-                rankedStars={state.rankedStars || 0}
-                battleMode={battleMode}
-                setBattleMode={setBattleMode}
-                onStart={() => setShowMatchmaking(true)}
-              />
-            )}
-            {tab === "cards" && (
-              <CardsTab
-                collection={state.collection}
-                deck={state.deck}
-                decks={state.decks}
-                activeDeckIndex={state.activeDeckIndex}
-                selectedEmojies={state.selectedEmojies as [string, string, string, string] | undefined}
-                unlockedEmojies={state.unlockedEmojies ?? []}
-                gold={state.gold}
-                setDeckSlot={setDeckSlot}
-                setActiveDeck={setActiveDeck}
-                setEmojiSlot={setEmojiSlot}
-              />
-            )}
-            {tab === "chests" && (
-              <ChestsTab 
-                gold={state.gold} 
-                unlockedEmojies={state.unlockedEmojies ?? []} 
-                wins={state.wins}
-                tournamentWins={state.tournamentWins || 0}
-                onOpen={handleOpenChest} 
-                onBuyEmoji={buyEmoji} 
-                trophies={state.trophies}
-                rankedStars={state.rankedStars || 0}
-                onUpdateResources={updateResources}
-                onResetRankedStars={resetRankedStars}
-              />
-            )}
-            {tab === "meta" && (
-              <MetaTab user={user} />
-            )}
-            {tab === "top3" && (
-              <LeaderboardTab currentUser={user} currentTrophies={state.trophies} />
-            )}
+          <main 
+            className="flex-1 px-3 pb-28 pt-4 select-none"
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={tab}
+                initial={{ opacity: 0, x: direction === "right" ? 30 : -30 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: direction === "right" ? -30 : 30 }}
+                transition={{ duration: 0.15, ease: "easeInOut" }}
+                className="w-full h-full"
+              >
+                {tab === "battle" && (
+                  <BattleTab
+                    deck={state.deck}
+                    trophies={state.trophies}
+                    rankProgressTrophies={state.rankProgressTrophies || 0}
+                    rankedStars={state.rankedStars || 0}
+                    battleMode={battleMode}
+                    setBattleMode={setBattleMode}
+                    onStart={() => setShowMatchmaking(true)}
+                  />
+                )}
+                {tab === "cards" && (
+                  <CardsTab
+                    collection={state.collection}
+                    deck={state.deck}
+                    decks={state.decks}
+                    activeDeckIndex={state.activeDeckIndex}
+                    selectedEmojis={state.selectedEmojis as [string, string, string, string] | undefined}
+                    unlockedEmojis={state.unlockedEmojis ?? []}
+                    gold={state.gold}
+                    setDeckSlot={setDeckSlot}
+                    setActiveDeck={setActiveDeck}
+                    setEmojiSlot={setEmojiSlot}
+                  />
+                )}
+                {tab === "chests" && (
+                  <ChestsTab 
+                    gold={state.gold} 
+                    unlockedEmojis={state.unlockedEmojis ?? []} 
+                    wins={state.wins}
+                    tournamentWins={state.tournamentWins || 0}
+                    onOpen={handleOpenChest} 
+                    onBuyEmoji={buyEmoji} 
+                    trophies={state.trophies}
+                    rankedStars={state.rankedStars || 0}
+                    onUpdateResources={updateResources}
+                    onResetRankedStars={resetRankedStars}
+                  />
+                )}
+                {tab === "meta" && (
+                  <MetaTab user={user} />
+                )}
+                {tab === "top3" && (
+                  <LeaderboardTab currentUser={user} currentTrophies={state.trophies} />
+                )}
+              </motion.div>
+            </AnimatePresence>
           </main>
 
           <nav className="fixed inset-x-0 bottom-0 z-[1000] mx-auto max-w-md panel-3d rounded-t-2xl rounded-b-none px-2 py-2">
             <div className="grid grid-cols-5 gap-1">
-              <NavBtn active={tab === "meta"} onClick={() => setTab("meta")} icon="📊" label="Meta" />
-              <NavBtn active={tab === "chests"} onClick={() => setTab("chests")} icon="🎁" label="Shop" />
-              <NavBtn active={tab === "battle"} onClick={() => setTab("battle")} icon="⚔️" label="Battle" big />
-              <NavBtn active={tab === "cards"} onClick={() => setTab("cards")} icon="🃏" label="Cards" />
-              <NavBtn active={tab === "top3"} onClick={() => setTab("top3")} icon="🏆" label="Top 3" />
+              <NavBtn active={tab === "meta"} onClick={() => handleTabChange("meta")} icon="📊" label="Meta" />
+              <NavBtn active={tab === "chests"} onClick={() => handleTabChange("chests")} icon="🎁" label="Shop" />
+              <NavBtn active={tab === "battle"} onClick={() => handleTabChange("battle")} icon="⚔️" label="Battle" big />
+              <NavBtn active={tab === "cards"} onClick={() => handleTabChange("cards")} icon="🃏" label="Cards" />
+              <NavBtn active={tab === "top3"} onClick={() => handleTabChange("top3")} icon="🏆" label="Top 3" />
             </div>
           </nav>
         </>
@@ -242,7 +296,7 @@ export function Home({ user }: { user: UserData }) {
       {inBattle && opponent && (
         <BattleScreen
           deck={state.deck}
-          playerEmojis={(state.selectedEmojies as [string, string, string, string]) || ["", "", "", ""]}
+          playerEmojis={(state.selectedEmojis as [string, string, string, string]) || ["", "", "", ""]}
           trophies={state.trophies}
           opponentName={opponent.name}
           opponentTrophies={opponent.trophies}
@@ -315,8 +369,8 @@ function CardsTab({
   deck,
   decks,
   activeDeckIndex = 0,
-  selectedEmojies = ["", "", "", ""],
-  unlockedEmojies = [],
+  selectedEmojis = ["", "", "", ""],
+  unlockedEmojis = [],
   gold,
   setDeckSlot,
   setActiveDeck,
@@ -326,8 +380,8 @@ function CardsTab({
   deck: [string, string, string, string];
   decks?: Record<string, [string, string, string, string]>;
   activeDeckIndex?: number;
-  selectedEmojies?: [string, string, string, string];
-  unlockedEmojies?: string[];
+  selectedEmojis?: [string, string, string, string];
+  unlockedEmojis?: string[];
   gold: number;
   setDeckSlot: (slot: number, cardId: string) => void;
   setActiveDeck: (index: number) => void;
@@ -361,22 +415,22 @@ function CardsTab({
   };
 
   const handleEmojiSelect = (emoji: string) => {
-    const inDeckIndex = selectedEmojies.indexOf(emoji);
+    const inDeckIndex = selectedEmojis.indexOf(emoji);
     if (inDeckIndex >= 0) {
       setEmojiSlot(inDeckIndex, "");
       setActiveEmojiSlot(inDeckIndex);
     } else {
       if (activeEmojiSlot !== null) {
         setEmojiSlot(activeEmojiSlot, emoji);
-        const next = [...selectedEmojies];
+        const next = [...selectedEmojis];
         next[activeEmojiSlot] = emoji;
         const nextEmpty = next.findIndex(e => e === "");
         setActiveEmojiSlot(nextEmpty >= 0 ? nextEmpty : null);
       } else {
-        const firstEmpty = selectedEmojies.findIndex(e => e === "");
+        const firstEmpty = selectedEmojis.findIndex(e => e === "");
         if (firstEmpty >= 0) {
           setEmojiSlot(firstEmpty, emoji);
-          const next = [...selectedEmojies];
+          const next = [...selectedEmojis];
           next[firstEmpty] = emoji;
           const nextEmpty = next.findIndex(e => e === "");
           setActiveEmojiSlot(nextEmpty >= 0 ? nextEmpty : null);
@@ -541,7 +595,7 @@ function CardsTab({
           </p>
         </div>
         <div className="flex gap-2 justify-center mb-4 panel-3d border border-slate-700 p-2 rounded-xl bg-slate-900/60">
-          {selectedEmojies.map((emoji, i) => {
+          {selectedEmojis.map((emoji, i) => {
             const isActive = activeEmojiSlot === i;
             return (
               <button
@@ -566,12 +620,12 @@ function CardsTab({
 
         {activeEmojiSlot !== null && (
           <div className="grid grid-cols-4 gap-2 p-2 border border-dashed border-amber-500/30 bg-amber-500/10 rounded-xl mb-4">
-            {unlockedEmojies.length === 0 ? (
+            {unlockedEmojis.length === 0 ? (
               <div className="col-span-4 text-center text-sm text-amber-200/70 py-2">
                 You have no emojis! Buy them from the Chests menu.
               </div>
             ) : (
-              Array.from(new Set(unlockedEmojies)).map((emoji, index) => (
+              Array.from(new Set(unlockedEmojis)).map((emoji, index) => (
                 <button
                   key={`${emoji}_${index}`}
                   onClick={() => handleEmojiSelect(emoji)}
@@ -906,7 +960,7 @@ function BattleTab({
 
 function ChestsTab({
   gold,
-  unlockedEmojies,
+  unlockedEmojis,
   wins,
   tournamentWins,
   onOpen,
@@ -917,7 +971,7 @@ function ChestsTab({
   onResetRankedStars,
 }: {
   gold: number;
-  unlockedEmojies: string[];
+  unlockedEmojis: string[];
   wins: number;
   tournamentWins: number;
   onOpen: (id: string) => void;
@@ -976,7 +1030,7 @@ function ChestsTab({
         <h2 className="text-stroke text-2xl text-white">Emojies</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {SHOP_EMOJIS.map(({ emoji, cost }) => {
-            const hasEmoji = unlockedEmojies.includes(emoji);
+            const hasEmoji = unlockedEmojis.includes(emoji);
             const can = !hasEmoji && gold >= cost;
             return (
               <div key={emoji} className="panel-3d flex flex-col items-center gap-2 p-3 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 text-center">

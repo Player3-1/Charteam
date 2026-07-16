@@ -25,7 +25,7 @@ export const CARDS: CardDef[] = [
   { id: "topcu", name: "Cannoneer", emoji: "💣", rarity: "rare", hp: 90, dmg: 75, cd: 2.5, range: "uzak", description: "Devastating large area damage cannon fire.", stoneCost: 5 },
   { id: "ejder", name: "Dragon", emoji: "🐉", rarity: "epic", hp: 110, dmg: 35, cd: 1.4, range: "hava", description: "Deals area damage from air with fire breath.", stoneCost: 5 },
   { id: "kus-ordusu", name: "Bird Army", emoji: "🐦", rarity: "epic", hp: 20, dmg: 4.5, cd: 1.0, range: "hava", description: "5 fast birds, hard to catch.", stoneCost: 5 },
-  { id: "hayalet", name: "Ghost", emoji: "👻", rarity: "legendary", hp: 150, dmg: 45, cd: 1.0, range: "yakın", description: "Only visible in a 3x3 area. Flies. Ability: 5s invisibility, immune to damage and deals 2x damage.", ability: "5s invisibility, damage immunity and 2x damage", stoneCost: 4 },
+  { id: "hayalet", name: "Ghost", emoji: "👻", rarity: "legendary", hp: 150, dmg: 45, cd: 1.0, range: "yakın", description: "Only visible when an enemy is within 2 blocks or when attacking. Flies. Ability: 5s invisibility, immune to damage and deals 2x damage.", ability: "5s invisibility, damage immunity and 2x damage", stoneCost: 4 },
   { id: "madenci", name: "Miner", emoji: "⛏️", rarity: "legendary", hp: 120, dmg: 30, cd: 0.9, range: "yakın", description: "Digs to the desired location and emerges.", ability: "Choose location and emerge", stoneCost: 3 },
   { id: "doktor", name: "Doctor", emoji: "⚕️", rarity: "legendary", hp: 90, dmg: 0, cd: 0, range: "yakın", description: "Heals allies for +90 HP, follows allies with low HP.", ability: "5x5 heal with 5s CD", stoneCost: 3 },
   { id: "bira-varili", name: "Beer Barrel", emoji: "🍺", rarity: "legendary", hp: 1, dmg: 0, cd: 0, range: "yakın", description: "Ally damage 2.0x. Lasts 30s.", ability: "10s 3.0x damage", stoneCost: 4 },
@@ -41,9 +41,9 @@ export const CARDS: CardDef[] = [
   { id: "lav-kopegi", name: "Lava Hound", emoji: "🐕", rarity: "legendary", hp: 400, dmg: 30, cd: 1.5, range: "yakın", description: "Bite burns enemy (5 damage/sec for 7s). Offense: Breaths fire in 3x3 area.", ability: "Burns enemies in 3x3 area with 20 dmg/s for 3s.", stoneCost: 5 },
   { id: "volkan", name: "Volcano", emoji: "🌋", rarity: "common", hp: 80, dmg: 30, cd: 2.5, range: "uzak", description: "Shoots fireball from ground, burns target with 5 dmg/s for 4s.", stoneCost: 4 },
   { id: "cehennem-ejderi", name: "Inferno Dragon", emoji: "🐲", rarity: "rare", hp: 100, dmg: 30, cd: 1.3, range: "hava", description: "Breaths fire from air, burns targets with 5 dmg/s for 4s.", stoneCost: 5 },
-  { id: "kabile", name: "Tribe", emoji: "👺", rarity: "common", hp: 25, dmg: 15, cd: 1.0, range: "yakın", description: "Unlocked in Arena 9, basic card with 25 hp and 15 damage. No ability.", stoneCost: 3 },
-  { id: "golem", name: "Elephant", emoji: "🦣", rarity: "rare", hp: 1000, dmg: 40, cd: 2.0, range: "yakın", description: "Durable elephant. Rare tank with 1000 hp, 40 damage.", stoneCost: 8 },
-  { id: "cig", name: "Avalanche", emoji: "🏔️", rarity: "epic", hp: 0, dmg: 100, cd: 5.0, range: "uzak", description: "Thrown to designated location, deals 100 damage to an area extending 5 blocks from drop point.", ability: "Deals 100 damage", stoneCost: 3 },
+  { id: "kabile", name: "Tribe", emoji: "👺", rarity: "common", hp: 25, dmg: 15, cd: 1.0, range: "yakın", description: "Unlocked in Arena 9, basic card with 25 hp and 15 damage. No ability.", stoneCost: 1 },
+  { id: "golem", name: "Elephant", emoji: "🦣", rarity: "rare", hp: 800, dmg: 30, cd: 2.0, range: "yakın", description: "Durable elephant. Rare tank with 800 hp, 30 damage.", stoneCost: 8 },
+  { id: "cig", name: "Avalanche", emoji: "🏔️", rarity: "epic", hp: 0, dmg: 60, cd: 5.0, range: "uzak", description: "Thrown to designated location, deals 60 damage to an area extending 4 blocks from drop point.", ability: "Deals 60 damage", stoneCost: 3 },
   { id: "samuray", name: "Samurai", emoji: "🥷", rarity: "legendary", hp: 200, dmg: 70, cd: 0.9, range: "yakın", description: "Legendary warrior unlocked in arena 11. Ability: his strike deals 2x damage.", ability: "Strike deals 2x damage (140 total)", stoneCost: 5 },
 ];
 

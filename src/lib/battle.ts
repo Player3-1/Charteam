@@ -279,7 +279,7 @@ function handleProjectileImpact(p: Projectile, state: BattleState) {
   
   const applyEffects = (target: Unit) => {
     applyCombatDamage(target, p.damage, attacker, true);
-    if (p.kind === "snowball") {
+    if (p.kind === "snowball" && p.damage > 0) {
       target.frozenTimeLeft = Math.max(target.frozenTimeLeft || 0, 1.2);
     } else if (p.kind === "ice") {
       target.frozenTimeLeft = Math.max(target.frozenTimeLeft || 0, 1.5);
@@ -506,17 +506,16 @@ export function tickBattle(state: BattleState, dt: number) {
       if (u.immuneTimeLeft && u.immuneTimeLeft > 0) {
         u.hayaletRevealedByUid = undefined;
       } else {
-        if (u.hayaletRevealedByUid !== undefined) {
-          const revealer = state.units.find(e => e.uid === u.hayaletRevealedByUid);
-          if (!revealer || revealer.hp <= 0 || Math.hypot(u.col - revealer.col, u.row - revealer.row) > 3.5) {
-            u.hayaletRevealedByUid = undefined;
-          }
-        }
-        if (u.hayaletRevealedByUid === undefined) {
-          const closeEnemy = state.units.find(e => e.side !== u.side && e.hp > 0 && Math.hypot(u.col - e.col, u.row - e.row) <= 1.8);
-          if (closeEnemy) {
-            u.hayaletRevealedByUid = closeEnemy.uid;
-          }
+        const isAttacking = u.cdLeft > 0;
+        const closeEnemy = state.units.find(
+          (e) => e.side !== u.side && e.hp > 0 && Math.hypot(u.col - e.col, u.row - e.row) <= 2.0
+        );
+        if (isAttacking) {
+          u.hayaletRevealedByUid = closeEnemy ? closeEnemy.uid : u.uid;
+        } else if (closeEnemy) {
+          u.hayaletRevealedByUid = closeEnemy.uid;
+        } else {
+          u.hayaletRevealedByUid = undefined;
         }
       }
     }
@@ -545,7 +544,7 @@ export function tickBattle(state: BattleState, dt: number) {
       }
       // Çığ triggers immediately if enemies are near
       if (u.card.id === "cig" && !u.cigTriggered) {
-        const enemiesNearby = state.units.filter((o) => o.side !== u.side && o.hp > 0 && dist(u, o) <= 5.0);
+        const enemiesNearby = state.units.filter((o) => o.side !== u.side && o.hp > 0 && dist(u, o) <= 2.8);
         if (enemiesNearby.length >= 1) {
           triggerUnitAbility(u, state);
         }
@@ -895,8 +894,8 @@ export function tickBattle(state: BattleState, dt: number) {
     }
   }
 
-  const playerAlive = state.units.some((u) => u.side === "player");
-  const botAlive = state.units.some((u) => u.side === "bot");
+  const playerAlive = state.units.some((u) => u.side === "player" && u.card.id !== "cig" && u.card.id !== "bira-varili");
+  const botAlive = state.units.some((u) => u.side === "bot" && u.card.id !== "cig" && u.card.id !== "bira-varili");
   if (state.time > 0.5) {
       if (!playerAlive && botAlive) state.winner = "bot";
       else if (!botAlive && playerAlive) state.winner = "player";
@@ -1188,15 +1187,14 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
       });
     }
 
-    // Deal 100 damage to all enemies within 5 blocks of (u.col, u.row)
+    // Deal 60 damage to all enemies within 4x4 area of (u.col, u.row)
     state.units.forEach((targetUnit) => {
       if (targetUnit.side !== unit.side && isUnitTargetable(targetUnit)) {
         if (targetUnit.card.id === "doktor") return; // Doktor does not take AOE damage
-        const d = Math.hypot(targetUnit.col - unit.col, targetUnit.row - unit.row);
-        if (d <= 5.0) {
-          applyCombatDamage(targetUnit, 100, unit);
-          // Also apply a brief freeze (1.5s)
-          targetUnit.frozenTimeLeft = Math.max(targetUnit.frozenTimeLeft || 0, 1.5);
+        const colDiff = Math.abs(targetUnit.col - unit.col);
+        const rowDiff = Math.abs(targetUnit.row - unit.row);
+        if (colDiff <= 2.0 && rowDiff <= 2.0) {
+          applyCombatDamage(targetUnit, 60, unit);
         }
       }
     });
