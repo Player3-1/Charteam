@@ -191,16 +191,16 @@ const PLACE_SECONDS = 15;
 const FIGHT_TIMEOUT = 60;
 
 const RANKED_PREDEFINED_DECKS: Array<{ cards: string[] }> = [
-  { cards: ["golem", "bombalama-ucagi", "hayalet", "doktor"] }, // Tank & Area Control
+  { cards: ["golem", "bombalama-ucagi", "hayalet", "tufekci"] }, // Tank & Area Control
   { cards: ["samuray", "kopek-baligi", "kus-ordusu", "kardan-adam"] }, // Fast Push
   { cards: ["dev-sinek", "ejder", "cehennem-ejderi", "mercan"] }, // Air Supremacy
   { cards: ["lav-kopegi", "volkan", "topcu", "zirhli"] }, // Heavy Burn
   { cards: ["golem", "buz-dolabi", "kurbaga", "madenci"] }, // Freeze & Strike
   { cards: ["bira-varili", "samuray", "tufekci", "dev"] }, // Pure Damage
   { cards: ["hayalet", "madenci", "balik", "cig"] }, // Annoying Tactics
-  { cards: ["zirhli", "doktor", "mercan", "kilicli"] }, // High Sustain
+  { cards: ["zirhli", "bira-varili", "mercan", "kilicli"] }, // High Sustain
   { cards: ["lav-kopegi", "buz-dolabi", "cehennem-ejderi", "kardan-adam"] }, // Fire & Ice
-  { cards: ["samuray", "bombalama-ucagi", "doktor", "golem"] } // Meta Meta
+  { cards: ["samuray", "bombalama-ucagi", "dev", "golem"] } // Meta Meta
 ];
 
 export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, playerEmojis = ["", "", "", ""], trophies, opponentName, opponentTrophies, opponentRankedStars, opponentWins, opponentTournamentWins, battleId, isPlayer1, mode = "standard", onFinish, onExit, username }: Props) {
@@ -220,11 +220,11 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
   const [botTrophies] = useState(() => makeOpponentTrophies(trophies));
   const [opponentCardLevels, setOpponentCardLevels] = useState<Record<string, number>>({});
   const [botDeck, setBotDeck] = useState<CardDef[]>(() => {
+    let cards: CardDef[] = [];
     if (botDeckOverride) {
-      return botDeckOverride.map(id => typeof id === "string" ? CARDS.find(c => c.id === id)! : id).filter(Boolean) as CardDef[];
-    }
-    if (mode === "ranked" && selectedPredefinedDeck) {
-      let cards = selectedPredefinedDeck.cards.map(id => CARDS.find(c => c.id === id)!).filter(Boolean);
+      cards = botDeckOverride.map(id => typeof id === "string" ? CARDS.find(c => c.id === id)! : id).filter(Boolean) as CardDef[];
+    } else if (mode === "ranked" && selectedPredefinedDeck) {
+      cards = selectedPredefinedDeck.cards.map(id => CARDS.find(c => c.id === id)!).filter(Boolean);
       const rand = Math.random();
       if (rand < 0.4) {
         // 40% chance to swap cards
@@ -237,14 +237,28 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
           availableCards.splice(newCardIdx, 1);
         }
       }
-      return cards;
+    } else {
+      cards = battleId ? [] : makeBotDeck(arena);
     }
-    return battleId ? [] : makeBotDeck(arena);
+    // Safeguard: swap Doktor out for bots
+    return cards.map(c => {
+      if (c && c.id === "doktor") {
+        return CARDS.find(x => x.id === "mercan") || CARDS.find(x => x.id === "kilicli")!;
+      }
+      return c;
+    });
   });
 
   useEffect(() => {
     if (battleId && opponentDeckRef.current.length > 0) {
-        setBotDeck(opponentDeckRef.current);
+        const rawDeck = opponentDeckRef.current;
+        const cleaned = rawDeck.map(c => {
+          if (c && c.id === "doktor") {
+            return CARDS.find(x => x.id === "mercan") || CARDS.find(x => x.id === "kilicli")!;
+          }
+          return c;
+        });
+        setBotDeck(cleaned);
     }
   }, [battleId]);
 

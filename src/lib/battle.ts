@@ -561,7 +561,7 @@ export function tickBattle(state: BattleState, dt: number) {
         }
       }
       // Doktor heal if allies are injured
-      if (u.card.id === "doktor" && (u.doktorAbilityCd || 0) <= 0) {
+      if (u.card.id === "doktor" && u.side !== "bot" && (u.doktorAbilityCd || 0) <= 0) {
         const injuredNearby = state.units.some(
           (o) => o.side === u.side && o.hp > 0 && o.hp < o.maxHp * 0.9 && dist(u, o) <= 5.0
         );
@@ -991,7 +991,7 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
 
   // 13. Doktor: hp healing 5x5 alanda +90
   else if (unit.card.id === "doktor") {
-    if ((unit.doktorAbilityCd || 0) <= 0) {
+    if (unit.side !== "bot" && (unit.doktorAbilityCd || 0) <= 0) {
       unit.doktorAbilityCd = 5.0; // Cooldown 5s
 
       state.units.forEach((targetUnit) => {
@@ -1207,7 +1207,7 @@ import { getUnlockedCardsUpToTrophies } from "./arenas";
 
 export function makeBotDeck(arena: Arena): CardDef[] {
   const unlockedIds = getUnlockedCardsUpToTrophies(arena.min);
-  let allowed = [...CARDS.filter((c) => unlockedIds.includes(c.id))];
+  let allowed = [...CARDS.filter((c) => unlockedIds.includes(c.id) && c.id !== "doktor")];
   if (arena.id === 1) {
     allowed = allowed.filter((c) => c.id !== "sapanci");
   }
@@ -1215,7 +1215,7 @@ export function makeBotDeck(arena: Arena): CardDef[] {
   // Define roles
   const tanks = ["dev", "zirhli", "dev-sinek", "lav-kopegi", "kilicli", "kopek-baligi"];
   const ranged = ["okcu", "tufekci", "sapanci", "topcu", "buz-dolabi", "kardan-adam", "kurbaga", "volkan"];
-  const airOrSpecial = ["ejder", "kus-ordusu", "bombalama-ucagi", "cehennem-ejderi", "balik", "mercan", "doktor", "bira-varili"];
+  const airOrSpecial = ["ejder", "kus-ordusu", "bombalama-ucagi", "cehennem-ejderi", "balik", "mercan", "bira-varili"];
   const meleeFast = ["mizrakli", "atli", "madenci", "hayalet"];
 
   const deck: CardDef[] = [];
