@@ -29,7 +29,7 @@ export const CARDS: CardDef[] = [
   { id: "madenci", name: "Miner", emoji: "⛏️", rarity: "legendary", hp: 120, dmg: 30, cd: 0.9, range: "yakın", description: "Digs to the desired location and emerges.", ability: "Choose location and emerge", stoneCost: 3 },
   { id: "doktor", name: "Doctor", emoji: "⚕️", rarity: "legendary", hp: 90, dmg: 0, cd: 0, range: "yakın", description: "Heals allies for +90 HP, follows allies with low HP.", ability: "5x5 heal with 5s CD", stoneCost: 3 },
   { id: "bira-varili", name: "Beer Barrel", emoji: "🍺", rarity: "legendary", hp: 1, dmg: 0, cd: 0, range: "yakın", description: "Ally damage 2.0x. Lasts 30s.", ability: "10s 3.0x damage", stoneCost: 4 },
-  { id: "bombalama-ucagi", name: "Bomber Plane", emoji: "✈️", rarity: "legendary", hp: 80, dmg: 45, cd: 3.6, range: "hava", description: "Deals 30 damage to 4x4 area every 3.6s.", ability: "50 damage super bomb to 6x6 area", stoneCost: 6 },
+  { id: "bombalama-ucagi", name: "Bomber Plane", emoji: "✈️", rarity: "legendary", hp: 80, dmg: 45, cd: 3.6, range: "hava", description: "Deals 30 damage to 4x4 area every 3.6s.", ability: "50 damage super bomb to 6x6 area", stoneCost: 4 },
   { id: "zirhli", name: "Armored", emoji: "🛡️", rarity: "epic", hp: 300, dmg: 40, cd: 1.5, range: "yakın", description: "Tank. 8s defensive stance absorbs 25% of damage.", ability: "8s defense", stoneCost: 5 },
   { id: "buz-dolabi", name: "Ice Slinger", emoji: "🧊", rarity: "rare", hp: 85, dmg: 25, cd: 2.0, range: "uzak", description: "Deals area damage and freezes enemies.", stoneCost: 3 },
   { id: "kardan-adam", name: "Snowman", emoji: "⛄", rarity: "epic", hp: 100, dmg: 25, cd: 1.25, range: "uzak", description: "Snowball freezes enemy for 1.2s.", stoneCost: 2 },
