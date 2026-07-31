@@ -17,4 +17,14 @@ export interface UserData {
   claimedMilestones?: string[]; // Track claimed milestone emojis (🥇, 🥈, 🥉)
   maxTrophies?: number; // Lifetime highest trophy record achieved
   rankedStars?: number; // Rank star system for max trophy players
+  claimedTrophyRewards?: number[];
+  claimedStarRewards?: number[];
+  cardLevels?: Record<string, number>; // cardId -> level (1-5)
+  cardProgress?: Record<string, number>; // cardId -> progress (0-5)
+  avatar?: string;
+  profileStyleUnlocked?: boolean;
+  profileColor?: string;
+  profileFont?: string;
+  rankedMatchesPlayed?: number;
+  claimedRankedRewards?: number[];
 }

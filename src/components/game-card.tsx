@@ -70,14 +70,14 @@ export function GameCard({ card, size = "md", owned, locked, lockedAtArena, sele
       {locked && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 rounded-xl backdrop-blur-[1px]">
           <span className="text-white text-xs font-bold font-display text-center p-2">
-            {lockedAtArena ? `Unlocks at Arena ${lockedAtArena}` : "Locked"}
+            {lockedAtArena ? `Arena ${lockedAtArena}'da Açılır` : "Kilitli"}
           </span>
         </div>
       )}
       {selected && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 rounded-xl backdrop-blur-[1px]">
           <span className="bg-amber-500 text-amber-950 font-display font-black text-[11px] px-2 py-0.5 rounded-full border border-black shadow-lg uppercase tracking-wider scale-105">
-            SELECTED
+            SEÇİLDİ
           </span>
         </div>
       )}

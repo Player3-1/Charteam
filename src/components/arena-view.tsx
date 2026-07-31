@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { Arena } from "@/lib/arenas";
 import { COLS, ROWS, RIVER_ROW, BRIDGE_COLS, type BattleState, type Projectile } from "@/lib/battle";
 import { cn } from "@/lib/utils";
@@ -64,6 +64,9 @@ function propEmoji(kind: string): string {
   }
 }
 function projectileEmoji(p: Projectile): string {
+  if (p.buyucuEffect === "burn") return "🔥";
+  if (p.buyucuEffect === "slow") return "🧊";
+  if (p.buyucuEffect === "normal") return "✨";
   switch (p.kind) {
     case "arrow": return "➶";
     case "stone": return "🪨";
@@ -77,6 +80,7 @@ function projectileEmoji(p: Projectile): string {
 }
 
 export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props) {
+  const [hoveredTile, setHoveredTile] = useState<{col: number, row: number} | null>(null);
   const props = useProps(arena.biome);
   const cx = (col: number) => ((col + 0.5) / COLS) * 100;
   const cy = (row: number) => ((row + 0.5) / ROWS) * 100;
@@ -202,22 +206,59 @@ export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props
                 }
               }
             }
-            return tiles.map(({ col, row }) => (
-              <button
-                key={`${col}_${row}`}
-                onClick={() => onPlace(col, row)}
-                className="absolute border border-amber-200/30 bg-amber-200/5 hover:bg-amber-200/25"
-                style={{
-                  left: `${(col / COLS) * 100}%`,
-                  top: `${(row / ROWS) * 100}%`,
-                  width: `${(1 / COLS) * 100}%`,
-                  height: `${(1 / ROWS) * 100}%`,
-                }}
-              />
-            ));
+            return (
+              <>
+                {tiles.map(({ col, row }) => (
+                  <button
+                    key={`${col}_${row}`}
+                    onClick={() => onPlace(col, row)}
+                    onMouseEnter={() => setHoveredTile({ col, row })}
+                    onMouseLeave={() => setHoveredTile(null)}
+                    className="absolute border border-amber-200/30 bg-amber-200/5 hover:bg-amber-200/25 z-10"
+                    style={{
+                      left: `${(col / COLS) * 100}%`,
+                      top: `${(row / ROWS) * 100}%`,
+                      width: `${(1 / COLS) * 100}%`,
+                      height: `${(1 / ROWS) * 100}%`,
+                    }}
+                  />
+                ))}
+                {isCig && hoveredTile && (
+                  <div
+                    className="absolute border-2 border-dashed border-blue-400 bg-blue-400/20 pointer-events-none z-0"
+                    style={{
+                      left: `${((hoveredTile.col - 2) / COLS) * 100}%`,
+                      top: `${((hoveredTile.row - 2) / ROWS) * 100}%`,
+                      width: `${(5 / COLS) * 100}%`,
+                      height: `${(5 / ROWS) * 100}%`,
+                    }}
+                  />
+                )}
+              </>
+            );
           })()}
         </div>
       )}
+
+      {/* Active placed avalanches 5x5 indicators */}
+      {state.units.map((u) => {
+        if (u.hp <= 0) return null;
+        if (u.card.id === "cig" && !u.cigTriggered) {
+          return (
+            <div
+              key={`cig_range_${u.uid}`}
+              className="absolute border-2 border-dashed border-sky-400 bg-sky-500/10 pointer-events-none z-0 rounded-full animate-pulse"
+              style={{
+                left: `${((u.col - 2) / COLS) * 100}%`,
+                top: `${((u.row - 2) / ROWS) * 100}%`,
+                width: `${(5 / COLS) * 100}%`,
+                height: `${(5 / ROWS) * 100}%`,
+              }}
+            />
+          );
+        }
+        return null;
+      })}
 
       {/* projectiles */}
       {state.projectiles.map((p) => {
@@ -290,6 +331,7 @@ export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props
         const hasAura = u.card.id === "bira-varili" && u.barrelAuraBoostTimeLeft !== undefined && u.barrelAuraBoostTimeLeft > 0;
 
         const isSmall = u.card.id.startsWith("kus-ordusu") || u.card.id.startsWith("karinca") || u.card.id.startsWith("kabile");
+        const isLanetli = state.lanetTimeLeft !== undefined && state.lanetTimeLeft > 0 && u.side !== state.lanetSide;
         
         const isBuffedByBarrel = state.units.some(
           (o) => o.side === u.side && o.hp > 0 && o.card.id === "bira-varili"
@@ -313,6 +355,8 @@ export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props
             }
           }
         }
+        
+        const isBuyucuInvis = u.card.id === "buyucu" && u.buyucuInvisTimeLeft !== undefined && u.buyucuInvisTimeLeft > 0;
 
         return (
           <div
@@ -320,8 +364,8 @@ export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props
             className={cn(
               "pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 select-none transition-opacity duration-150",
               isEmerging && "opacity-40 scale-110 animate-pulse", // transparently visible and pulsing when emerging!
-              isInvisibleHayalet && u.side !== "player" && "opacity-0",
-              isInvisibleHayalet && u.side === "player" && "opacity-40 grayscale"
+              (isInvisibleHayalet || isBuyucuInvis) && u.side !== "player" && "opacity-0",
+              (isInvisibleHayalet || isBuyucuInvis) && u.side === "player" && "opacity-40 grayscale"
             )}
             style={{
               left: `${cx(u.col)}%`,
@@ -334,13 +378,11 @@ export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props
               {u.card.id === "golem" && (
                 <div className="absolute inset-0 -m-1.5 rounded-full border-2 border-slate-500 bg-gradient-to-br from-slate-600 to-slate-800 shadow-[inset_0_2px_4px_rgba(255,255,255,0.35),_0_2px_6px_rgba(0,0,0,0.6)] animate-pulse" />
               )}
-              {u.card.id === "cig" && (
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-44 h-44 rounded-full border-2 border-dashed border-sky-400 bg-sky-500/10 flex items-center justify-center animate-pulse">
-                  {!u.cigTriggered && (
-                    <div className="text-white font-mono font-bold text-[10px] bg-slate-900/95 border border-slate-700 px-1.5 py-0.5 rounded shadow whitespace-nowrap animate-bounce flex items-center gap-1">
-                      <span>🏔️</span> Ready
-                    </div>
-                  )}
+              {u.card.id === "cig" && !u.cigTriggered && (
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none">
+                  <div className="text-white font-mono font-bold text-[10px] bg-slate-900/95 border border-slate-700 px-1.5 py-0.5 rounded shadow whitespace-nowrap animate-bounce flex items-center gap-1">
+                    <span>🏔️</span> Hazır
+                  </div>
                 </div>
               )}
               {isImmune && (
@@ -365,7 +407,7 @@ export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props
                 </>
               )}
               {isFleeing && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 text-[10px] bg-red-600 text-white rounded px-1 scale-90 font-display font-medium leading-none whitespace-nowrap">FLEEING! 💨</div>
+                <div className="absolute -top-4 left-1/2 -translate-x-1/2 text-[10px] bg-red-600 text-white rounded px-1 scale-90 font-display font-medium leading-none whitespace-nowrap">KAÇIYOR! 💨</div>
               )}
               {isTonguing && (
                 <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-2xl animate-pulse">👅</div>
@@ -373,6 +415,10 @@ export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props
               {hasAura && (
                 <div className="absolute inset-0 -m-2 rounded-full border-2 border-dashed border-amber-400 animate-spin bg-amber-500/10 duration-1000" />
               )}
+              {isLanetli && (
+                <div className="absolute inset-0 -m-1.5 rounded-full border-4 border-black bg-black/15 shadow-[0_0_12px_4px_rgba(0,0,0,0.95)] animate-pulse z-10" />
+              )}
+
 
               <span className={cn(
                 "grid place-items-center rounded-full drop-shadow-[0_2px_3px_rgba(0,0,0,0.8)]",

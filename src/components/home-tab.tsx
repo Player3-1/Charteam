@@ -18,6 +18,7 @@ import { ArenasView } from "@/components/arenas-view";
 import { MatchmakingModal } from "@/components/matchmaking-modal";
 import { MetaTab } from "@/components/meta-tab";
 import { LeaderboardTab } from "@/components/leaderboard";
+import { RankedRoadModal } from "@/components/ranked-road-modal";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { SHOP_EMOJIS } from "@/lib/emojis";
@@ -25,16 +26,16 @@ import { SHOP_EMOJIS } from "@/lib/emojis";
 export function getRankedStarsDetails(points: number) {
   const totalStars = Math.floor(points / 10);
   const divisions = [
-    { name: "Bronze League I", minStars: 0, icon: "🥉", style: "from-amber-700 to-amber-950 text-amber-300 border-amber-600 shadow-amber-900/40" },
-    { name: "Bronze League II", minStars: 3, icon: "🥉", style: "from-amber-700 to-amber-950 text-amber-200 border-amber-500 shadow-amber-900/50" },
-    { name: "Bronze League III", minStars: 6, icon: "🥉", style: "from-amber-700 to-amber-950 text-amber-100 border-amber-400 shadow-amber-900/60 font-semibold" },
-    { name: "Silver League I", minStars: 9, icon: "🥈", style: "from-slate-600 to-slate-900 text-slate-200 border-slate-500 shadow-slate-700/40" },
-    { name: "Silver League II", minStars: 12, icon: "🥈", style: "from-slate-600 to-slate-900 text-slate-100 border-slate-450 shadow-slate-700/50" },
-    { name: "Silver League III", minStars: 15, icon: "🥈", style: "from-slate-600 to-slate-900 text-white border-slate-400 shadow-slate-700/60 font-semibold" },
-    { name: "Gold League I", minStars: 18, icon: "🥇", style: "from-yellow-700 to-yellow-950 text-yellow-300 border-yellow-500 shadow-yellow-600/40 font-semibold" },
-    { name: "Gold League II", minStars: 21, icon: "🥇", style: "from-yellow-700 to-yellow-950 text-yellow-200 border-yellow-400 shadow-yellow-600/50 font-bold" },
-    { name: "Gold League III", minStars: 24, icon: "🥇", style: "from-yellow-700 to-yellow-950 text-amber-100 border-yellow-350 shadow-yellow-600/60 font-extrabold" },
-    { name: "Diamond Fighter", minStars: 27, icon: "💎", style: "from-cyan-600 via-sky-900 to-blue-950 text-cyan-200 border-cyan-400 shadow-cyan-500/50 font-black animate-pulse" },
+    { name: "Bronz Lig I", minStars: 0, icon: "🥉", style: "from-amber-700 to-amber-950 text-amber-300 border-amber-600 shadow-amber-900/40" },
+    { name: "Bronz Lig II", minStars: 3, icon: "🥉", style: "from-amber-700 to-amber-950 text-amber-200 border-amber-500 shadow-amber-900/50" },
+    { name: "Bronz Lig III", minStars: 6, icon: "🥉", style: "from-amber-700 to-amber-950 text-amber-100 border-amber-400 shadow-amber-900/60 font-semibold" },
+    { name: "Gümüş Lig I", minStars: 9, icon: "🥈", style: "from-slate-600 to-slate-900 text-slate-200 border-slate-500 shadow-slate-700/40" },
+    { name: "Gümüş Lig II", minStars: 12, icon: "🥈", style: "from-slate-600 to-slate-900 text-slate-100 border-slate-450 shadow-slate-700/50" },
+    { name: "Gümüş Lig III", minStars: 15, icon: "🥈", style: "from-slate-600 to-slate-900 text-white border-slate-400 shadow-slate-700/60 font-semibold" },
+    { name: "Altın Lig I", minStars: 18, icon: "🥇", style: "from-yellow-700 to-yellow-950 text-yellow-300 border-yellow-500 shadow-yellow-600/40 font-semibold" },
+    { name: "Altın Lig II", minStars: 21, icon: "🥇", style: "from-yellow-700 to-yellow-950 text-yellow-200 border-yellow-400 shadow-yellow-600/50 font-bold" },
+    { name: "Altın Lig III", minStars: 24, icon: "🥇", style: "from-yellow-700 to-yellow-950 text-amber-100 border-yellow-350 shadow-yellow-600/60 font-extrabold" },
+    { name: "Elmas Savaşçı", minStars: 27, icon: "💎", style: "from-cyan-600 via-sky-900 to-blue-950 text-cyan-200 border-cyan-400 shadow-cyan-500/50 font-black animate-pulse" },
   ];
 
   let currentDiv = divisions[0];
@@ -61,14 +62,161 @@ export function getRankedStarsDetails(points: number) {
   };
 }
 
+
+
+export const PROFILE_COLORS = [
+  { name: "Klasik Beyaz", value: "white", class: "text-white text-stroke" },
+  { name: "Altın Efsane", value: "gold", class: "text-yellow-400 font-bold bg-gradient-to-r from-yellow-500 via-amber-300 to-yellow-500 bg-clip-text text-transparent animate-pulse" },
+  { name: "Yakut Kırmızı", value: "red", class: "text-rose-500 font-bold bg-gradient-to-r from-red-600 to-rose-400 bg-clip-text text-transparent" },
+  { name: "Elektrik Mavisi", value: "blue", class: "text-cyan-400 font-bold bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-400 bg-clip-text text-transparent" },
+  { name: "Neon Yeşil", value: "green", class: "text-emerald-400 font-bold bg-gradient-to-r from-emerald-500 to-green-300 bg-clip-text text-transparent" },
+  { name: "Gün Batımı Pembesi", value: "pink", class: "text-fuchsia-400 font-bold bg-gradient-to-r from-pink-500 to-fuchsia-300 bg-clip-text text-transparent" },
+  { name: "Mor Rüya", value: "purple", class: "text-purple-400 font-bold bg-gradient-to-r from-indigo-500 to-purple-400 bg-clip-text text-transparent" },
+  { name: "Gökkuşağı Dalgası", value: "rainbow", class: "font-black bg-gradient-to-r from-red-500 via-yellow-400 via-green-500 via-blue-500 to-purple-500 bg-clip-text text-transparent bg-[length:200%_auto] animate-gradient-flow" }
+];
+
+export const PROFILE_FONTS = [
+  { name: "Klasik Ekran", value: "font-display" },
+  { name: "Retro Tek Aralıklı", value: "font-mono" },
+  { name: "Zarif Şerif", value: "font-serif" },
+  { name: "Sans Darbe", value: "font-sans font-black" }
+];
+
+export const PROFILE_AVATARS = [
+  { emoji: "🥷", name: "Ninja" },
+  { emoji: "🧙", name: "Wizard" },
+  { emoji: "🐉", name: "Dragon" },
+  { emoji: "🦁", name: "Lion" },
+  { emoji: "🦈", name: "Shark" },
+  { emoji: "👻", name: "Ghost" },
+  { emoji: "👑", name: "King" },
+  { emoji: "🤖", name: "Robot" },
+  { emoji: "💀", name: "Skull" },
+  { emoji: "🦄", name: "Unicorn" },
+  { emoji: "👽", name: "Alien" },
+  { emoji: "🦊", name: "Fox" }
+];
+
 type Tab = "battle" | "cards" | "chests" | "meta" | "arenas" | "top3";
 
 export function Home({ user }: { user: UserData }) {
-  const { state, hydrated, claimChestRewards, spendGold, setDeckSlot, setActiveDeck, applyMatchReward, buyEmoji, setEmojiSlot, setTrophies, setGold, updateResources, resetRankedStars } = usePlayer(user.username);
+  const { state, hydrated, claimChestRewards, spendGold, setDeckSlot, setActiveDeck, applyMatchReward, buyEmoji, setEmojiSlot, setTrophies, setGold, updateResources, resetRankedStars, claimProgressionReward, cheatUnlockAll, updateProfileCustomization, importDeck, upgradeCardLevel, claimRankedReward } = usePlayer(user.username);
   const [tab, setTab] = useState<Tab>("cards");
   const [direction, setDirection] = useState<"left" | "right">("right");
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
+
+  const [showProfileCustomizer, setShowProfileCustomizer] = useState(false);
+  const [isRankedRoadOpen, setIsRankedRoadOpen] = useState(false);
+
+  const handleClaimRankedReward = async (matchNum: number) => {
+    if (!state) return;
+    if (state.claimedRankedRewards?.includes(matchNum)) return;
+    const currentMatches = state.rankedMatchesPlayed ?? 0;
+    if (matchNum > currentMatches) return;
+
+    let isGold = false;
+    let isEpicChest = false;
+    let isLegendaryChest = false;
+
+    if (matchNum % 10 === 0) {
+      isLegendaryChest = true;
+    } else if (matchNum % 5 === 0) {
+      isEpicChest = true;
+    }
+
+    if (matchNum % 2 === 0) {
+      isGold = true;
+    }
+
+    let addedGold = 0;
+    if (isGold) {
+      addedGold = Math.floor(Math.random() * 3001) + 2000;
+    }
+
+    let rewardsList: { card: CardDef; isDuplicate: boolean; refundGold: number }[] = [];
+
+    if (isEpicChest || isLegendaryChest) {
+      const chestId = isEpicChest ? "gold" : "magic";
+      const chest = CHESTS.find(c => c.id === chestId)!;
+      
+      const rolled: CardDef[] = [];
+      const unlockedIds = getUnlockedCardsUpToTrophies(state.trophies);
+      rolled.push(rollCardFromUnlocked(unlockedIds, chest.guaranteedMin, chest.allowedRarities));
+      for (let i = 1; i < chest.cards; i++) {
+        rolled.push(rollCardFromUnlocked(unlockedIds, undefined, chest.allowedRarities));
+      }
+
+      const tempCollection = { ...state.collection };
+      const refundValues: Record<Rarity, number> = {
+        common: 250,
+        rare: 500,
+        epic: 800,
+        legendary: 6000,
+      };
+
+      for (const card of rolled) {
+        const isDuplicate = (tempCollection[card.id] ?? 0) > 0;
+        const refundGold = refundValues[card.rarity];
+        rewardsList.push({
+          card,
+          isDuplicate,
+          refundGold,
+        });
+        if (!isDuplicate) {
+          tempCollection[card.id] = 1;
+        }
+      }
+
+      setOpenedChestName(chest.name);
+      setOpenedRewards(rewardsList);
+    } else if (isGold) {
+      alert(`🪙 Tebrikler! ${addedGold.toLocaleString("tr-TR")} Altın kazandınız!`);
+    }
+
+    await claimRankedReward(matchNum, addedGold, rewardsList);
+  };
+
+  const handleClaimTrophyRewardHome = async (threshold: number, rewardType: string) => {
+    if (!state) return;
+    
+    // Generate rewards based on type
+    let numCards = 3;
+    let legendaryChance = 0;
+    
+    if (rewardType === "Mega Sandık") { numCards = 6; legendaryChance = 0.1; }
+    if (rewardType === "Destansı Sandık") { numCards = 3; legendaryChance = 0.2; }
+    if (rewardType === "Efsanevi Sandık") { numCards = 1; legendaryChance = 1.0; } // Guaranteed legendary
+    
+    const availableCards = CARDS;
+    const rewards = [];
+    
+    for (let i = 0; i < numCards; i++) {
+      let roll = Math.random();
+      let rarity = "common";
+      
+      if (roll < legendaryChance) rarity = "legendary";
+      else if (roll < 0.2) rarity = "epic";
+      else if (roll < 0.5) rarity = "rare";
+      
+      const pool = availableCards.filter(c => c.rarity === rarity);
+      const card = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)] : availableCards[0];
+      
+      const isDuplicate = !!state.collection[card.id];
+      let refund = 0;
+      if (isDuplicate) {
+        if (rarity === "legendary") refund = 1000;
+        else if (rarity === "epic") refund = 300;
+        else if (rarity === "rare") refund = 100;
+        else refund = 10;
+      }
+      
+      rewards.push({ card, isDuplicate, refundGold: refund });
+    }
+    
+    await claimProgressionReward("trophy", threshold, rewards);
+    setOpenedRewards(rewards);
+  };
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
@@ -163,31 +311,50 @@ export function Home({ user }: { user: UserData }) {
     setOpenedRewards(rewards);
   };
 
+  const handleClaimStarReward = async (threshold: number, rewardType: "gold" | "chest", value: string | number) => {
+    const goldAmount = value as number;
+    await claimProgressionReward("star", threshold, []);
+    await updateResources(state.trophies, state.gold + goldAmount, state.rankedStars);
+    alert(`🪙 ${goldAmount.toLocaleString("tr-TR")} Altın başarıyla hesabına eklendi!`);
+  };
+
   return (
     <div className="mx-auto flex h-full max-w-md flex-col bg-slate-950 overflow-y-auto overflow-x-hidden relative scrollbar-none">
       {!(inBattle && opponent) && (
         <>
           <header className="sticky top-0 z-20 panel-3d px-3 pb-3 pt-8 flex items-center justify-between gap-3 relative">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setShowArenas(true)}>
-              <div className="grid h-10 w-10 place-items-center rounded-full border-2 border-black/40 bg-gradient-to-br from-amber-300 to-amber-600 text-lg font-display text-amber-950 shadow-inner shrink-0">
-                {state.username[0]}
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setShowProfileCustomizer(true)}>
+              <div className="grid h-10 w-10 place-items-center rounded-full border-2 border-black/40 bg-gradient-to-br from-amber-300 to-amber-600 text-lg font-display text-amber-950 shadow-inner shrink-0 hover:brightness-110 active:scale-95 transition-all">
+                {state.avatar || state.username[0]}
               </div>
               <div>
-                <div className="font-display text-lg leading-none text-stroke text-white">
+                <div className={cn(
+                  "font-display text-lg leading-none",
+                  PROFILE_COLORS.find(c => c.value === state.profileColor)?.class || "text-stroke text-white",
+                  state.profileFont || "font-display"
+                )}>
                   {state.username} {state.username.toLowerCase() === "dgoa" && "🛠️"}
                 </div>
-                <div className="mt-0.5 text-[11px] text-amber-200/90 underline decoration-amber-500/50 underline-offset-2 flex flex-col gap-0.5">
+                <div 
+                  className="mt-0.5 text-[11px] text-amber-200/90 underline decoration-amber-500/50 underline-offset-2 flex flex-col gap-0.5 hover:text-amber-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowArenas(true);
+                  }}
+                >
                   <div>Arena {arena.id} · {arena.name}</div>
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-wrap justify-end gap-1.5">
-              <Stat icon="🏆" value={state.trophies} color="from-amber-300 to-orange-500" />
-              {state.rankedStars !== undefined && state.rankedStars > 0 && (
-                <Stat icon="⭐" value={state.rankedStars} color="from-cyan-300 to-blue-500 text-cyan-950 font-black shadow-[0_0_10px_rgba(6,182,212,0.35)] border-cyan-400/40" />
-              )}
-              <Stat icon="🪙" value={state.gold} color="from-yellow-200 to-amber-500" />
+            <div className="flex flex-col items-end gap-1.5 shrink-0">
+              <div className="flex flex-wrap justify-end gap-1.5">
+                <Stat icon="🏆" value={state.trophies} color="from-amber-300 to-orange-500" />
+                {state.rankedStars !== undefined && state.rankedStars > 0 && (
+                  <Stat icon="⭐" value={state.rankedStars} color="from-cyan-300 to-blue-500 text-cyan-950 font-black shadow-[0_0_10px_rgba(6,182,212,0.35)] border-cyan-400/40" />
+                )}
+                <Stat icon="🪙" value={state.gold} color="from-yellow-200 to-amber-500" />
+              </div>
             </div>
           </header>
 
@@ -214,6 +381,10 @@ export function Home({ user }: { user: UserData }) {
                     battleMode={battleMode}
                     setBattleMode={setBattleMode}
                     onStart={() => setShowMatchmaking(true)}
+                    claimedStarRewards={state.claimedStarRewards || []}
+                    onClaimStarReward={handleClaimStarReward}
+                    cardLevels={state.cardLevels || {}}
+                    onOpenRankedRoad={() => setIsRankedRoadOpen(true)}
                   />
                 )}
                 {tab === "cards" && (
@@ -228,24 +399,21 @@ export function Home({ user }: { user: UserData }) {
                     setDeckSlot={setDeckSlot}
                     setActiveDeck={setActiveDeck}
                     setEmojiSlot={setEmojiSlot}
+                    cardLevels={state.cardLevels || {}}
+                    cardProgress={state.cardProgress || {}}
+                    onUpgradeCardLevel={upgradeCardLevel}
                   />
                 )}
                 {tab === "chests" && (
                   <ChestsTab 
                     gold={state.gold} 
                     unlockedEmojis={state.unlockedEmojis ?? []} 
-                    wins={state.wins}
-                    tournamentWins={state.tournamentWins || 0}
-                    onOpen={handleOpenChest} 
+                    onOpen={handleOpenChest}
                     onBuyEmoji={buyEmoji} 
-                    trophies={state.trophies}
-                    rankedStars={state.rankedStars || 0}
-                    onUpdateResources={updateResources}
-                    onResetRankedStars={resetRankedStars}
                   />
                 )}
                 {tab === "meta" && (
-                  <MetaTab user={user} />
+                  <MetaTab user={user} onImportDeck={importDeck} />
                 )}
                 {tab === "top3" && (
                   <LeaderboardTab currentUser={user} currentTrophies={state.trophies} />
@@ -257,10 +425,10 @@ export function Home({ user }: { user: UserData }) {
           <nav className="fixed inset-x-0 bottom-0 z-[1000] mx-auto max-w-md panel-3d rounded-t-2xl rounded-b-none px-2 py-2">
             <div className="grid grid-cols-5 gap-1">
               <NavBtn active={tab === "meta"} onClick={() => handleTabChange("meta")} icon="📊" label="Meta" />
-              <NavBtn active={tab === "chests"} onClick={() => handleTabChange("chests")} icon="🎁" label="Shop" />
-              <NavBtn active={tab === "battle"} onClick={() => handleTabChange("battle")} icon="⚔️" label="Battle" big />
-              <NavBtn active={tab === "cards"} onClick={() => handleTabChange("cards")} icon="🃏" label="Cards" />
-              <NavBtn active={tab === "top3"} onClick={() => handleTabChange("top3")} icon="🏆" label="Top 3" />
+              <NavBtn active={tab === "chests"} onClick={() => handleTabChange("chests")} icon="🎭" label="Dükkan" />
+              <NavBtn active={tab === "battle"} onClick={() => handleTabChange("battle")} icon="⚔️" label="Savaş" big />
+              <NavBtn active={tab === "cards"} onClick={() => handleTabChange("cards")} icon="🃏" label="Kartlar" />
+              <NavBtn active={tab === "top3"} onClick={() => handleTabChange("top3")} icon="🏆" label="Sıralama" />
             </div>
           </nav>
         </>
@@ -283,6 +451,174 @@ export function Home({ user }: { user: UserData }) {
         {showArenas && (
           <ArenasModal currentTrophies={state.trophies} onClose={() => setShowArenas(false)} />
         )}
+
+
+        {showProfileCustomizer && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              className="w-full max-w-sm rounded-3xl border-2 border-amber-500/80 bg-slate-900 p-6 text-white shadow-2xl shadow-amber-500/10 flex flex-col max-h-[85vh] overflow-y-auto scrollbar-none"
+            >
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4 shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl animate-pulse">👑</span>
+                  <h3 className="font-display text-xl text-stroke font-extrabold text-amber-500">
+                    PROFİL ÖZELLEŞTİRME
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setShowProfileCustomizer(false)}
+                  className="rounded-full bg-slate-800 p-1 hover:bg-slate-700 transition cursor-pointer text-slate-400 hover:text-white w-6 h-6 flex items-center justify-center"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* LIVE PREVIEW CARD */}
+              <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 mb-4 flex items-center gap-3 shrink-0 shadow-inner">
+                <div className="grid h-14 w-14 place-items-center rounded-full border-2 border-amber-500/50 bg-gradient-to-br from-slate-800 to-slate-950 text-3xl shadow-lg shrink-0">
+                  {state.avatar || state.username[0]}
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-0.5">Canlı Önizleme</div>
+                  <div className={cn(
+                    "text-xl leading-none",
+                    PROFILE_COLORS.find(c => c.value === state.profileColor)?.class || "text-stroke text-white",
+                    state.profileFont || "font-display"
+                  )}>
+                    {state.username} {state.username.toLowerCase() === "dgoa" && "🛠️"}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-1">Savaş Arenası Kahramanı</div>
+                </div>
+              </div>
+
+              {/* AVATAR SELECTOR (ALWAYS FREE) */}
+              <div className="space-y-2 mb-5 shrink-0">
+                <label className="text-xs font-bold text-amber-400 uppercase tracking-wider">🎭 Profil Resmi Seç (Ücretsiz)</label>
+                <div className="grid grid-cols-6 gap-1.5 p-2 bg-slate-950/40 rounded-xl border border-slate-800/80">
+                  {PROFILE_AVATARS.map((av) => (
+                    <button
+                      key={av.name}
+                      onClick={async () => {
+                        await updateProfileCustomization({ avatar: av.emoji });
+                      }}
+                      className={cn(
+                        "text-2xl h-10 w-10 flex items-center justify-center rounded-lg border transition-all cursor-pointer hover:bg-slate-800",
+                        state.avatar === av.emoji
+                          ? "bg-amber-500/20 border-amber-500 scale-105 shadow-md shadow-amber-500/10"
+                          : "border-slate-800/80 bg-slate-900/50"
+                      )}
+                      title={av.name}
+                    >
+                      {av.emoji}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* STYLE CUSTOMIZATION (COLORS & FONTS) */}
+              <div className="border-t border-slate-800/80 pt-4 space-y-4">
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                    <span>✨</span> İsim Stili Özelleştirme
+                  </label>
+                  {!state.profileStyleUnlocked && (
+                    <span className="text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded">Kilitli 🔒</span>
+                  )}
+                </div>
+
+                {state.profileStyleUnlocked ? (
+                  <div className="space-y-4 animate-fade-in">
+                    {/* Color Picker */}
+                    <div className="space-y-1.5">
+                      <div className="text-[11px] text-slate-400 font-bold">İsim Rengi ve Efekti:</div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {PROFILE_COLORS.map((col) => (
+                          <button
+                            key={col.value}
+                            onClick={async () => {
+                              await updateProfileCustomization({ profileColor: col.value });
+                            }}
+                            className={cn(
+                              "text-left px-2.5 py-2 rounded-xl border text-xs cursor-pointer transition-all hover:bg-slate-800/50 flex items-center gap-2",
+                              state.profileColor === col.value
+                                ? "bg-amber-500/10 border-amber-500/80 shadow-md shadow-amber-500/5"
+                                : "bg-slate-950/30 border-slate-800"
+                            )}
+                          >
+                            <span className={cn("font-bold", col.class)}>{col.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Font Picker */}
+                    <div className="space-y-1.5 pt-1">
+                      <div className="text-[11px] text-slate-400 font-bold">Yazı Tipi (Font):</div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {PROFILE_FONTS.map((font) => (
+                          <button
+                            key={font.value}
+                            onClick={async () => {
+                              await updateProfileCustomization({ profileFont: font.value });
+                            }}
+                            className={cn(
+                              "text-left px-2.5 py-2 rounded-xl border text-xs cursor-pointer transition-all hover:bg-slate-800/50 flex items-center gap-2",
+                              state.profileFont === font.value
+                                ? "bg-amber-500/10 border-amber-500/80 shadow-md shadow-amber-500/5"
+                                : "bg-slate-950/30 border-slate-800"
+                            )}
+                          >
+                            <span className={cn("font-bold text-slate-200", font.value)}>{font.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-slate-950/80 border border-amber-500/20 rounded-2xl p-4 text-center space-y-3 relative overflow-hidden flex flex-col items-center">
+                    <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] pointer-events-none" />
+                    <span className="text-4xl filter drop-shadow animate-bounce">🔒</span>
+                    <div className="z-10 relative">
+                      <h4 className="text-sm font-bold text-amber-400 mb-1">İsim Stili Paketini Aç!</h4>
+                      <p className="text-[11px] text-slate-300 leading-relaxed max-w-[220px] mx-auto">
+                        Tüm premium renk gradyanlarını, animasyonlu <b>Gökkuşağı Dalgası</b> stilini ve özel yazı tiplerini sınırsız kullan!
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={async () => {
+                        const success = await spendGold(99999);
+                        if (success) {
+                          await updateProfileCustomization({ profileStyleUnlocked: true, profileColor: "gold", profileFont: "font-display" });
+                          alert("✨ TEBRİKLER! İsim stili paketi başarıyla açıldı! Artık istediğin renk ve yazı tipini seçebilirsin!");
+                        } else {
+                          alert("❌ Yetersiz Altın! İsim Stili Paketini açmak için 99,999 🪙 gerekiyor.");
+                        }
+                      }}
+                      className={cn(
+                        "z-10 relative w-full py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg active:scale-95 border",
+                        state.gold >= 99999
+                          ? "bg-gradient-to-r from-yellow-500 via-amber-500 to-yellow-600 text-slate-950 border-yellow-400 hover:brightness-110 cursor-pointer"
+                          : "bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed"
+                      )}
+                      disabled={state.gold < 99999}
+                    >
+                      <span>🪙 99,999</span> ile Kilidi Aç
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {openedRewards && (
@@ -293,9 +629,17 @@ export function Home({ user }: { user: UserData }) {
         />
       )}
 
+      <RankedRoadModal
+        isOpen={isRankedRoadOpen}
+        onClose={() => setIsRankedRoadOpen(false)}
+        user={state}
+        onClaim={handleClaimRankedReward}
+      />
+
       {inBattle && opponent && (
         <BattleScreen
           deck={state.deck}
+          playerCardLevels={state.cardLevels || {}}
           playerEmojis={(state.selectedEmojis as [string, string, string, string]) || ["", "", "", ""]}
           trophies={state.trophies}
           opponentName={opponent.name}
@@ -375,6 +719,9 @@ function CardsTab({
   setDeckSlot,
   setActiveDeck,
   setEmojiSlot,
+  cardLevels,
+  cardProgress,
+  onUpgradeCardLevel,
 }: {
   collection: Record<string, number>;
   deck: [string, string, string, string];
@@ -386,6 +733,9 @@ function CardsTab({
   setDeckSlot: (slot: number, cardId: string) => void;
   setActiveDeck: (index: number) => void;
   setEmojiSlot: (slot: number, emoji: string) => void;
+  cardLevels: Record<string, number>;
+  cardProgress: Record<string, number>;
+  onUpgradeCardLevel: (cardId: string) => void;
 }) {
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
   const [activeEmojiSlot, setActiveEmojiSlot] = useState<number | null>(null);
@@ -479,7 +829,7 @@ function CardsTab({
         }, 0);
 
         if (nextCost > 20) {
-          alert(`You can't exceed the 20 stone limit! Adding this card will make your dect cost ${nextCost} stones.`);
+          alert(`20 elmas sınırını aşamazsın! Bu kartı eklemek destenin maliyetini ${nextCost} elmas yapacaktır.`);
           return;
         }
 
@@ -506,14 +856,14 @@ function CardsTab({
         <div className="mb-2 flex flex-col justify-start">
           <div className="flex items-center justify-between">
             <h2 className="text-stroke text-2xl text-white flex items-center gap-2">
-              <span>dect</span>
+              <span>Deste</span>
               <span className={cn(
                 "text-xs font-mono font-bold px-2.5 py-0.5 rounded-full border shadow-sm transition-colors",
                 deckStoneCost > 20 
                   ? "bg-red-950/80 text-red-400 border-red-500/40" 
                   : deckStoneCost === 20 
                     ? "bg-emerald-950/80 text-emerald-400 border-emerald-500/40" 
-                    : "bg-indigo-950/80 text-cyan-300 border-indigo-400/40"
+                    : "bg-indigo-950/80 text-cyan-300 border-indigo-400/30"
               )}>
                 💎 {deckStoneCost}/20
               </span>
@@ -540,8 +890,8 @@ function CardsTab({
           </div>
           <p className="text-[11px] text-amber-200/90 mt-0.5 font-medium min-h-[16px] leading-tight">
             {activeSlot !== null 
-              ? "👉 Tap a character below to equip!" 
-              : "ℹ️ Tap on a fighter to unequip."}
+              ? "👉 Kuşanmak için aşağıdaki bir karaktere dokun!" 
+              : "ℹ️ Çıkarmak için bir savaşçıya dokun."}
           </p>
         </div>
         <div className="grid grid-cols-4 gap-2 rounded-2xl panel-3d p-3">
@@ -551,15 +901,53 @@ function CardsTab({
             return (
               <div key={i} className="flex flex-col items-center">
                 {card ? (
-                  <div className="relative">
+                  <div className="relative flex flex-col items-center w-full">
                     <GameCard 
                       card={card} 
                       size="sm" 
                       onClick={() => handleSlotClick(i, true)} 
+                      level={cardLevels[card.id] || 1}
                     />
                     {isActive && (
                       <div className="absolute inset-0 rounded-xl ring-4 ring-amber-400 ring-offset-2 pointer-events-none animate-pulse" />
                     )}
+                    
+                    {/* Active Deck Progress Bar & Upgrade Button */}
+                    {(() => {
+                      const lvl = cardLevels[card.id] || 1;
+                      const prog = cardProgress[card.id] || 0;
+                      const reqXp = lvl === 1 ? 50 : lvl === 2 ? 100 : lvl === 3 ? 150 : lvl === 4 ? 250 : 250;
+                      const percent = lvl >= 5 ? 100 : Math.min(100, (prog / reqXp) * 100);
+                      const canUpgrade = lvl < 5 && prog >= reqXp;
+                      return (
+                        <div className="w-full mt-1.5 px-0.5 flex flex-col items-center">
+                          <div className="relative w-full h-4 bg-slate-950 border border-slate-800 rounded-md overflow-hidden flex items-center justify-center">
+                            <div 
+                              className={cn(
+                                "absolute top-0 left-0 h-full transition-all duration-300",
+                                lvl >= 5 ? "bg-gradient-to-r from-amber-600 to-amber-400" : "bg-gradient-to-r from-emerald-600 to-emerald-400"
+                              )}
+                              style={{ width: `${percent}%` }}
+                            />
+                            <span className="text-[8px] font-black text-stroke-sm text-white drop-shadow z-10 select-none">
+                              {lvl >= 5 ? "MAX 👑" : `${prog}/${reqXp}`}
+                            </span>
+                          </div>
+                          {canUpgrade && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onUpgradeCardLevel(card.id);
+                              }}
+                              className="mt-1 w-full py-0.5 rounded text-[9px] font-black uppercase tracking-wider transition-all shadow-md active:scale-95 text-center flex items-center justify-center gap-0.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-amber-950 cursor-pointer hover:brightness-110 animate-bounce"
+                            >
+                              <span>YÜKSELT</span>
+                              <span>🌟</span>
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 ) : (
                   <button
@@ -574,7 +962,7 @@ function CardsTab({
                     <span className="text-3xl font-display leading-none">+</span>
                     {isActive && (
                       <span className="absolute -bottom-2 bg-amber-500 text-amber-950 text-[8px] font-black tracking-wider px-1.5 py-0.5 rounded-full border border-black shadow">
-                        SELECTED
+                        SEÇİLDİ
                       </span>
                     )}
                   </button>
@@ -587,11 +975,11 @@ function CardsTab({
 
       <section>
         <div className="mb-2 flex flex-col justify-start">
-          <h2 className="text-stroke text-xl text-white">Selected Emojies</h2>
+          <h2 className="text-stroke text-xl text-white">Seçilen Emojiler</h2>
           <p className="text-[11px] text-amber-200/90 mt-0.5 font-medium min-h-[16px] leading-tight">
             {activeEmojiSlot !== null 
-              ? "👉 Select from the collection below to change emoji!" 
-              : "ℹ️ Select 4 emojis to use in battle."}
+              ? "👉 Emojiyi değiştirmek için aşağıdaki koleksiyondan seçin!" 
+              : "ℹ️ Savaşta kullanmak için 4 emoji seçin."}
           </p>
         </div>
         <div className="flex gap-2 justify-center mb-4 panel-3d border border-slate-700 p-2 rounded-xl bg-slate-900/60">
@@ -610,7 +998,7 @@ function CardsTab({
                 {emoji || "?"}
                 {isActive && (
                   <span className="absolute -bottom-1.5 bg-amber-500 text-amber-950 text-[6px] font-black tracking-wider px-1 py-0 rounded border border-black shadow">
-                    SELECTED
+                    SEÇİLDİ
                   </span>
                 )}
               </button>
@@ -622,7 +1010,7 @@ function CardsTab({
           <div className="grid grid-cols-4 gap-2 p-2 border border-dashed border-amber-500/30 bg-amber-500/10 rounded-xl mb-4">
             {unlockedEmojis.length === 0 ? (
               <div className="col-span-4 text-center text-sm text-amber-200/70 py-2">
-                You have no emojis! Buy them from the Chests menu.
+                Hiç emojiniz yok! Onları Mağaza menüsünden satın alabilirsiniz.
               </div>
             ) : (
               Array.from(new Set(unlockedEmojis)).map((emoji, index) => (
@@ -645,28 +1033,103 @@ function CardsTab({
         </h2>
 
         <div className="grid grid-cols-3 gap-3">
-          {[...owned, ...locked].map((card) => {
-            const isOwned = (collection[card.id] ?? 0) > 0;
+          {owned.map((card) => {
             const inDeck = deck.includes(card.id);
-            const ownedVal = isOwned ? Math.max(1, collection[card.id] ?? 0) : 0;
+            const lvl = cardLevels[card.id] || 1;
+            const prog = cardProgress[card.id] || 0;
+            const reqXp = lvl === 1 ? 50 : lvl === 2 ? 100 : lvl === 3 ? 150 : lvl === 4 ? 250 : 250;
+            const percent = lvl >= 5 ? 100 : Math.min(100, (prog / reqXp) * 100);
 
             return (
               <div key={card.id} className="flex flex-col items-center gap-1.5 p-1 rounded-xl bg-slate-900/40 border border-slate-800/40">
                 <GameCard
                   card={card}
-                  owned={ownedVal}
-                  locked={!isOwned}
-                  lockedAtArena={!isOwned ? getArenaForCard(card.id)?.id : undefined}
+                  owned={collection[card.id] ?? 1}
+                  locked={false}
                   selected={inDeck}
-                  onClick={
-                    isOwned ? () => handleCollectionCardClick(card.id) : undefined
-                  }
+                  level={lvl}
+                  onClick={() => handleCollectionCardClick(card.id)}
                 />
+
+                {/* Mastery Level and continuous progress bar */}
+                <div className="w-full mt-1 px-1 flex flex-col gap-1 items-center">
+                  <div className="flex items-center justify-between w-full text-[10px] font-bold text-slate-400">
+                    <span>Gelişim</span>
+                    <span className="text-amber-400 font-mono font-black">Seviye {lvl}/5</span>
+                  </div>
+                  
+                  {/* The continuous progress bar filled with XP */}
+                  <div className="relative w-full h-5 bg-slate-950 border border-slate-800 rounded-lg overflow-hidden flex items-center justify-between px-1">
+                    {/* Background Progress fill */}
+                    {lvl < 5 && (
+                      <div
+                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-emerald-600 to-emerald-400 border-r border-emerald-300/30 transition-all duration-300 z-0"
+                        style={{ width: `${percent}%` }}
+                      />
+                    )}
+                    {lvl >= 5 && (
+                      <div
+                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-amber-600 to-amber-400 border-r border-amber-300/30 z-0"
+                        style={{ width: "100%" }}
+                      />
+                    )}
+
+                    {/* Progress Text in the middle */}
+                    <div className="absolute inset-0 flex items-center justify-center z-10">
+                      <span className="text-[9px] font-black text-stroke-sm text-white drop-shadow">
+                        {lvl === 5 ? "MAKS 👑" : `${prog}/${reqXp} XP`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Upgrade Button if progress is enough and level < 5 */}
+                  {lvl < 5 && prog >= reqXp && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onUpgradeCardLevel(card.id);
+                      }}
+                      className="mt-1.5 w-full py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all shadow-md active:scale-95 text-center flex items-center justify-center gap-1 bg-gradient-to-r from-amber-500 to-yellow-400 text-amber-950 cursor-pointer hover:brightness-110"
+                    >
+                      <span>YÜKSELT</span>
+                      <span className="font-mono text-[9px] bg-black/20 px-1 py-0.5 rounded">🌟</span>
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
         </div>
       </section>
+
+      {locked.length > 0 && (
+        <section className="mt-6">
+          <h2 className="mb-2 text-stroke text-2xl text-slate-400 font-display">
+            Kilitli Kartlar · {locked.length}
+          </h2>
+          <div className="grid grid-cols-3 gap-3">
+            {locked.map((card) => {
+              const arenaObj = getArenaForCard(card.id);
+              return (
+                <div key={card.id} className="flex flex-col items-center gap-1.5 p-1 rounded-xl bg-slate-950/60 border border-slate-900/60 opacity-65">
+                  <GameCard
+                    card={card}
+                    owned={0}
+                    locked={true}
+                    lockedAtArena={arenaObj?.id}
+                    selected={false}
+                  />
+                  <div className="w-full mt-1.5 px-1 text-center">
+                    <span className="text-[10px] font-bold text-slate-400 bg-slate-900/80 px-2 py-0.5 rounded border border-slate-800/60">
+                      {arenaObj ? `${arenaObj.name}` : "Gelecek Arena"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
@@ -679,6 +1142,10 @@ function BattleTab({
   battleMode,
   setBattleMode,
   onStart,
+  claimedStarRewards,
+  onClaimStarReward,
+  cardLevels,
+  onOpenRankedRoad,
 }: {
   deck: [string, string, string, string];
   trophies: number;
@@ -687,6 +1154,10 @@ function BattleTab({
   battleMode: "standard" | "ranked";
   setBattleMode: (mode: "standard" | "ranked") => void;
   onStart: () => void;
+  claimedStarRewards: number[];
+  onClaimStarReward: (threshold: number, rewardType: "gold" | "chest", value: string | number) => void;
+  cardLevels: Record<string, number>;
+  onOpenRankedRoad: () => void;
 }) {
   const deckCards = deck.map((id) => CARDS.find((c) => c.id === id));
   const deckStoneCost = deckCards.reduce((sum, c) => sum + (c ? c.stoneCost : 0), 0);
@@ -719,18 +1190,18 @@ function BattleTab({
 
   const getArenaVisuals = (arenaId: number) => {
     switch (arenaId) {
-      case 1: return { emoji: "🌳🏡🏰", desc: "Battlefield with lots of grass" };
-      case 2: return { emoji: "🏜️🌵🦂", desc: "Harsh desert storm" };
+      case 1: return { emoji: "🌳🏡🏰", desc: "Bol çimli savaş alanı" };
+      case 2: return { emoji: "🏜️🌵🦂", desc: "Sert çöl fırtınası" };
       case 3: return { emoji: "❄️🏔️⛄", desc: "Dondurucu karlar arası" };
-      case 4: return { emoji: "🏛️👑💫", desc: "Parade of grand champions" };
-      case 5: return { emoji: "❄️🧊🌨️", desc: "Cold ice kingdom" };
-      case 6: return { emoji: "🐸🌿🌾", desc: "Dangerous green swamp" };
+      case 4: return { emoji: "🏛️👑💫", desc: "Büyük şampiyonların geçidi" };
+      case 5: return { emoji: "❄️🧊🌨️", desc: "Soğuk buz krallığı" };
+      case 6: return { emoji: "🐸🌿🌾", desc: "Tehlikeli yeşil bataklık" };
       case 7: return { emoji: "🌊🦈🐠", desc: "Derin okyanus dalgaları" };
-      case 8: return { emoji: "🌋🔥👿", desc: "Hell erupting with lava" };
-      case 9: return { emoji: "⛩️🏯🏮", desc: "Temple where ancient spirits awaken" };
+      case 8: return { emoji: "🌋🔥👿", desc: "Lav püskürten cehennem" };
+      case 9: return { emoji: "⛩️🏯🏮", desc: "Kadim ruhların uyandığı tapınak" };
       case 10: return { emoji: "🏔️🧗‍♂️🐐", desc: "Bulutlara uzanan dondurucu zirve" };
-      case 11: return { emoji: "🌸🌸🍡", desc: "Garden with falling pink petals" };
-      default: return { emoji: "⚔️🏆🌟", desc: "Efsanevi Battle Alanı" };
+      case 11: return { emoji: "🌸🌸🍡", desc: "Dökülen pembe taç yapraklı bahçe" };
+      default: return { emoji: "⚔️🏆🌟", desc: "Efsanevi Savaş Alanı" };
     }
   };
 
@@ -750,11 +1221,11 @@ function BattleTab({
               : "text-slate-400 hover:text-white"
           )}
         >
-          <span>🏆</span> Trophy Mode
+          <span>🏆</span> Kupa Modu
         </button>
         <button
           onClick={() => {
-            if (trophies >= 3500) {
+            if (trophies >= 5000) {
               setBattleMode("ranked");
             }
           }}
@@ -763,35 +1234,36 @@ function BattleTab({
             battleMode === "ranked"
               ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold shadow-md"
               : "text-slate-400 hover:text-white",
-            trophies < 3500 && "opacity-45 cursor-not-allowed"
+            trophies < 5000 && "opacity-45 cursor-not-allowed"
           )}
         >
-          {trophies < 3500 ? (
+          {trophies < 5000 ? (
             <span className="flex items-center gap-1 text-slate-400">
-              <span>🔒</span> Ranked Mode
+              <span>🔒</span> Dereceli Mod
             </span>
           ) : (
             <>
               <div className="absolute top-0 right-0 bg-red-500 text-[7px] font-mono font-bold px-1 rounded-bl-md uppercase animate-pulse leading-none py-0.5">Yeni</div>
-              <span>⭐</span> Ranked Mode
+              <span>⭐</span> Dereceli Mod
             </>
           )}
         </button>
       </div>
 
-      {trophies < 3500 && (
+      {trophies < 5000 && (
         <div className="bg-slate-950/40 border border-slate-900/60 rounded-xl px-3 py-2 text-center shadow-inner">
           <span className="text-[11px] text-slate-400 font-medium">
-            🔒 Ranked Mode unlocks at <b>3500 Trophies (Legendary Arena)</b>. Win {3500 - trophies} more trophies to enter the Champions League!
+            🔒 Dereceli Mod <b>5000 Kupa</b> değerinde açılır. Şampiyonlar Ligi'ne girmek için {5000 - trophies} kupa daha kazanın!
           </span>
         </div>
       )}
 
       {/* Redesigned Arena Photo with Progress Bar Underneath */}
       <div 
+        onClick={battleMode === "ranked" ? () => onOpenRankedRoad() : undefined}
         className={cn(
           "rounded-2xl border-2 p-4 text-center text-white relative overflow-hidden shadow-xl transition-all duration-500",
-          battleMode === "ranked" ? "border-cyan-500 bg-cyan-950/45 shadow-[0_0_20px_rgba(6,182,212,0.25)]" : "border-black/50"
+          battleMode === "ranked" ? "border-cyan-500 bg-cyan-950/45 shadow-[0_0_20px_rgba(6,182,212,0.25)] cursor-pointer hover:brightness-110 active:scale-[0.99]" : "border-black/50"
         )}
         style={{ background: battleMode === "ranked" ? "radial-gradient(circle at center, #0e2942 0%, #030712 100%)" : arena.bg }}
       >
@@ -805,13 +1277,13 @@ function BattleTab({
               ? "bg-cyan-950/80 border-cyan-500/40 text-cyan-300" 
               : "bg-black/50 border-white/10 text-amber-200"
           )}>
-            {battleMode === "ranked" ? "RANKED LEAGUE SYSTEM" : `Active League Rank · Arena ${arena.id}`}
+            {battleMode === "ranked" ? "DERECELİ LİG SİSTEMİ" : `Aktif Lig Seviyesi · Arena ${arena.id}`}
           </div>
           <h2 className="text-stroke text-3xl text-white font-display leading-none">
-            {battleMode === "ranked" ? "Ranked Arena" : arena.name}
+            {battleMode === "ranked" ? "Dereceli Arena" : arena.name}
           </h2>
           <p className="text-stroke-sm text-xs text-white/90 italic font-medium leading-none">
-            {battleMode === "ranked" ? "Collect stars, reach legendary ranks!" : ""}
+            {battleMode === "ranked" ? "Maç yapın, efsanevi ödülleri toplayın!" : ""}
           </p>
 
           <div className="py-4 flex justify-center scale-110 drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]">
@@ -821,36 +1293,46 @@ function BattleTab({
           </div>
 
           {battleMode === "standard" ? (
-            /* Trophy progress slider bar underneath the Arena */
-            <div className="pt-2 space-y-1">
+            /* Simple progress bar without milestones or chests */
+            <div className="pt-2 space-y-1 relative">
               <div className="flex justify-between items-center text-xs font-bold font-display px-0.5">
-                <span className="text-amber-200">Trophy Progress</span>
+                <span className="text-amber-200">Arena İlerlemesi</span>
                 <span className="text-white bg-black/40 px-2 py-0.5 rounded font-mono">{label}</span>
               </div>
-              
-              {/* The beautiful fluid progress bar */}
-              <div className="h-5 w-full bg-slate-950 border border-slate-800 rounded-full p-0.5 shadow-inner overflow-hidden relative flex items-center">
+              <div className="h-4 w-full bg-slate-950 border border-slate-800 rounded-full p-0.5 shadow-inner relative flex items-center">
                 <div 
                   className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 border border-emerald-300/30 transition-all duration-500 relative flex items-center"
                   style={{ width: `${percent}%` }}
                 >
-                  {/* Shiny gloss effect on the progress fill */}
                   <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent pointer-events-none rounded-full" />
                 </div>
               </div>
-
-              {/* Next arena hint detail overlay */}
-              <div className="text-[10px] text-amber-100/80 font-display flex items-center justify-between pt-0.5">
+              <div className="text-[10px] text-amber-100/80 font-display flex items-center justify-between pt-1">
                 <span>{arena.min} 🏆</span>
                 {nextArena ? (
-                  <span>Next arena: <b className="text-white text-[11px] underline font-bold">{nextArena.name}</b> ({nextArena.min} 🏆)</span>
+                  <span>Sonraki: <b className="text-white text-[11px] underline font-bold">{nextArena.name}</b></span>
                 ) : (
                   <span className="text-amber-300 font-bold">🌟 Efsanevi Seviyenin Zirvesi!</span>
                 )}
                 <span>{nextArena ? nextArena.min : MAX_TROPHIES} 🏆</span>
               </div>
             </div>
-          ) : null}
+          ) : (
+            <div className="pt-2 space-y-2">
+              <div className="text-center text-xs text-cyan-300 font-bold font-mono">
+                Şampiyonlar Ligi Seviyesi 🌟
+              </div>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenRankedRoad();
+                }}
+                className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-600 hover:brightness-110 active:scale-[0.98] text-white font-display font-black text-xs transition-all shadow-lg flex items-center justify-center gap-2 border border-cyan-400/30 animate-pulse cursor-pointer"
+              >
+                <span>🏆</span> ÖDÜL YOLUNU GÖSTER <span>🎁</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -860,7 +1342,7 @@ function BattleTab({
           <div className="flex items-center gap-3">
             <div className="text-4xl drop-shadow">{rank.current.emoji}</div>
             <div className="text-left font-display">
-              <div className="text-[9px] text-slate-400 font-semibold tracking-wider uppercase leading-none">Mevcut Rank</div>
+              <div className="text-[9px] text-slate-400 font-semibold tracking-wider uppercase leading-none">Mevcut Rütbe</div>
               <div className={cn("text-lg font-black text-stroke-sm tracking-tight leading-tight mt-0.5", 
                 rank.current.name.includes("Bronz") ? "text-amber-600" : 
                 rank.current.name.includes("Silver") ? "text-slate-300" : 
@@ -870,8 +1352,8 @@ function BattleTab({
           </div>
           <div className="text-right font-display pl-4 flex-1 max-w-[150px]">
             <div className="flex justify-between items-center text-[9.5px] text-amber-200 font-bold mb-1">
-              <span>Rank Progression</span>
-              <span>{rank.next ? `${Math.floor(rank.currentProgressValue)}/${rank.requiredForNext}` : "MAX"}</span>
+              <span>Rütbe İlerlemesi</span>
+              <span>{rank.next ? `${Math.floor(rank.currentProgressValue)}/${rank.requiredForNext}` : "MAKS"}</span>
             </div>
             <div className="h-2 w-full bg-slate-950 border border-slate-800 rounded-full overflow-hidden relative">
               <div 
@@ -887,6 +1369,8 @@ function BattleTab({
           </div>
         </div>
       )}
+
+
 
       {/* Battle Readylığı Actions */}
       <div className={cn(
@@ -904,27 +1388,27 @@ function BattleTab({
             !ready && "opacity-50",
           )}
         >
-          {!isDeckComplete ? "Build your dect first" : (!isCostValid ? "dect Limit Exceeded (Max 20)" : (battleMode === "ranked" ? "RANKED ENTER BATTLE! ⚔️" : "ENTER BATTLE! ⚔️"))}
+          {!isDeckComplete ? "Önce destenizi kurun" : (!isCostValid ? "Deste Sınırı Aşıldı (Maks 20)" : (battleMode === "ranked" ? "DERECELİ SAVAŞA GİR! ⚔️" : "SAVAŞA GİR! ⚔️"))}
         </button>
       </div>
 
       {/* Fighters Deck List */}
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-stroke text-lg text-white font-display">Active Battle dect</h3>
+          <h3 className="text-stroke text-lg text-white font-display">Aktif Savaş Destesi</h3>
           <span className={cn(
             "text-xs font-mono font-bold px-2.5 py-0.5 rounded-full shadow-sm border",
             isCostValid 
               ? "bg-indigo-950/80 text-cyan-300 border-indigo-400/30" 
               : "bg-red-950/80 text-red-300 border-red-500/50 animate-pulse"
           )}>
-            💎 {deckStoneCost}/20 Stone
+            💎 {deckStoneCost}/20 Elmas
           </span>
         </div>
         <div className="grid grid-cols-4 gap-2 rounded-2xl panel-3d p-3">
           {deckCards.map((card, i) =>
             card ? (
-              <GameCard key={i} card={card} size="sm" />
+              <GameCard key={i} card={card} size="sm" level={cardLevels[card.id] || 1} />
             ) : (
               <div
                 key={i}
@@ -938,19 +1422,19 @@ function BattleTab({
       </div>
 
       <div className="rounded-2xl panel-3d p-3.5 text-xs text-amber-100/90 leading-relaxed">
-        <h3 className="text-stroke text-base text-white mb-1 font-display">Battle Rewardsi</h3>
+        <h3 className="text-stroke text-base text-white mb-1 font-display">Savaş Ödülleri</h3>
         {battleMode === "ranked" ? (
           <ul className="space-y-1">
-            <li>• Battleı kazanırsan: <b>1.000🪙 · +10⭐</b> kazanırsın.</li>
-            <li>• If you lose the battle: you drop <b>-10 to -20⭐</b>.</li>
-            <li>• Collect required ⭐ in each division and reach legendary ranks!</li>
+            <li>• Savaşı kazanırsan: <b>1.000🪙 · +10⭐</b> kazanırsın.</li>
+            <li>• Savaşı kaybedersen: <b>-10 ila -20⭐</b> kaybedersin.</li>
+            <li>• Her kümede gerekli ⭐ biriktir ve efsanevi rütbelere ulaş!</li>
           </ul>
         ) : (
           <ul className="space-y-1">
-            <li>• Defeat opponent with similar trophies: <b>1.000🪙 · +10🏆</b></li>
-            <li>• Defeat opponent with higher trophies: <b>2.000🪙 · +15🏆</b></li>
-            <li>• Defeat opponent with lower trophies: <b>500🪙 · +7🏆</b></li>
-            <li>• If battle is lost: <b>-4 to -7🏆</b> trophies dropped.</li>
+            <li>• Benzer kupaya sahip rakibi yen: <b>1.000🪙 · +10🏆</b></li>
+            <li>• Daha yüksek kupaya sahip rakibi yen: <b>2.000🪙 · +15🏆</b></li>
+            <li>• Daha düşük kupaya sahip rakibi yen: <b>500🪙 · +7🏆</b></li>
+            <li>• Savaş kaybedilirse: Seviyenize göre kazanacağınız miktar kadar kupa kaybedersiniz.</li>
           </ul>
         )}
       </div>
@@ -961,33 +1445,19 @@ function BattleTab({
 function ChestsTab({
   gold,
   unlockedEmojis,
-  wins,
-  tournamentWins,
   onOpen,
   onBuyEmoji,
-  trophies,
-  rankedStars,
-  onUpdateResources,
-  onResetRankedStars,
 }: {
   gold: number;
   unlockedEmojis: string[];
-  wins: number;
-  tournamentWins: number;
   onOpen: (id: string) => void;
   onBuyEmoji: (emoji: string, cost: number) => void;
-  trophies: number;
-  rankedStars: number;
-  onUpdateResources: (trophies: number, gold: number, rankedStars?: number) => void;
-  onResetRankedStars: () => void;
 }) {
-  const maxWins = Math.max(wins, tournamentWins);
-
   return (
     <div className="space-y-6">
-
       <div className="space-y-3">
-        <h2 className="text-stroke text-2xl text-white">Shop</h2>
+        <h2 className="text-stroke text-2xl text-white font-display">Sandık Mağazası</h2>
+        <p className="text-xs text-amber-200/80">Yeni savaşçı kartları açmak ve koleksiyonunu genişletmek için altın karşılığı sandık açabilirsin.</p>
         
         <div className="grid grid-cols-1 gap-3">
           {CHESTS.map((chest) => {
@@ -1027,7 +1497,9 @@ function ChestsTab({
       </div>
 
       <div className="space-y-3 pt-6 border-t border-slate-800">
-        <h2 className="text-stroke text-2xl text-white">Emojies</h2>
+        <h2 className="text-stroke text-2xl text-white font-display">Emoji Mağazası</h2>
+        <p className="text-xs text-amber-200/80">Savaşlarda rakiplerine gönderebileceğin özel emojileri buradan altın karşılığında satın alabilirsin.</p>
+        
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {SHOP_EMOJIS.map(({ emoji, cost }) => {
             const hasEmoji = unlockedEmojis.includes(emoji);
@@ -1148,7 +1620,7 @@ function ChestReveal({
             className="w-full max-w-sm rounded-[24px] panel-3d p-6 text-center cursor-pointer transition-all active:scale-95 space-y-5 bg-gradient-to-b from-slate-900/90 to-black/95 border border-slate-800/60"
           >
             <div className="text-stroke text-3xl text-yellow-400 font-display uppercase tracking-widest">{chestName}</div>
-            <p className="text-amber-200/90 text-sm font-medium animate-pulse">Tap the chest to open! 👇</p>
+            <p className="text-amber-200/90 text-sm font-medium animate-pulse">Açmak için sandığa dokun! 👇</p>
             
             <div className="relative py-6 flex justify-center">
               <div className="absolute inset-0 bg-yellow-500/10 blur-3xl rounded-full scale-75 animate-pulse" />
@@ -1168,11 +1640,11 @@ function ChestReveal({
             </div>
 
             <div className="text-slate-400 text-xs font-mono bg-black/50 py-2.5 rounded-xl border border-slate-900">
-              Chest Content: {rewards.length} Character Cards
+              Sandık İçeriği: {rewards.length} Karakter Kartı
             </div>
             
             <button className="mx-auto block w-full py-3 font-display text-lg text-primary-foreground text-stroke btn-pop active:btn-pop-active mt-2">
-              START OPENING! ⚔️
+              AÇMAYA BAŞLA! ⚔️
             </button>
           </motion.div>
         )}
@@ -1188,10 +1660,10 @@ function ChestReveal({
           >
             {/* Interactive Chest Emoji at the Top */}
             <div 
-              className="relative transition-transform hover:scale-105 bg-black/40 p-3 rounded-2xl border border-slate-850 flex flex-col items-center justify-center gap-1"
+              className="relative transition-transform hover:scale-105 bg-black/40 p-3 rounded-2xl border border-slate-800 flex flex-col items-center justify-center gap-1"
             >
               <div className="absolute -top-2.5 bg-yellow-500 text-amber-950 font-mono font-bold text-[10px] px-2.5 py-0.5 rounded-full border border-black shadow">
-                {tapCount} / {rewards.length} CARD OPENED
+                {tapCount} / {rewards.length} KART AÇILDI
               </div>
               
               <div className="relative pt-1 flex justify-center">
@@ -1213,7 +1685,7 @@ function ChestReveal({
                 </motion.span>
               </div>
               <div className="text-[10px] text-amber-300 font-bold font-display tracking-wider animate-pulse uppercase">
-                {tapCount < rewards.length ? "Tap the Chest! 👆" : "Tap for Summary! 👆"}
+                {tapCount < rewards.length ? "Sandığa Dokun! 👆" : "Özet için Dokun! 👆"}
               </div>
             </div>
 
@@ -1235,17 +1707,17 @@ function ChestReveal({
                   </div>
                 </div>
 
-                {/* Duplicate gold conversion or shiny new badge */}
                 {activeReward.isDuplicate ? (
-                  <div className="mt-4 flex flex-col items-center justify-center gap-1 rounded-2xl bg-yellow-500/15 border border-yellow-500/40 px-5 py-2 text-center animate-pulse shadow-md w-full max-w-[240px]">
-                    <span className="text-[11px] text-yellow-500 font-bold uppercase tracking-wider">Already Unlocked!</span>
-                    <span className="font-display text-base font-black text-amber-400 flex items-center justify-center gap-1 text-stroke-sm">
-                      Gold Conversion: +{activeReward.refundGold} 🪙
+                  <div className="mt-4 flex flex-col items-center justify-center gap-1 rounded-2xl bg-amber-500/15 border border-amber-500/40 px-5 py-2 text-center animate-pulse shadow-md w-full max-w-[240px]">
+                    <span className="text-[11px] text-amber-500 font-bold uppercase tracking-wider">Zaten Sahipsin!</span>
+                    <span className="font-display text-base font-black text-emerald-400 flex items-center justify-center gap-1 text-stroke-sm">
+                      +20 XP Kazanıldı! 🌟
                     </span>
                   </div>
                 ) : (
-                  <div className="mt-4 inline-block rounded-full bg-emerald-500/30 border border-emerald-400/50 px-5 py-2 text-[11px] font-black text-emerald-300 animate-bounce tracking-widest shadow-md">
-                    🎉 NEW FIGHTER UNLOCKED!
+                  <div className="mt-4 flex flex-col items-center gap-0.5 rounded-full bg-emerald-500/30 border border-emerald-400/50 px-5 py-2 text-[11px] font-black text-emerald-300 animate-bounce tracking-widest shadow-md">
+                    <span>🎉 YENİ SAVAŞÇI AÇILDI!</span>
+                    <span className="text-[10px] text-emerald-400 font-bold font-mono">+20 XP 🌟</span>
                   </div>
                 )}
               </motion.div>
@@ -1253,17 +1725,17 @@ function ChestReveal({
 
             {/* Stat Box Details */}
             <div className="space-y-1.5 bg-black/60 p-3 rounded-2xl border border-slate-800/80">
-              <div className="text-xs text-slate-350 flex justify-between">
-                <span>HP Progression:</span>
+              <div className="text-xs text-slate-355 flex justify-between">
+                <span>Can Değeri:</span>
                 <span className="font-bold text-white">❤️ {activeCard.hp}</span>
               </div>
               <div className="text-xs text-slate-355 flex justify-between">
-                <span>Maksimum Damage:</span>
+                <span>Maksimum Hasar:</span>
                 <span className="font-bold text-white">⚔️ {activeCard.dmg}</span>
               </div>
               <div className="text-xs text-slate-356 flex justify-between">
                 <span>Saldırı Tipi:</span>
-                <span className="font-bold text-amber-300 capitalize">{activeCard.range === "yakın" ? "Melee" : activeCard.range === "uzak" ? "Ranged" : "Air"}</span>
+                <span className="font-bold text-amber-300 capitalize">{activeCard.range === "yakın" ? "Yakın" : activeCard.range === "uzak" ? "Uzak" : "Hava"}</span>
               </div>
             </div>
           </motion.div>
@@ -1277,9 +1749,9 @@ function ChestReveal({
             exit={{ scale: 0.9, opacity: 0 }}
             className="w-full max-w-sm rounded-[24px] panel-3d p-5 text-center space-y-4 bg-gradient-to-b from-slate-900/95 to-black/95 border border-slate-800/80 shadow-2xl"
           >
-            <div className="text-stroke text-3xl text-yellow-400 font-display uppercase tracking-widest leading-none">CONGRATULATIONS! 🎉</div>
+            <div className="text-stroke text-3xl text-yellow-400 font-display uppercase tracking-widest leading-none">TEBRİKLER! 🎉</div>
             <p className="text-xs text-slate-300 font-medium px-2 leading-relaxed">
-              Rewards from chest successfully added to your account. Duplicate characters were automatically converted to Gold!
+              Sandıktan çıkan ödüller hesabınıza başarıyla eklendi. Çıkan her kart için +20 XP kazandınız!
             </p>
 
             <div className="grid grid-cols-3 gap-2.5 max-h-[30vh] overflow-y-auto p-1.5 bg-black/40 border border-slate-950 rounded-2xl my-4">
@@ -1294,12 +1766,12 @@ function ChestReveal({
                     </span>
                     
                     {reward.isDuplicate ? (
-                      <span className="absolute -top-1.5 -right-1 bg-yellow-500 text-amber-950 font-black text-[9px] px-1.5 py-0.5 rounded-full border border-black shadow">
-                        +{reward.refundGold}🪙
+                      <span className="absolute -top-1.5 -right-1 bg-emerald-500 text-white font-black text-[9px] px-1.5 py-0.5 rounded-full border border-black shadow">
+                        +20 XP 🌟
                       </span>
                     ) : (
                       <span className="absolute -top-1.5 -right-1 bg-emerald-500 text-white font-black text-[9px] px-1.5 py-0.5 rounded-full border border-black shadow animate-pulse">
-                        NEW!
+                        YENİ! +20 XP
                       </span>
                     )}
                   </div>
@@ -1343,7 +1815,7 @@ function ArenasModal({ currentTrophies, onClose }: { currentTrophies: number; on
         <div className="flex items-center justify-between mb-4 shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-2xl">🗺️</span>
-            <h2 className="text-2xl text-stroke text-white font-black tracking-tight">Arena Path</h2>
+            <h2 className="text-2xl text-stroke text-white font-black tracking-tight">Arena Yolu</h2>
           </div>
           <button 
             onClick={onClose} 
@@ -1358,20 +1830,20 @@ function ArenasModal({ currentTrophies, onClose }: { currentTrophies: number; on
           <div className="flex items-center gap-3">
             <div className="text-3.5xl drop-shadow">🏆</div>
             <div>
-              <div className="text-[10px] text-slate-400 font-sans uppercase font-black tracking-wider">Current Trophies</div>
-              <div className="text-lg font-black text-amber-400 leading-none mt-0.5">{currentTrophies} Trophy</div>
+              <div className="text-[10px] text-slate-400 font-sans uppercase font-black tracking-wider">Mevcut Kupa</div>
+              <div className="text-lg font-black text-amber-400 leading-none mt-0.5">{currentTrophies} Kupa</div>
             </div>
           </div>
           <div className="text-right font-sans">
             {nextArena ? (
               <>
-                <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">To Next Arena</div>
-                <div className="text-xs font-black text-cyan-400 mt-0.5">{trophiesToNext} 🏆 Left</div>
+                <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Sonraki Arenaya</div>
+                <div className="text-xs font-black text-cyan-400 mt-0.5">{trophiesToNext} 🏆 Kaldı</div>
               </>
             ) : (
               <>
                 <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider animate-pulse">Efsane</div>
-                <div className="text-xs font-black text-amber-300 mt-0.5">Max Limit Reached!</div>
+                <div className="text-xs font-black text-amber-300 mt-0.5">Maksimum Sınıra Ulaşıldı!</div>
               </>
             )}
           </div>
@@ -1421,15 +1893,15 @@ function ArenasModal({ currentTrophies, onClose }: { currentTrophies: number; on
                       <div className="mt-1">
                         {isCurrent ? (
                           <span className="px-2 py-0.5 text-[8px] font-black tracking-wider rounded bg-emerald-500 text-slate-950 font-sans shadow shadow-emerald-500/20 uppercase">
-                            Current Arena
+                            Mevcut Arena
                           </span>
                         ) : isUnlocked ? (
                           <span className="px-2 py-0.5 text-[8px] font-bold rounded bg-slate-800 text-slate-400 font-sans">
-                            Unlocked
+                            Açık
                           </span>
                         ) : (
                           <span className="px-2 py-0.5 text-[8px] font-bold rounded bg-slate-900 text-slate-500 font-sans flex items-center gap-1">
-                            🔒 Locked
+                            🔒 Kilitli
                           </span>
                         )}
                       </div>
@@ -1439,39 +1911,17 @@ function ArenasModal({ currentTrophies, onClose }: { currentTrophies: number; on
                   {/* Cards Unlock Area */}
                   <div>
                     <div className="text-[10px] text-slate-400 mb-2 font-sans font-bold uppercase tracking-wider">
-                      Unlocked Cards
+                      Açılan Kartlar
                     </div>
                     {unlocksCards.length > 0 ? (
-                      <div className="flex gap-2 overflow-x-auto pb-1.5 snap-x scrollbar-none">
+                      <div className="grid grid-cols-3 gap-3">
                         {unlocksCards.map((c) => (
-                          <div key={c.id} className="flex-none snap-start relative w-14">
-                            <div className={cn(
-                              "w-14 h-16 rounded-xl border shadow-md bg-gradient-to-br flex items-center justify-center text-3.5xl transition-transform active:scale-95 relative overflow-hidden",
-                              c.rarity === "legendary" ? "from-purple-950 to-indigo-950 border-purple-500/80 shadow-purple-500/10" :
-                              c.rarity === "epic" ? "from-pink-950 to-rose-950 border-pink-500/80 shadow-pink-500/10" :
-                              c.rarity === "rare" ? "from-amber-950 to-orange-950 border-amber-500/80 shadow-amber-500/10" :
-                              "from-slate-800 to-slate-900 border-slate-700/80"
-                            )}>
-                              {c.emoji}
-                              <div className={cn(
-                                "absolute bottom-0 inset-x-0 text-[6.5px] font-black text-center py-0.5 uppercase tracking-wide leading-none",
-                                c.rarity === "legendary" ? "bg-purple-500/30 text-purple-300" :
-                                c.rarity === "epic" ? "bg-pink-500/30 text-pink-300" :
-                                c.rarity === "rare" ? "bg-amber-500/30 text-amber-300" :
-                                "bg-slate-700/30 text-slate-400"
-                              )}>
-                                {c.rarity === "legendary" ? "LEG" : c.rarity === "epic" ? "EPIC" : c.rarity === "rare" ? "RARE" : "COM"}
-                              </div>
-                            </div>
-                            <div className="text-[9px] text-center text-slate-300 font-sans mt-1 truncate font-semibold leading-none px-0.5">
-                              {c.name}
-                            </div>
-                          </div>
+                          <GameCard key={c.id} card={c} size="sm" />
                         ))}
                       </div>
                     ) : (
                       <div className="text-[11px] text-slate-500 italic font-sans py-1">
-                        No new cards in this arena.
+                        Bu arenada yeni kart yok.
                       </div>
                     )}
                   </div>

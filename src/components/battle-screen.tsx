@@ -292,6 +292,10 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
   const [rewards, setRewards] = useState<{ gold: number; trophy: number } | null>(null);
   const [winner, setWinner] = useState<"player" | "bot" | null>(null);
 
+  const getAdjustedRewards = (win: boolean) => {
+    return computeRewards(win, trophies, opponentTrophies, mode, deck, playerCardLevels);
+  };
+
   const [isReady, setIsReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
 
@@ -366,7 +370,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
         const coords = getBotPlacementCoordinate(card, stateRef.current.units, arena.id, mode);
         const col = coords.col;
         const row = coords.row;
-        const lvl = opponentCardLevels[card.id] ?? 10;
+        const lvl = opponentCardLevels[card.id] ?? playerCardLevels[card.id] ?? 1;
         spawnUnit(stateRef.current, card, "bot", col, row, lvl);
         placedBotRef.current++;
       }
@@ -420,7 +424,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
          const coords = getBotPlacementCoordinate(card, stateRef.current.units, arena.id, mode);
          const col = coords.col;
          const row = coords.row;
-         const lvl = opponentCardLevels[card.id] ?? 10;
+         const lvl = opponentCardLevels[card.id] ?? playerCardLevels[card.id] ?? 1;
          spawnUnit(stateRef.current, card, "bot", col, row, lvl);
          placedBotRef.current++;
        }
@@ -450,7 +454,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
             const r = ROWS - 1 - p.row;
             const c = COLS - 1 - p.col;
             if (!stateRef.current.units.some(u => u.side === "bot" && Math.round(u.col) === c && Math.round(u.row) === r)) {
-              const lvl = opponentCardLevels[card.id] ?? 10;
+              const lvl = opponentCardLevels[card.id] ?? playerCardLevels[card.id] ?? 1;
               spawnUnit(stateRef.current, card, "bot", c, r, lvl);
             }
           }
@@ -473,7 +477,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
           const coords = getBotPlacementCoordinate(card, stateRef.current.units, arena.id, mode);
           const col = coords.col;
           const row = coords.row;
-          const lvl = opponentCardLevels[card.id] ?? 10;
+          const lvl = opponentCardLevels[card.id] ?? playerCardLevels[card.id] ?? 1;
           spawnUnit(stateRef.current, card, "bot", col, row, lvl);
         });
 
@@ -543,7 +547,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
         if (data.winner && !winner) {
             const didIWin = isPlayer1 ? (data.winner === "player1") : (data.winner === "player2");
             setWinner(didIWin ? "player" : "bot");
-            const r = computeRewards(didIWin, trophies, opponentTrophies, mode);
+            const r = getAdjustedRewards(didIWin);
             setRewards(r); setPhase("done");
         }
 
@@ -595,7 +599,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
                 if (card) {
                   const r = ROWS - 1 - p.row;
                   const c = COLS - 1 - p.col;
-                  const lvl = opponentCardLevels[card.id] ?? 10;
+                  const lvl = opponentCardLevels[card.id] ?? playerCardLevels[card.id] ?? 1;
                   spawnUnit(stateRef.current, card, "bot", c, r, lvl);
                 }
               });
@@ -671,7 +675,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
         }
         if (!battleId || isPlayer1 || isBotFallbackRef.current) {
             setWinner(w);
-            const r = computeRewards(w === "player", trophies, opponentTrophies, mode);
+            const r = getAdjustedRewards(w === "player");
             setRewards(r); setPhase("done");
         }
         return;
@@ -686,7 +690,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
         }
         if (!battleId || isPlayer1 || isBotFallbackRef.current) {
             setWinner(w);
-            const r = computeRewards(w === "player", trophies, opponentTrophies, mode);
+            const r = getAdjustedRewards(w === "player");
             setRewards(r); setPhase("done");
         }
         return;
@@ -772,14 +776,14 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
           {battleId && isReady ? (
             <div className="flex flex-col items-center justify-center p-4">
               <div className="text-amber-300 font-bold mb-2 animate-pulse">
-                {placeTimer > 0 ? "You are ready! Waiting for opponent..." : "Time's up, waiting for opponent..."}
+                {placeTimer > 0 ? "Hazırsın! Rakip bekleniyor..." : "Süre doldu, rakip bekleniyor..."}
               </div>
-              {opponentReady && <div className="text-emerald-400 text-sm font-semibold">Opponent ready! Battle starting...</div>}
+              {opponentReady && <div className="text-emerald-400 text-sm font-semibold">Rakip hazır! Savaş başlıyor...</div>}
             </div>
           ) : (
             <>
               <div className="text-center text-[11.5px] text-amber-200/90 mb-1.5 font-medium leading-none">
-                Select card and tap your area ({placedIds.size}/4) — {battleId ? (opponentReady ? "Opponent ready! 👍" : "Opponent is placing... ⏳") : "Bot is placing..."}
+                Kart seç ve alanına dokun ({placedIds.size}/4) — {battleId ? (opponentReady ? "Rakip hazır! 👍" : "Rakip yerleştiriyor... ⏳") : "Bot yerleştiriyor..."}
               </div>
               
               <div className="grid grid-cols-4 gap-2">
@@ -819,7 +823,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
           {(() => {
             const playerAbilityUnits = stateRef.current.units.filter((u) => {
               if (u.side !== "player" || u.hp <= 0) return false;
-              return ["hayalet", "madenci", "doktor", "bira-varili", "bombalama-ucagi", "zirhli", "kurbaga", "lav-kopegi", "samuray", "cig"].includes(u.card.id);
+              return ["hayalet", "madenci", "doktor", "bira-varili", "bombalama-ucagi", "zirhli", "kurbaga", "lav-kopegi", "samuray", "cig", "vampir", "lanet"].includes(u.card.id);
             });
 
             return (
@@ -905,6 +909,12 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
                           isDisabled = true;
                         } else {
                           statusText = "🏔️";
+                        }
+                      } else if (u.card.id === "lanet") {
+                        const isCurseActive = (stateRef.current.lanetTimeLeft ?? 0) > 0;
+                        if (isCurseActive) {
+                          statusText = `${stateRef.current.lanetTimeLeft!.toFixed(1)}s`;
+                          isDisabled = true;
                         }
                       }
 
@@ -994,25 +1004,40 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-md panel-3d rounded-2xl p-4 text-center text-white">
             <div className="text-stroke font-display text-3xl">
-              {winner === "player" ? "VICTORY! 🏆" : "DEFEAT 💀"}
+              {winner === "player" ? "ZAFER! 🏆" : "BOZGUN 💀"}
             </div>
             {mode === "tournament" ? (
-              <div className="mt-2 flex items-center justify-center gap-3 text-xl font-display text-emerald-300">
-                {winner === "player" ? "+1 Win" : "1 Defeat"}
+              <div className="mt-2 flex flex-col items-center justify-center gap-1 font-display">
+                <div className="text-xl text-emerald-300">
+                  {winner === "player" ? "+1 Galibiyet" : "1 Mağlubiyet"}
+                </div>
+                <div className={cn("text-sm font-sans font-bold px-3 py-0.5 rounded-full border", winner === "player" ? "text-yellow-300 bg-yellow-500/20 border-yellow-400/30" : "text-cyan-300 bg-cyan-500/20 border-cyan-400/30")}>
+                  {winner === "player" ? "+10 XP 🌟 (Destedeki Kartlar)" : "+5 XP 🌟 (Destedeki Kartlar)"}
+                </div>
               </div>
             ) : mode === "ranked" ? (
-              <div className="mt-2 flex items-center justify-center gap-3 text-lg font-display">
-                <span className={cn(rewards.trophy >= 0 ? "text-cyan-300" : "text-red-400")}>
-                  {rewards.trophy >= 0 ? "+" : ""}{rewards.trophy} ⭐
-                </span>
-                <span className="text-yellow-200">+{rewards.gold} 🪙</span>
+              <div className="mt-2 flex flex-col items-center justify-center gap-1 font-display">
+                <div className="flex items-center justify-center gap-3 text-lg">
+                  <span className={cn(rewards.trophy >= 0 ? "text-cyan-300" : "text-red-400")}>
+                    {rewards.trophy >= 0 ? "+" : ""}{rewards.trophy} ⭐
+                  </span>
+                  <span className="text-yellow-200">+{rewards.gold} 🪙</span>
+                </div>
+                <div className={cn("text-sm font-sans font-bold px-3 py-0.5 rounded-full border", winner === "player" ? "text-yellow-300 bg-yellow-500/20 border-yellow-400/30" : "text-cyan-300 bg-cyan-500/20 border-cyan-400/30")}>
+                  {winner === "player" ? "+10 XP 🌟 (Destedeki Kartlar)" : "+5 XP 🌟 (Destedeki Kartlar)"}
+                </div>
               </div>
             ) : (
-              <div className="mt-2 flex items-center justify-center gap-3 text-lg font-display">
-                <span className={cn(rewards.trophy >= 0 ? "text-amber-300" : "text-red-400")}>
-                  {rewards.trophy >= 0 ? "+" : ""}{rewards.trophy} 🏆
-                </span>
-                <span className="text-yellow-200">+{rewards.gold} 🪙</span>
+              <div className="mt-2 flex flex-col items-center justify-center gap-1 font-display">
+                <div className="flex items-center justify-center gap-3 text-lg">
+                  <span className={cn(rewards.trophy >= 0 ? "text-amber-300" : "text-red-400")}>
+                    {rewards.trophy >= 0 ? "+" : ""}{rewards.trophy} 🏆
+                  </span>
+                  <span className="text-yellow-200">+{rewards.gold} 🪙</span>
+                </div>
+                <div className={cn("text-sm font-sans font-bold px-3 py-0.5 rounded-full border", winner === "player" ? "text-yellow-300 bg-yellow-500/20 border-yellow-400/30" : "text-cyan-300 bg-cyan-500/20 border-cyan-400/30")}>
+                  {winner === "player" ? "+10 XP 🌟 (Destedeki Kartlar)" : "+5 XP 🌟 (Destedeki Kartlar)"}
+                </div>
               </div>
             )}
             <button

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { db } from "@/firebase";
-import { collection, query, orderBy, limit, getDocs, where, getCountFromServer } from "firebase/firestore";
+import { collection, query, orderBy, limit, getDocs, where, getCountFromServer, doc, runTransaction, setDoc } from "firebase/firestore";
 import { UserData } from "@/types";
 import { GameCard } from "@/components/game-card";
 import { CARDS } from "@/lib/cards";
@@ -22,19 +22,23 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
         // 1. Fetch all players to sort in-memory (highly robust, no index required, handles infinite stars)
         const querySnapshot = await getDocs(collection(db, "users"));
         const allPlayers: UserData[] = [];
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
+        querySnapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (data.rankedStars && data.rankedStars > 0) {
+            setDoc(doc(db, "users", docSnap.id), { rankedStars: 0 }, { merge: true }).catch(() => {});
+          }
           allPlayers.push({
-            id: doc.id,
+            id: docSnap.id,
             username: data.username || "Player",
             gold: data.gold ?? 0,
             trophies: data.trophies ?? 0,
             collection: data.collection ?? {},
             deck: data.deck ?? ["mizrakli", "kilicli", "okcu", "dev"],
+            cardLevels: data.cardLevels ?? {},
             wins: data.wins ?? 0,
             losses: data.losses ?? 0,
             rankProgressTrophies: data.rankProgressTrophies ?? 0,
-            rankedStars: data.rankedStars ?? 0,
+            rankedStars: 0,
           });
         });
 
@@ -74,9 +78,9 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
     <div className="space-y-4 pb-4">
       <div className="text-center py-2">
         <h2 className="text-stroke text-3xl text-white font-black tracking-tight flex items-center justify-center gap-2">
-          <span>🏆</span> World Top 3 <span>🏆</span>
+          <span>🏆</span> Küresel En İyi 3 <span>🏆</span>
         </h2>
-        <p className="text-xs text-slate-400 mt-1 font-medium">Champions with the highest trophies globally</p>
+        <p className="text-xs text-slate-400 mt-1 font-medium">Dünya çapında en yüksek kupaya sahip şampiyonlar</p>
       </div>
 
       {loading ? (
@@ -98,7 +102,7 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
                     </div>
                     <div className="text-sm font-bold text-amber-300 flex items-center gap-1.5 flex-wrap">
                       <span>{player.trophies}</span>
-                      <span className="text-xs opacity-85">Trophy 🏆</span>
+                      <span className="text-xs opacity-85">Kupa 🏆</span>
                       {player.rankedStars !== undefined && player.rankedStars > 0 && (
                         <span className="text-cyan-300 font-extrabold flex items-center gap-0.5 bg-cyan-950/45 border border-cyan-800/30 px-1.5 py-0.5 rounded-full text-[11px] leading-none shadow shadow-cyan-500/10">
                           ⭐ {player.rankedStars}
@@ -111,7 +115,7 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
                 onClick={() => setSelectedPlayer(player)}
                 className="bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:scale-105 active:scale-95 transition-all px-4 py-1.5 rounded-xl text-white text-xs font-black tracking-wider cursor-pointer z-10"
               >
-                PROFILE
+                PROFİL
               </button>
             </div>
           ))}
@@ -123,7 +127,7 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
               className="w-full bg-gradient-to-r from-slate-900/95 to-slate-800/95 hover:from-slate-800 hover:to-slate-700 border border-slate-800/80 hover:border-slate-700 text-white font-black text-xs tracking-wider py-3 px-4 rounded-2xl flex items-center justify-center gap-2 transition-all duration-200 active:scale-95 cursor-pointer shadow-md"
             >
               <span>📜</span>
-              <span>See More (Top 100)</span>
+              <span>Daha Fazla Gör (İlk 100)</span>
             </button>
           </div>
 
@@ -139,19 +143,19 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
                   <div className="font-display font-black text-white text-base tracking-wide flex items-center gap-1">
                     <span>{currentUser.username}</span>
                     {currentUser.username.toLowerCase() === "dgoa" && <span>🛠️</span>}
-                    <span className="text-xs text-indigo-300 font-bold uppercase">(YOU)</span>
+                    <span className="text-xs text-indigo-300 font-bold uppercase">(SEN)</span>
                   </div>
                   <div className="text-xs text-indigo-200 font-bold flex items-center gap-1 mt-0.5">
                     <span>{currentTrophies} 🏆</span>
                     <span>·</span>
-                    <span>{currentUser.wins ?? 0} Wins</span>
+                    <span>{currentUser.wins ?? 0} Galibiyet</span>
                   </div>
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-[10px] text-slate-400 font-bold">COMLAMANIZ</div>
+                <div className="text-[10px] text-slate-400 font-bold">SIRALAMANIZ</div>
                 <div className="text-xs font-black text-indigo-400 uppercase mt-0.5">
-                  {userRank !== null && userRank <= 3 ? "GLOBAL TOP 3! 🎉" : "KEEP FIGHTING! ⚔️"}
+                  {userRank !== null && userRank <= 3 ? "KÜRESEL EN İYİ 3! 🎉" : "SAVAŞMAYA DEVAM! ⚔️"}
                 </div>
               </div>
             </div>
@@ -161,53 +165,57 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
       
       {selectedPlayer && (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-          <div className="rounded-3xl bg-slate-950 border border-slate-800 p-6 shadow-2xl w-full max-w-sm panel-3d relative">
-             <h2 className="text-2xl font-black text-white text-center mb-1 flex items-center justify-center gap-1.5">
-               {selectedPlayer.username} {selectedPlayer.username.toLowerCase() === "dgoa" && "🛠️"}
-             </h2>
-             {(() => {
-               const r = getRankForRankProgress(selectedPlayer.rankProgressTrophies || 0);
-               return (
-                 <div className="text-center text-cyan-400 font-bold mb-4 flex items-center justify-center gap-1.5 text-xs tracking-wider uppercase bg-cyan-950/40 py-1 px-3 rounded-full border border-cyan-800/40 w-fit mx-auto">
-                   <span>{r.current.emoji}</span>
-                   <span>{r.current.name}</span>
-                 </div>
-               );
-             })()}
-             <div className="bg-slate-900/60 rounded-2xl p-4 border border-slate-800/60 mb-5 space-y-2">
-               <div className="flex justify-between text-sm">
-                 <span className="text-slate-400 font-medium">Total Trophies:</span>
-                 <span className="text-amber-300 font-black">{selectedPlayer.trophies} 🏆</span>
-               </div>
-               <div className="flex justify-between text-sm">
-                 <span className="text-slate-400 font-medium">Gold:</span>
-                 <span className="text-yellow-400 font-black">{selectedPlayer.gold} 🪙</span>
-               </div>
-               <div className="flex justify-between text-sm">
-                 <span className="text-slate-400 font-medium">Wins / Losses:</span>
-                 <span className="text-white font-black">{selectedPlayer.wins} W / {selectedPlayer.losses} L</span>
-               </div>
-               <div className="flex justify-between text-sm">
-                 <span className="text-slate-400 font-medium">Win Rate:</span>
-                 <span className="text-indigo-400 font-black">
-                   {selectedPlayer.wins + selectedPlayer.losses > 0 ? Math.round((selectedPlayer.wins / (selectedPlayer.wins + selectedPlayer.losses)) * 100) : 0}%
-                 </span>
-               </div>
-             </div>
-             
-             <div className="mb-5">
-               <h3 className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2.5 text-center">Active Deck</h3>
-               <div className="grid grid-cols-4 gap-2">
-                  {selectedPlayer.deck.map((cardId, index) => {
-                    const card = CARDS.find((c) => c.id === cardId);
-                    return card ? <GameCard key={`${cardId}_${index}`} card={card} size="sm" /> : null
-                  })}
-               </div>
-             </div>
-             
-             <button onClick={() => setSelectedPlayer(null)} className="w-full rounded-2xl bg-gradient-to-r from-slate-800 to-slate-900 border border-slate-700 p-3 text-white text-sm font-black tracking-wider hover:from-slate-700 hover:to-slate-800 active:scale-95 transition-all cursor-pointer">
-               KAPAT
-             </button>
+          <div className="rounded-3xl bg-slate-950 border border-slate-800 p-6 shadow-2xl w-full max-w-sm panel-3d relative max-h-[90vh] overflow-y-auto scrollbar-none flex flex-col">
+            <h2 className="text-2xl font-black text-white text-center mb-1 flex items-center justify-center gap-1.5 shrink-0">
+              {selectedPlayer.username} {selectedPlayer.username.toLowerCase() === "dgoa" && "🛠️"}
+            </h2>
+            {(() => {
+              const r = getRankForRankProgress(selectedPlayer.rankProgressTrophies || 0);
+              return (
+                <div className="text-center text-cyan-400 font-bold mb-4 flex items-center justify-center gap-1.5 text-xs tracking-wider uppercase bg-cyan-950/40 py-1 px-3 rounded-full border border-cyan-800/40 w-fit mx-auto shrink-0 animate-pulse">
+                  <span>{r.current.emoji}</span>
+                  <span>{r.current.name}</span>
+                </div>
+              );
+            })()}
+            <div className="bg-slate-900/60 rounded-2xl p-4 border border-slate-800/60 mb-5 space-y-2 shrink-0">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400 font-medium">Toplam Kupa:</span>
+                <span className="text-amber-300 font-black">{selectedPlayer.trophies} 🏆</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400 font-medium">Altın:</span>
+                <span className="text-yellow-400 font-black">{selectedPlayer.gold} 🪙</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400 font-medium">Galibiyet / Mağlubiyet:</span>
+                <span className="text-white font-black">{selectedPlayer.wins} G / {selectedPlayer.losses} M</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-400 font-medium">Kazanma Oranı:</span>
+                <span className="text-indigo-400 font-black">
+                  {selectedPlayer.wins + selectedPlayer.losses > 0 ? Math.round((selectedPlayer.wins / (selectedPlayer.wins + selectedPlayer.losses)) * 100) : 0}%
+                </span>
+              </div>
+            </div>
+            
+            <div className="mb-5 shrink-0">
+              <h3 className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2.5 text-center">Aktif Deste</h3>
+              <div className="grid grid-cols-4 gap-2">
+                 {selectedPlayer.deck.map((cardId, index) => {
+                   const card = CARDS.find((c) => c.id === cardId);
+                   const lvl = selectedPlayer.cardLevels?.[cardId] ?? 1;
+                   return card ? <GameCard key={`${cardId}_${index}`} card={card} size="sm" level={lvl} /> : null
+                 })}
+              </div>
+            </div>
+
+            <button
+              onClick={() => setSelectedPlayer(null)}
+              className="w-full rounded-2xl bg-gradient-to-r from-slate-800 to-slate-900 border border-slate-700 p-3 text-white text-sm font-black tracking-wider hover:from-slate-700 hover:to-slate-800 active:scale-95 transition-all cursor-pointer shrink-0"
+            >
+              KAPAT
+            </button>
           </div>
         </div>
       )}
@@ -247,19 +255,23 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
         // Fetch all users to robustly sort them in-memory
         const querySnapshot = await getDocs(collection(db, "users"));
         const fetchedPlayers: UserData[] = [];
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
+        querySnapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (data.rankedStars && data.rankedStars > 0) {
+            setDoc(doc(db, "users", docSnap.id), { rankedStars: 0 }, { merge: true }).catch(() => {});
+          }
           fetchedPlayers.push({
-            id: doc.id,
+            id: docSnap.id,
             username: data.username || "Player",
             gold: data.gold ?? 0,
             trophies: data.trophies ?? 0,
             collection: data.collection ?? {},
             deck: data.deck ?? ["mizrakli", "kilicli", "okcu", "dev"],
+            cardLevels: data.cardLevels ?? {},
             wins: data.wins ?? 0,
             losses: data.losses ?? 0,
             rankProgressTrophies: data.rankProgressTrophies ?? 0,
-            rankedStars: data.rankedStars ?? 0,
+            rankedStars: 0,
           });
         });
 
@@ -309,7 +321,7 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
         <div className="flex items-center justify-between mb-4 shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-2xl">🏆</span>
-            <h2 className="text-2xl text-stroke text-white font-black tracking-tight">Global Top 100</h2>
+            <h2 className="text-2xl text-stroke text-white font-black tracking-tight">Küresel İlk 100</h2>
           </div>
           <button 
             onClick={onClose} 
@@ -324,7 +336,7 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
           <div className="relative">
             <input
               type="text"
-              placeholder="Search player..."
+              placeholder="Oyuncu ara..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500/50 rounded-xl px-4 py-2.5 pl-10 text-white placeholder-slate-500 text-sm focus:outline-none transition-all font-sans"
@@ -338,7 +350,7 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
           {loading ? (
             <div className="flex flex-col justify-center items-center py-20 space-y-3">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" />
-              <span className="text-xs text-slate-400 font-sans">Loading Leaderboard...</span>
+              <span className="text-xs text-slate-400 font-sans">Liderlik Tablosu Yükleniyor...</span>
             </div>
           ) : filteredPlayers.length > 0 ? (
             filteredPlayers.map((player, index) => {
@@ -369,7 +381,7 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
                       <div className="text-sm font-black text-white truncate flex items-center gap-1">
                         <span>{player.username}</span>
                         {player.username.toLowerCase() === "dgoa" && <span className="text-xs">🛠️</span>}
-                        {isMe && <span className="text-[9px] bg-indigo-500/20 text-indigo-300 font-sans px-1.5 py-0.5 rounded uppercase font-black tracking-wider ml-1">You</span>}
+                        {isMe && <span className="text-[9px] bg-indigo-500/20 text-indigo-300 font-sans px-1.5 py-0.5 rounded uppercase font-black tracking-wider ml-1">Sen</span>}
                       </div>
                       <div className="text-[11px] text-amber-400/90 font-bold flex items-center gap-1.5 mt-0.5 flex-wrap">
                         <span>{player.trophies} 🏆</span>
@@ -379,7 +391,7 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
                           </span>
                         )}
                         <span className="text-slate-600 font-normal">·</span>
-                        <span className="text-slate-400 font-sans font-medium">{player.wins} W</span>
+                        <span className="text-slate-400 font-sans font-medium">{player.wins} G</span>
                       </div>
                     </div>
                   </div>
@@ -388,7 +400,7 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
                     onClick={() => onSelectPlayer(player)}
                     className="flex-none bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 active:scale-95 transition-all px-3 py-1.5 rounded-xl text-white text-[10px] font-black tracking-wider cursor-pointer"
                   >
-                    PROFILE
+                    PROFİL
                   </button>
                 </div>
               );
@@ -396,7 +408,7 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
           ) : (
             <div className="text-center py-12">
               <span className="text-3xl block mb-2">👁️‍🗨️</span>
-              <div className="text-sm text-slate-400 font-sans">No matching player found.</div>
+              <div className="text-sm text-slate-400 font-sans">Eşleşen oyuncu bulunamadı.</div>
             </div>
           )}
         </div>

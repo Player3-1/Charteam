@@ -17,7 +17,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
     e.preventDefault();
     const sanitizedUsername = username.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
     if (!sanitizedUsername) {
-      alert("Invalid username.");
+      alert("Geçersiz kullanıcı adı.");
       return;
     }
 
@@ -27,12 +27,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
         const accountSnap = await getDoc(accountRef);
         
         if (!accountSnap.exists()) {
-          alert('User not found.');
+          alert('Kullanıcı bulunamadı.');
           return;
         }
 
         if (accountSnap.data().password !== password) {
-          alert('Incorrect password.');
+          alert('Hatalı şifre.');
           return;
         }
 
@@ -43,7 +43,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
         const accountSnap = await getDoc(accountRef);
         
         if (accountSnap.exists()) {
-          alert('Username is already taken.');
+          alert('Bu kullanıcı adı zaten alınmış.');
           return;
         }
 
@@ -64,7 +64,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
       }
     } catch (error: any) {
       console.error(error);
-      alert('An error occurred: ' + error.message);
+      alert('Bir hata oluştu: ' + error.message);
     }
   };
 
@@ -72,32 +72,32 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
     <div className="flex h-screen items-center justify-center bg-slate-950 p-4">
       <div className="w-full max-w-sm rounded-lg bg-slate-900 p-6 shadow-xl">
         <h2 className="mb-4 text-center text-xl font-bold text-white">
-          {isLogin ? "Log In" : "Sign Up"}
+          {isLogin ? "Giriş Yap" : "Kayıt Ol"}
         </h2>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <input
             type="text"
-            placeholder="Username"
+            placeholder="Kullanıcı Adı"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             className="rounded border border-slate-700 bg-slate-800 p-2 text-white"
           />
           <input
             type="password"
-            placeholder="Password"
+            placeholder="Şifre"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="rounded border border-slate-700 bg-slate-800 p-2 text-white"
           />
           <button type="submit" className="rounded bg-indigo-600 p-2 font-bold text-white">
-            {isLogin ? "Log In" : "Sign Up"}
+            {isLogin ? "Giriş Yap" : "Kayıt Ol"}
           </button>
         </form>
         <button
           onClick={() => setIsLogin(!isLogin)}
           className="mt-4 w-full text-sm text-slate-400"
         >
-          {isLogin ? "Don't have an account? Sign up" : "Already have an account? Log in"}
+          {isLogin ? "Hesabınız yok mu? Kayıt olun" : "Zaten bir hesabınız var mı? Giriş yapın"}
         </button>
       </div>
     </div>
