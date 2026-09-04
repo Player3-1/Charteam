@@ -795,7 +795,9 @@ export function tickBattle(state: BattleState, dt: number) {
     let targetPool = enemies;
     if (u.card.id === "sapanci") {
       // Sapancı cannot directly target bira-varili anymore
-      targetPool = enemies.filter((e) => e.card.id !== "bira-varili");
+      const filtered = enemies.filter((e) => e.card.id !== "bira-varili");
+      if (filtered.length === 0) continue;
+      targetPool = filtered;
       const priorityTargets = targetPool.filter((e) => e.card.id === "doktor");
       if (priorityTargets.length > 0) {
         targetPool = priorityTargets;
