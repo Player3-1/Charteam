@@ -66,7 +66,7 @@ export function usePlayer(username: string) {
           wins: wins,
           losses: data.losses ?? 0,
           rankProgressTrophies: data.rankProgressTrophies ?? 0,
-          rankedStars: 0,
+          rankedStars: data.rankedStars ?? 0,
           unlockedEmojis: (data.unlockedEmojis && data.unlockedEmojis.length > 0) ? data.unlockedEmojis : ["👍", "😂", "😡", "😱"],
           selectedEmojis: (data.selectedEmojis && data.selectedEmojis.length > 0) ? data.selectedEmojis : ["👍", "😂", "😡", "😱"],
           claimedMilestones: data.claimedMilestones ?? [],

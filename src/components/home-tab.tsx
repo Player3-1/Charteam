@@ -350,7 +350,7 @@ export function Home({ user }: { user: UserData }) {
             <div className="flex flex-col items-end gap-1.5 shrink-0">
               <div className="flex flex-wrap justify-end gap-1.5">
                 <Stat icon="🏆" value={state.trophies} color="from-amber-300 to-orange-500" />
-                {state.rankedStars !== undefined && state.rankedStars > 0 && (
+                {(state.trophies >= 5000 || (state.rankedStars !== undefined && state.rankedStars > 0)) && (
                   <Stat icon="⭐" value={state.rankedStars} color="from-cyan-300 to-blue-500 text-cyan-950 font-black shadow-[0_0_10px_rgba(6,182,212,0.35)] border-cyan-400/40" />
                 )}
                 <Stat icon="🪙" value={state.gold} color="from-yellow-200 to-amber-500" />

@@ -794,7 +794,9 @@ export function tickBattle(state: BattleState, dt: number) {
     // Sapancı target priorities: Always target Doktor or Bira Varili first!
     let targetPool = enemies;
     if (u.card.id === "sapanci") {
-      const priorityTargets = enemies.filter((e) => e.card.id === "doktor" || e.card.id === "bira-varili");
+      // Sapancı cannot directly target bira-varili anymore
+      targetPool = enemies.filter((e) => e.card.id !== "bira-varili");
+      const priorityTargets = targetPool.filter((e) => e.card.id === "doktor");
       if (priorityTargets.length > 0) {
         targetPool = priorityTargets;
       }
@@ -1135,12 +1137,15 @@ function applyCombatDamage(state: BattleState, defender: Unit, dmg: number, atta
   }
 
   if (wasAlive && defender.hp <= 0) {
-    // Defender died! Heal opposing Dev Balık units by 100 HP.
-    state.units.forEach((u) => {
-      if (u.side !== defender.side && u.hp > 0 && u.card.id === "balik") {
-        u.hp = Math.min(u.maxHp, u.hp + 100);
-      }
-    });
+    // Defender died! Heal opposing Dev Balık units by 50 HP.
+    // DOES NOT work on Kuş Ordusu birds.
+    if (!defender.card.id.startsWith("kus-ordusu")) {
+      state.units.forEach((u) => {
+        if (u.side !== defender.side && u.hp > 0 && u.card.id === "balik") {
+          u.hp = Math.min(u.maxHp, u.hp + 50);
+        }
+      });
+    }
   }
 
   // Doctor does not flee on taking damage anymore, advances toward the nearest target

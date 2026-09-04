@@ -24,9 +24,6 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
         const allPlayers: UserData[] = [];
         querySnapshot.forEach((docSnap) => {
           const data = docSnap.data();
-          if (data.rankedStars && data.rankedStars > 0) {
-            setDoc(doc(db, "users", docSnap.id), { rankedStars: 0 }, { merge: true }).catch(() => {});
-          }
           allPlayers.push({
             id: docSnap.id,
             username: data.username || "Player",
@@ -38,7 +35,7 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
             wins: data.wins ?? 0,
             losses: data.losses ?? 0,
             rankProgressTrophies: data.rankProgressTrophies ?? 0,
-            rankedStars: 0,
+            rankedStars: data.rankedStars ?? 0,
           });
         });
 
@@ -103,7 +100,7 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
                     <div className="text-sm font-bold text-amber-300 flex items-center gap-1.5 flex-wrap">
                       <span>{player.trophies}</span>
                       <span className="text-xs opacity-85">Kupa 🏆</span>
-                      {player.rankedStars !== undefined && player.rankedStars > 0 && (
+                      {(player.trophies >= 5000 || (player.rankedStars !== undefined && player.rankedStars > 0)) && (
                         <span className="text-cyan-300 font-extrabold flex items-center gap-0.5 bg-cyan-950/45 border border-cyan-800/30 px-1.5 py-0.5 rounded-full text-[11px] leading-none shadow shadow-cyan-500/10">
                           ⭐ {player.rankedStars}
                         </span>
@@ -257,9 +254,6 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
         const fetchedPlayers: UserData[] = [];
         querySnapshot.forEach((docSnap) => {
           const data = docSnap.data();
-          if (data.rankedStars && data.rankedStars > 0) {
-            setDoc(doc(db, "users", docSnap.id), { rankedStars: 0 }, { merge: true }).catch(() => {});
-          }
           fetchedPlayers.push({
             id: docSnap.id,
             username: data.username || "Player",
@@ -271,7 +265,7 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
             wins: data.wins ?? 0,
             losses: data.losses ?? 0,
             rankProgressTrophies: data.rankProgressTrophies ?? 0,
-            rankedStars: 0,
+            rankedStars: data.rankedStars ?? 0,
           });
         });
 
@@ -385,7 +379,7 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
                       </div>
                       <div className="text-[11px] text-amber-400/90 font-bold flex items-center gap-1.5 mt-0.5 flex-wrap">
                         <span>{player.trophies} 🏆</span>
-                        {player.rankedStars !== undefined && player.rankedStars > 0 && (
+                        {(player.trophies >= 5000 || (player.rankedStars !== undefined && player.rankedStars > 0)) && (
                           <span className="text-cyan-300 font-extrabold flex items-center gap-0.5 bg-cyan-950/45 border border-cyan-800/30 px-1 py-0.2 rounded-full text-[10px] leading-none shadow shadow-cyan-500/10">
                             ⭐ {player.rankedStars}
                           </span>
