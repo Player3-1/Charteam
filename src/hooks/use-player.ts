@@ -155,8 +155,8 @@ export function usePlayer(username: string) {
     let nextRankedStars = state.rankedStars ?? 0;
 
     if (matchMode === "ranked") {
-      // Ranked stars logic (+10 for win, -10 for loss)
-      const starsChange = trophy;
+      // Ranked stars logic (+1 for win, -1 for loss)
+      const starsChange = win ? 1 : -1;
       nextRankedStars = Math.max(0, (state.rankedStars ?? 0) + starsChange);
       // Trophies remain completely unchanged
       nextTrophies = state.trophies;

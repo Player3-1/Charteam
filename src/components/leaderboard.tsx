@@ -100,7 +100,7 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
                     <div className="text-sm font-bold text-amber-300 flex items-center gap-1.5 flex-wrap">
                       <span>{player.trophies}</span>
                       <span className="text-xs opacity-85">Kupa 🏆</span>
-                      {(player.trophies >= 5000 || (player.rankedStars !== undefined && player.rankedStars > 0)) && (
+                      {(player.rankedStars !== undefined && player.rankedStars > 0) && (
                         <span className="text-cyan-300 font-extrabold flex items-center gap-0.5 bg-cyan-950/45 border border-cyan-800/30 px-1.5 py-0.5 rounded-full text-[11px] leading-none shadow shadow-cyan-500/10">
                           ⭐ {player.rankedStars}
                         </span>
@@ -379,7 +379,7 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
                       </div>
                       <div className="text-[11px] text-amber-400/90 font-bold flex items-center gap-1.5 mt-0.5 flex-wrap">
                         <span>{player.trophies} 🏆</span>
-                        {(player.trophies >= 5000 || (player.rankedStars !== undefined && player.rankedStars > 0)) && (
+                        {(player.rankedStars !== undefined && player.rankedStars > 0) && (
                           <span className="text-cyan-300 font-extrabold flex items-center gap-0.5 bg-cyan-950/45 border border-cyan-800/30 px-1 py-0.2 rounded-full text-[10px] leading-none shadow shadow-cyan-500/10">
                             ⭐ {player.rankedStars}
                           </span>

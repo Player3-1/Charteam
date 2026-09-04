@@ -47,16 +47,18 @@ export async function findOrCreateMatch(user: UserData, mode: "standard" | "tour
       await setDoc(doc(db, "battles", battleId), {
         id: battleId,
         mode: mode, // Save mode in battle
-        player1: { 
-          username: oppData.username, 
-          trophies: oppData.trophies, 
-          deck: oppData.deck,
+        player1: {
+           username: oppData.username,
+           trophies: oppData.trophies,
+           rankedStars: oppData.rankedStars ?? 0,
+           deck: oppData.deck,
           wins: oppData.wins ?? 0,
         },
-        player2: { 
-          username: user.username, 
-          trophies: user.trophies, 
-          deck: user.deck,
+        player2: {
+           username: user.username,
+           trophies: user.trophies,
+           rankedStars: user.rankedStars ?? 0,
+           deck: user.deck,
           wins: user.wins ?? 0,
         },
         player1Placements: [],
@@ -82,6 +84,7 @@ export async function findOrCreateMatch(user: UserData, mode: "standard" | "tour
   await setDoc(doc(db, "matchmaking", user.username), {
     username: user.username,
     trophies: user.trophies,
+    rankedStars: user.rankedStars ?? 0,
     deck: user.deck,
     mode: mode,
     status: "searching",

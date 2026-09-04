@@ -669,11 +669,11 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
       rerender();
       if (stateRef.current.winner) {
         const w = stateRef.current.winner;
-        if (battleId && isPlayer1 && !isBotFallbackRef.current) {
+        if (battleId && !isBotFallbackRef.current) {
             const dbWinner = w === "player" ? "player1" : "player2";
-            updateDoc(doc(db, "battles", battleId), { winner: dbWinner });
+            updateDoc(doc(db, "battles", battleId), { winner: dbWinner }).catch(() => {});
         }
-        if (!battleId || isPlayer1 || isBotFallbackRef.current) {
+        if (!winner) {
             setWinner(w);
             const r = getAdjustedRewards(w === "player");
             setRewards(r); setPhase("done");
@@ -684,11 +684,11 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
         const pHp = stateRef.current.units.filter((u) => u.side === "player").reduce((s, u) => s + u.hp, 0);
         const bHp = stateRef.current.units.filter((u) => u.side === "bot").reduce((s, u) => s + u.hp, 0);
         const w = pHp >= bHp ? "player" : "bot";
-        if (battleId && isPlayer1 && !isBotFallbackRef.current) {
+        if (battleId && !isBotFallbackRef.current) {
             const dbWinner = w === "player" ? "player1" : "player2";
-            updateDoc(doc(db, "battles", battleId), { winner: dbWinner });
+            updateDoc(doc(db, "battles", battleId), { winner: dbWinner }).catch(() => {});
         }
-        if (!battleId || isPlayer1 || isBotFallbackRef.current) {
+        if (!winner) {
             setWinner(w);
             const r = getAdjustedRewards(w === "player");
             setRewards(r); setPhase("done");
@@ -1019,7 +1019,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
               <div className="mt-2 flex flex-col items-center justify-center gap-1 font-display">
                 <div className="flex items-center justify-center gap-3 text-lg">
                   <span className={cn(rewards.trophy >= 0 ? "text-cyan-300" : "text-red-400")}>
-                    {rewards.trophy >= 0 ? "+" : ""}{rewards.trophy} ⭐
+                    {rewards.trophy >= 0 ? "+" : ""}{rewards.trophy > 0 ? 1 : -1} ⭐
                   </span>
                   <span className="text-yellow-200">+{rewards.gold} 🪙</span>
                 </div>
