@@ -430,6 +430,7 @@ export function BattleScreen({
   const rafRef = useRef<number | null>(null);
   const [rewards, setRewards] = useState<{ gold: number; trophy: number } | null>(null);
   const [winner, setWinner] = useState<"player" | "bot" | null>(null);
+  const winnerRef = useRef<"player" | "bot" | null>(null);
 
   const getAdjustedRewards = (win: boolean) => {
     return computeRewards(win, trophies, opponentTrophies, mode, deck, playerCardLevels);
@@ -683,11 +684,14 @@ export function BattleScreen({
           }
         });
 
-        if (data.winner && !winner) {
+        if (data.winner && !winnerRef.current) {
             const didIWin = isPlayer1 ? (data.winner === "player1") : (data.winner === "player2");
-            setWinner(didIWin ? "player" : "bot");
+            const w = didIWin ? "player" : "bot";
+            winnerRef.current = w;
+            setWinner(w);
             const r = getAdjustedRewards(didIWin);
-            setRewards(r); setPhase("done");
+            setRewards(r); 
+            setPhase("done");
         }
 
         const myPlacements = isPlayer1 ? data.player1Placements : data.player2Placements;
@@ -809,28 +813,36 @@ export function BattleScreen({
       if (stateRef.current.winner) {
         const w = stateRef.current.winner;
         if (battleId && !isBotFallbackRef.current) {
-            const dbWinner = w === "player" ? "player1" : "player2";
+            const dbWinner = w === "player" 
+              ? (isPlayer1 ? "player1" : "player2") 
+              : (isPlayer1 ? "player2" : "player1");
             updateDoc(doc(db, "battles", battleId), { winner: dbWinner }).catch(() => {});
         }
-        if (!winner) {
+        if (!winnerRef.current) {
+            winnerRef.current = w;
             setWinner(w);
             const r = getAdjustedRewards(w === "player");
-            setRewards(r); setPhase("done");
+            setRewards(r); 
+            setPhase("done");
         }
         return;
       }
       if (stateRef.current.time > FIGHT_TIMEOUT) {
-        const pHp = stateRef.current.units.filter((u) => u.side === "player").reduce((s, u) => s + u.hp, 0);
-        const bHp = stateRef.current.units.filter((u) => u.side === "bot").reduce((s, u) => s + u.hp, 0);
+        const pHp = stateRef.current.units.filter((u) => u.side === "player" && u.hp > 0 && u.card.id !== "cig" && u.card.id !== "bira-varili" && u.card.id !== "lanet").reduce((s, u) => s + u.hp, 0);
+        const bHp = stateRef.current.units.filter((u) => u.side === "bot" && u.hp > 0 && u.card.id !== "cig" && u.card.id !== "bira-varili" && u.card.id !== "lanet").reduce((s, u) => s + u.hp, 0);
         const w = pHp >= bHp ? "player" : "bot";
         if (battleId && !isBotFallbackRef.current) {
-            const dbWinner = w === "player" ? "player1" : "player2";
+            const dbWinner = w === "player" 
+              ? (isPlayer1 ? "player1" : "player2") 
+              : (isPlayer1 ? "player2" : "player1");
             updateDoc(doc(db, "battles", battleId), { winner: dbWinner }).catch(() => {});
         }
-        if (!winner) {
+        if (!winnerRef.current) {
+            winnerRef.current = w;
             setWinner(w);
             const r = getAdjustedRewards(w === "player");
-            setRewards(r); setPhase("done");
+            setRewards(r); 
+            setPhase("done");
         }
         return;
       }

@@ -688,7 +688,7 @@ export function tickBattle(state: BattleState, dt: number) {
           u.cdLeft = u.card.cd; 
         }
       }
-      // Mezarlik (zombi) spawns 300 HP / 30 DMG zombie every 4s
+      // Mezarlik (zombi) spawns 150 HP / 30 DMG zombie every 4s
       if (u.card.id === "zombi" && u.cdLeft <= 0) {
         const spawnRow = u.side === "player" ? Math.max(0, u.row - 0.7) : Math.min(ROWS - 1, u.row + 0.7);
         state.units.push({
@@ -698,7 +698,7 @@ export function tickBattle(state: BattleState, dt: number) {
             name: "Zombi",
             emoji: "🧟",
             rarity: "common",
-            hp: 300,
+            hp: 150,
             dmg: 30,
             cd: 1.4,
             range: "yakın",
@@ -708,8 +708,8 @@ export function tickBattle(state: BattleState, dt: number) {
           side: u.side,
           col: u.col,
           row: spawnRow,
-          hp: 300,
-          maxHp: 300,
+          hp: 150,
+          maxHp: 150,
           cdLeft: 0.5,
           flying: false,
           level: u.level || 1,
@@ -1125,8 +1125,8 @@ export function tickBattle(state: BattleState, dt: number) {
     }
   }
 
-  const playerAlive = state.units.some((u) => u.side === "player" && u.card.id !== "cig" && u.card.id !== "bira-varili");
-  const botAlive = state.units.some((u) => u.side === "bot" && u.card.id !== "cig" && u.card.id !== "bira-varili");
+  const playerAlive = state.units.some((u) => u.side === "player" && u.hp > 0 && u.card.id !== "cig" && u.card.id !== "bira-varili" && u.card.id !== "lanet");
+  const botAlive = state.units.some((u) => u.side === "bot" && u.hp > 0 && u.card.id !== "cig" && u.card.id !== "bira-varili" && u.card.id !== "lanet");
   if (state.time > 0.5) {
       if (!playerAlive && botAlive) state.winner = "bot";
       else if (!botAlive && playerAlive) state.winner = "player";
