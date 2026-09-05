@@ -101,7 +101,13 @@ export function Home({ user }: { user: UserData }) {
 
     let addedGold = 0;
     if (isGold) {
-      addedGold = Math.floor(Math.random() * 3001) + 2000;
+      if (matchNum >= 250) {
+        addedGold = Math.floor(Math.random() * 5001) + 5000;
+      } else if (matchNum >= 100) {
+        addedGold = Math.floor(Math.random() * 4001) + 3000;
+      } else {
+        addedGold = Math.floor(Math.random() * 3001) + 2000;
+      }
     }
 
     let rewardsList: { card: CardDef; isDuplicate: boolean; refundGold: number }[] = [];

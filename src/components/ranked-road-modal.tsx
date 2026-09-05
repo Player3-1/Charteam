@@ -16,12 +16,21 @@ export interface RankedStep {
   label: string;
 }
 
-// Generate 50 steps
+// Generate 500 steps
 const STEPS: RankedStep[] = [];
-for (let m = 1; m <= 50; m++) {
+for (let m = 1; m <= 500; m++) {
   let rewardType: RankedStep["rewardType"] = "none";
   let label = `Maç ${m}`;
-  if (m % 10 === 0) {
+  if (m === 500) {
+    rewardType = "legendary_chest";
+    label = `👑 Zirve Efsanevi Sandık`;
+  } else if (m % 100 === 0) {
+    rewardType = "legendary_chest";
+    label = `Büyük Efsanevi Sandık`;
+  } else if (m % 50 === 0) {
+    rewardType = "legendary_chest";
+    label = `Mega Efsanevi Sandık`;
+  } else if (m % 10 === 0) {
     rewardType = "legendary_chest";
     label = `Efsanevi Sandık`;
   } else if (m % 5 === 0) {
@@ -40,16 +49,20 @@ export function RankedRoadModal({ isOpen, onClose, user, onClaim }: RankedRoadMo
   const playedCount = user.rankedMatchesPlayed || 0;
   const claimedList = user.claimedRankedRewards || [];
 
+  const scrollToStep = (num: number, behavior: ScrollBehavior = "smooth") => {
+    const targetId = `step-${Math.max(1, Math.min(500, num))}`;
+    const activeElem = document.getElementById(targetId);
+    if (activeElem && containerRef.current) {
+      activeElem.scrollIntoView({ behavior, block: "center" });
+    }
+  };
+
   // Smooth scroll to the active or nearest step
   useEffect(() => {
     if (isOpen) {
       const timer = setTimeout(() => {
-        const targetId = `step-${Math.max(1, Math.min(50, playedCount))}`;
-        const activeElem = document.getElementById(targetId);
-        if (activeElem && containerRef.current) {
-          activeElem.scrollIntoView({ behavior: "smooth", block: "center" });
-        }
-      }, 250);
+        scrollToStep(playedCount, "auto");
+      }, 60);
       return () => clearTimeout(timer);
     }
   }, [isOpen, playedCount]);
@@ -67,11 +80,11 @@ export function RankedRoadModal({ isOpen, onClose, user, onClaim }: RankedRoadMo
             {/* Header */}
             <div className="p-4 bg-slate-950 border-b border-slate-800 flex justify-between items-center relative z-10">
               <div>
-                <h3 className="font-display text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500 flex items-center gap-2">
+                <h3 className="font-display text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-300 to-blue-500 flex items-center gap-2">
                   <span>🏆</span> DERECELİ ÖDÜL YOLU
                 </h3>
                 <p className="text-[11px] text-slate-400 font-medium">
-                  Toplam Maç: <span className="text-cyan-400 font-black font-mono">{playedCount}</span>
+                  Toplam Maç: <span className="text-cyan-400 font-black font-mono">{playedCount}</span> / 500
                 </p>
               </div>
               <button
@@ -79,6 +92,28 @@ export function RankedRoadModal({ isOpen, onClose, user, onClaim }: RankedRoadMo
                 className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Navigation Bar */}
+            <div className="px-3 py-2 bg-slate-950/90 border-b border-slate-800 flex items-center justify-between text-[11px] font-bold z-10 shrink-0 gap-1.5">
+              <button
+                onClick={() => scrollToStep(1)}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+              >
+                <span>🏁</span> 1. Adım
+              </button>
+              <button
+                onClick={() => scrollToStep(playedCount)}
+                className="px-2.5 py-1 rounded-lg bg-cyan-950 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-900/70 transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+              >
+                <span>📍</span> Mevcut: {playedCount}
+              </button>
+              <button
+                onClick={() => scrollToStep(500)}
+                className="px-2.5 py-1 rounded-lg bg-amber-950/60 border border-amber-500/40 text-amber-300 hover:bg-amber-900/70 transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+              >
+                <span>👑</span> 500. Zirve
               </button>
             </div>
 
@@ -107,7 +142,7 @@ export function RankedRoadModal({ isOpen, onClose, user, onClaim }: RankedRoadMo
                   nodeIcon = <Coins className="w-5 h-5 text-yellow-400" />;
                   nodeBg = isUnlocked ? "bg-yellow-950/80 border-yellow-500/50" : "bg-slate-800 border-slate-700";
                   textCol = isUnlocked ? "text-yellow-300" : "text-slate-500";
-                  rewardDesc = "2000-5000 Altın";
+                  rewardDesc = matchNum >= 250 ? "5.000-10.000 Altın" : (matchNum >= 100 ? "3.000-7.000 Altın" : "2.000-5.000 Altın");
                 } else if (rewardType === "epic_chest") {
                   nodeIcon = <Gift className="w-5 h-5 text-purple-400 animate-bounce" />;
                   nodeBg = isUnlocked ? "bg-purple-950/80 border-purple-500/50" : "bg-slate-800 border-slate-700";
@@ -117,7 +152,7 @@ export function RankedRoadModal({ isOpen, onClose, user, onClaim }: RankedRoadMo
                   nodeIcon = <Sparkles className="w-5 h-5 text-amber-400 animate-pulse" />;
                   nodeBg = isUnlocked ? "bg-amber-950/80 border-amber-500/50" : "bg-slate-800 border-slate-700";
                   textCol = isUnlocked ? "text-amber-300 font-black animate-pulse" : "text-slate-500";
-                  rewardDesc = "Efsanevi Sandık";
+                  rewardDesc = matchNum === 500 ? "👑 Büyük Zirve Sandığı" : (matchNum % 100 === 0 ? "🌟 Efsanevi Büyük Sandık" : "Efsanevi Sandık");
                 }
 
                 return (
@@ -127,6 +162,7 @@ export function RankedRoadModal({ isOpen, onClose, user, onClaim }: RankedRoadMo
                     className={`flex items-center w-full relative ${
                       isEven ? "flex-row" : "flex-row-reverse"
                     }`}
+                    style={{ contentVisibility: "auto", containIntrinsicSize: "0 68px" }}
                   >
                     {/* Left or Right Side Reward Content Card */}
                     <div className="w-5/12 flex flex-col justify-center px-2">
