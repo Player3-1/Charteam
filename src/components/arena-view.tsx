@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { Arena } from "@/lib/arenas";
 import { COLS, ROWS, RIVER_ROW, BRIDGE_COLS, type BattleState, type Projectile } from "@/lib/battle";
 import { cn } from "@/lib/utils";
@@ -63,7 +63,7 @@ function propEmoji(kind: string): string {
     default: return "•";
   }
 }
-function projectileEmoji(p: Projectile): string {
+function projectileEmoji(p: Projectile): ReactNode {
   if (p.buyucuEffect === "burn") return "🔥";
   if (p.buyucuEffect === "slow") return "🧊";
   if (p.buyucuEffect === "normal") return "✨";
@@ -76,6 +76,25 @@ function projectileEmoji(p: Projectile): string {
     case "snowball": return "❄️";
     case "ice": return "🧊";
     case "tongue": return "👅";
+    case "shuriken":
+      return (
+        <span className="inline-flex items-center justify-center animate-spin">
+          <svg className="w-5 h-5 fill-slate-200 stroke-slate-800 stroke-[1.5] drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" viewBox="0 0 24 24">
+            <path d="M12 2 L13.8 8.5 L20 6 L15.5 10.2 L22 12 L15.5 13.8 L20 18 L13.8 15.5 L12 22 L10.2 15.5 L4 18 L8.5 13.8 L2 12 L8.5 10.2 L4 6 L10.2 8.5 Z" />
+            <circle cx="12" cy="12" r="2.5" className="fill-slate-900" />
+          </svg>
+        </span>
+      );
+    case "blood":
+      return (
+        <span className="inline-block text-xl filter drop-shadow-[0_2px_6px_rgba(220,38,38,0.85)] animate-pulse">
+          🩸
+        </span>
+      );
+    case "bat":
+      return "🦇";
+    default:
+      return "•";
   }
 }
 
@@ -268,7 +287,7 @@ export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props
         return (
           <span
             key={p.uid}
-            className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 text-lg drop-shadow"
+            className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 text-lg drop-shadow flex items-center justify-center"
             style={{ left: `${cx(col)}%`, top: `${cy(row)}%`, transform: `translate(-50%,-50%) rotate(${ang}deg)` }}
           >
             {projectileEmoji(p)}

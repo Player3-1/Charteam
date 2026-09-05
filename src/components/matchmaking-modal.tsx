@@ -4,6 +4,7 @@ import { findOrCreateMatch, cancelMatchmaking } from "@/lib/matchmaking";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/firebase";
 import { makeOpponentTrophies } from "@/lib/arenas";
+import { getAvatarForName } from "@/lib/utils";
 
 export const MatchmakingModal = ({ 
   user,
@@ -13,7 +14,7 @@ export const MatchmakingModal = ({
 }: { 
   user: UserData,
   mode?: "standard" | "tournament" | "ranked",
-  onMatchFound: (opponent: {name: string, trophies: number, rankedStars?: number, wins?: number, tournamentWins?: number, battleId?: string, isPlayer1?: boolean, mode?: "standard" | "tournament" | "ranked"}) => void, 
+  onMatchFound: (opponent: {name: string, avatar?: string, trophies: number, rankedStars?: number, wins?: number, tournamentWins?: number, battleId?: string, isPlayer1?: boolean, mode?: "standard" | "tournament" | "ranked"}) => void, 
   onCancel: () => void 
 }) => {
   const [status, setStatus] = useState(
@@ -43,6 +44,7 @@ export const MatchmakingModal = ({
             unsub();
             onMatchFound({
               name: opp.username,
+              avatar: opp.avatar || getAvatarForName(opp.username),
               trophies: opp.trophies,
               rankedStars: opp.rankedStars ?? 0,
               wins: opp.wins ?? 0,
@@ -88,7 +90,9 @@ export const MatchmakingModal = ({
               cancelMatchmaking(user.username);
               const oppTrophies = makeOpponentTrophies(user.trophies);
               const oppRankedStars = Math.max(0, oppTrophies > 1000 ? Math.floor(Math.random() * 50) : 0);
-              onMatchFound({name: "Bot", trophies: oppTrophies, rankedStars: oppRankedStars, mode});
+              const botAvatars = ["🤖", "🥷", "🧙", "🐉", "🦁", "💀", "👻", "🦊", "👑", "🦈"];
+              const botAvatar = botAvatars[Math.floor(Math.random() * botAvatars.length)];
+              onMatchFound({name: "Bot", avatar: botAvatar, trophies: oppTrophies, rankedStars: oppRankedStars, mode});
             }}
             className="mt-4 rounded bg-emerald-600 px-4 py-3 font-bold text-white block w-full"
           >

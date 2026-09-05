@@ -19,7 +19,7 @@ import { MatchmakingModal } from "@/components/matchmaking-modal";
 import { MetaTab } from "@/components/meta-tab";
 import { LeaderboardTab } from "@/components/leaderboard";
 import { RankedRoadModal } from "@/components/ranked-road-modal";
-import { cn } from "@/lib/utils";
+import { cn, getAvatarForName } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { SHOP_EMOJIS } from "@/lib/emojis";
 
@@ -65,21 +65,23 @@ export function getRankedStarsDetails(points: number) {
 
 
 export const PROFILE_COLORS = [
-  { name: "Klasik Beyaz", value: "white", class: "text-white text-stroke" },
-  { name: "Altın Efsane", value: "gold", class: "text-yellow-400 font-bold bg-gradient-to-r from-yellow-500 via-amber-300 to-yellow-500 bg-clip-text text-transparent animate-pulse" },
-  { name: "Yakut Kırmızı", value: "red", class: "text-rose-500 font-bold bg-gradient-to-r from-red-600 to-rose-400 bg-clip-text text-transparent" },
-  { name: "Elektrik Mavisi", value: "blue", class: "text-cyan-400 font-bold bg-gradient-to-r from-blue-600 via-sky-400 to-cyan-400 bg-clip-text text-transparent" },
-  { name: "Neon Yeşil", value: "green", class: "text-emerald-400 font-bold bg-gradient-to-r from-emerald-500 to-green-300 bg-clip-text text-transparent" },
-  { name: "Gün Batımı Pembesi", value: "pink", class: "text-fuchsia-400 font-bold bg-gradient-to-r from-pink-500 to-fuchsia-300 bg-clip-text text-transparent" },
-  { name: "Mor Rüya", value: "purple", class: "text-purple-400 font-bold bg-gradient-to-r from-indigo-500 to-purple-400 bg-clip-text text-transparent" },
-  { name: "Gökkuşağı Dalgası", value: "rainbow", class: "font-black bg-gradient-to-r from-red-500 via-yellow-400 via-green-500 via-blue-500 to-purple-500 bg-clip-text text-transparent bg-[length:200%_auto] animate-gradient-flow" }
+  { name: "Parlak Beyaz", value: "white", dot: "bg-white border border-slate-300", class: "text-white text-stroke" },
+  { name: "Altın Sarısı", value: "gold", dot: "bg-amber-400 shadow-sm shadow-amber-400/50", class: "text-yellow-400 font-bold bg-gradient-to-r from-yellow-400 via-amber-300 to-yellow-500 bg-clip-text text-transparent animate-pulse" },
+  { name: "Alev Kırmızısı", value: "red", dot: "bg-rose-500 shadow-sm shadow-rose-500/50", class: "text-rose-500 font-bold bg-gradient-to-r from-red-600 to-rose-400 bg-clip-text text-transparent" },
+  { name: "Buz Mavisi", value: "blue", dot: "bg-cyan-400 shadow-sm shadow-cyan-400/50", class: "text-cyan-400 font-bold bg-gradient-to-r from-blue-500 via-sky-400 to-cyan-400 bg-clip-text text-transparent" },
+  { name: "Zümrüt Yeşili", value: "green", dot: "bg-emerald-400 shadow-sm shadow-emerald-400/50", class: "text-emerald-400 font-bold bg-gradient-to-r from-emerald-500 to-green-300 bg-clip-text text-transparent" },
+  { name: "Kraliyet Moru", value: "purple", dot: "bg-purple-500 shadow-sm shadow-purple-500/50", class: "text-purple-400 font-bold bg-gradient-to-r from-indigo-500 to-purple-400 bg-clip-text text-transparent" },
+  { name: "Neon Pembe", value: "pink", dot: "bg-pink-500 shadow-sm shadow-pink-500/50", class: "text-fuchsia-400 font-bold bg-gradient-to-r from-pink-500 to-fuchsia-300 bg-clip-text text-transparent" },
+  { name: "Gökkuşağı", value: "rainbow", dot: "bg-gradient-to-r from-rose-500 via-amber-400 via-emerald-400 to-indigo-500", class: "font-black bg-gradient-to-r from-red-500 via-yellow-400 via-green-500 via-blue-500 to-purple-500 bg-clip-text text-transparent bg-[length:200%_auto] animate-gradient-flow" }
 ];
 
 export const PROFILE_FONTS = [
-  { name: "Klasik Ekran", value: "font-display" },
-  { name: "Retro Tek Aralıklı", value: "font-mono" },
-  { name: "Zarif Şerif", value: "font-serif" },
-  { name: "Sans Darbe", value: "font-sans font-black" }
+  { name: "Oyun (Display)", value: "font-display", sample: "Aa" },
+  { name: "Modern (Sans)", value: "font-sans font-bold", sample: "Aa" },
+  { name: "Retro (Mono)", value: "font-mono font-bold", sample: "Aa" },
+  { name: "Soylu (Serif)", value: "font-serif font-bold", sample: "Aa" },
+  { name: "Vurucu (Black)", value: "font-sans font-black tracking-wide", sample: "Aa" },
+  { name: "Dinamik (İtalik)", value: "font-display italic", sample: "Aa" }
 ];
 
 export const PROFILE_AVATARS = [
@@ -256,7 +258,7 @@ export function Home({ user }: { user: UserData }) {
   const [openedRewards, setOpenedRewards] = useState<{ card: CardDef; isDuplicate: boolean; refundGold: number }[] | null>(null);
   const [openedChestName, setOpenedChestName] = useState("");
   const [inBattle, setInBattle] = useState(false);
-  const [opponent, setOpponent] = useState<{name: string, trophies: number, rankedStars?: number, wins?: number, battleId?: string, isPlayer1?: boolean, mode?: "standard" | "tournament" | "ranked"} | null>(null);
+  const [opponent, setOpponent] = useState<{name: string, avatar?: string, trophies: number, rankedStars?: number, wins?: number, battleId?: string, isPlayer1?: boolean, mode?: "standard" | "tournament" | "ranked"} | null>(null);
   const [showMatchmaking, setShowMatchmaking] = useState(false);
   const [showArenas, setShowArenas] = useState(false);
   const [battleMode, setBattleMode] = useState<"standard" | "ranked">("standard");
@@ -325,7 +327,7 @@ export function Home({ user }: { user: UserData }) {
           <header className="sticky top-0 z-20 panel-3d px-3 pb-3 pt-8 flex items-center justify-between gap-3 relative">
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => setShowProfileCustomizer(true)}>
               <div className="grid h-10 w-10 place-items-center rounded-full border-2 border-black/40 bg-gradient-to-br from-amber-300 to-amber-600 text-lg font-display text-amber-950 shadow-inner shrink-0 hover:brightness-110 active:scale-95 transition-all">
-                {state.avatar || state.username[0]}
+                {state.avatar || getAvatarForName(state.username)}
               </div>
               <div>
                 <div className={cn(
@@ -484,7 +486,7 @@ export function Home({ user }: { user: UserData }) {
               {/* LIVE PREVIEW CARD */}
               <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 mb-4 flex items-center gap-3 shrink-0 shadow-inner">
                 <div className="grid h-14 w-14 place-items-center rounded-full border-2 border-amber-500/50 bg-gradient-to-br from-slate-800 to-slate-950 text-3xl shadow-lg shrink-0">
-                  {state.avatar || state.username[0]}
+                  {state.avatar || getAvatarForName(state.username)}
                 </div>
                 <div>
                   <div className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mb-0.5">Canlı Önizleme</div>
@@ -495,7 +497,6 @@ export function Home({ user }: { user: UserData }) {
                   )}>
                     {state.username} {state.username.toLowerCase() === "dgoa" && "🛠️"}
                   </div>
-                  <div className="text-[11px] text-slate-500 mt-1">Savaş Arenası Kahramanı</div>
                 </div>
               </div>
 
@@ -527,94 +528,75 @@ export function Home({ user }: { user: UserData }) {
               <div className="border-t border-slate-800/80 pt-4 space-y-4">
                 <div className="flex justify-between items-center">
                   <label className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
-                    <span>✨</span> İsim Stili Özelleştirme
+                    <span>✨</span> İsim Rengi ve Yazı Tipi (Ücretsiz)
                   </label>
-                  {!state.profileStyleUnlocked && (
-                    <span className="text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded">Kilitli 🔒</span>
-                  )}
                 </div>
 
-                {state.profileStyleUnlocked ? (
-                  <div className="space-y-4 animate-fade-in">
-                    {/* Color Picker */}
-                    <div className="space-y-1.5">
-                      <div className="text-[11px] text-slate-400 font-bold">İsim Rengi ve Efekti:</div>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        {PROFILE_COLORS.map((col) => (
+                <div className="space-y-4 animate-fade-in">
+                  {/* Color Picker */}
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] text-slate-400 font-bold flex items-center justify-between">
+                      <span>İsim Rengi ve Efekti:</span>
+                      <span className="text-[10px] text-slate-500 font-normal">Seçili: {PROFILE_COLORS.find(c => c.value === state.profileColor)?.name || "Parlak Beyaz"}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {PROFILE_COLORS.map((col) => {
+                        const isSelected = state.profileColor === col.value;
+                        return (
                           <button
                             key={col.value}
+                            type="button"
                             onClick={async () => {
                               await updateProfileCustomization({ profileColor: col.value });
                             }}
                             className={cn(
-                              "text-left px-2.5 py-2 rounded-xl border text-xs cursor-pointer transition-all hover:bg-slate-800/50 flex items-center gap-2",
-                              state.profileColor === col.value
-                                ? "bg-amber-500/10 border-amber-500/80 shadow-md shadow-amber-500/5"
-                                : "bg-slate-950/30 border-slate-800"
+                              "text-left px-2.5 py-2 rounded-xl border text-xs cursor-pointer transition-all hover:bg-slate-800/60 flex items-center gap-2",
+                              isSelected
+                                ? "bg-amber-500/15 border-amber-400 shadow-md shadow-amber-500/10 ring-1 ring-amber-400/40"
+                                : "bg-slate-950/40 border-slate-800"
                             )}
                           >
-                            <span className={cn("font-bold", col.class)}>{col.name}</span>
+                            <span className={cn("w-3.5 h-3.5 rounded-full shrink-0", col.dot)} />
+                            <span className={cn("font-bold truncate text-[11px] sm:text-xs", col.class)}>{col.name}</span>
                           </button>
-                        ))}
-                      </div>
+                        );
+                      })}
                     </div>
+                  </div>
 
-                    {/* Font Picker */}
-                    <div className="space-y-1.5 pt-1">
-                      <div className="text-[11px] text-slate-400 font-bold">Yazı Tipi (Font):</div>
-                      <div className="grid grid-cols-2 gap-1.5">
-                        {PROFILE_FONTS.map((font) => (
+                  {/* Font Picker */}
+                  <div className="space-y-1.5 pt-1">
+                    <div className="text-[11px] text-slate-400 font-bold flex items-center justify-between">
+                      <span>Yazı Tipi (Font):</span>
+                      <span className="text-[10px] text-slate-500 font-normal">Seçili: {PROFILE_FONTS.find(f => f.value === state.profileFont)?.name || "Oyun (Display)"}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {PROFILE_FONTS.map((font) => {
+                        const isSelected = state.profileFont === font.value;
+                        return (
                           <button
                             key={font.value}
+                            type="button"
                             onClick={async () => {
                               await updateProfileCustomization({ profileFont: font.value });
                             }}
                             className={cn(
-                              "text-left px-2.5 py-2 rounded-xl border text-xs cursor-pointer transition-all hover:bg-slate-800/50 flex items-center gap-2",
-                              state.profileFont === font.value
-                                ? "bg-amber-500/10 border-amber-500/80 shadow-md shadow-amber-500/5"
-                                : "bg-slate-950/30 border-slate-800"
+                              "text-left px-2.5 py-2 rounded-xl border text-xs cursor-pointer transition-all hover:bg-slate-800/60 flex items-center justify-between gap-1",
+                              isSelected
+                                ? "bg-amber-500/15 border-amber-400 shadow-md shadow-amber-500/10 ring-1 ring-amber-400/40"
+                                : "bg-slate-950/40 border-slate-800"
                             )}
                           >
-                            <span className={cn("font-bold text-slate-200", font.value)}>{font.name}</span>
+                            <span className="font-semibold text-slate-200 truncate text-[11px] sm:text-xs">{font.name}</span>
+                            <span className={cn("text-xs font-bold text-amber-300/90 shrink-0 px-1.5 py-0.5 rounded bg-slate-900/80 border border-slate-800", font.value)}>
+                              {font.sample}
+                            </span>
                           </button>
-                        ))}
-                      </div>
+                        );
+                      })}
                     </div>
                   </div>
-                ) : (
-                  <div className="bg-slate-950/80 border border-amber-500/20 rounded-2xl p-4 text-center space-y-3 relative overflow-hidden flex flex-col items-center">
-                    <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px] pointer-events-none" />
-                    <span className="text-4xl filter drop-shadow animate-bounce">🔒</span>
-                    <div className="z-10 relative">
-                      <h4 className="text-sm font-bold text-amber-400 mb-1">İsim Stili Paketini Aç!</h4>
-                      <p className="text-[11px] text-slate-300 leading-relaxed max-w-[220px] mx-auto">
-                        Tüm premium renk gradyanlarını, animasyonlu <b>Gökkuşağı Dalgası</b> stilini ve özel yazı tiplerini sınırsız kullan!
-                      </p>
-                    </div>
-
-                    <button
-                      onClick={async () => {
-                        const success = await spendGold(99999);
-                        if (success) {
-                          await updateProfileCustomization({ profileStyleUnlocked: true, profileColor: "gold", profileFont: "font-display" });
-                          alert("✨ TEBRİKLER! İsim stili paketi başarıyla açıldı! Artık istediğin renk ve yazı tipini seçebilirsin!");
-                        } else {
-                          alert("❌ Yetersiz Altın! İsim Stili Paketini açmak için 99,999 🪙 gerekiyor.");
-                        }
-                      }}
-                      className={cn(
-                        "z-10 relative w-full py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg active:scale-95 border",
-                        state.gold >= 99999
-                          ? "bg-gradient-to-r from-yellow-500 via-amber-500 to-yellow-600 text-slate-950 border-yellow-400 hover:brightness-110 cursor-pointer"
-                          : "bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed"
-                      )}
-                      disabled={state.gold < 99999}
-                    >
-                      <span>🪙 99,999</span> ile Kilidi Aç
-                    </button>
-                  </div>
-                )}
+                </div>
               </div>
             </motion.div>
           </motion.div>
@@ -642,7 +624,12 @@ export function Home({ user }: { user: UserData }) {
           playerCardLevels={state.cardLevels || {}}
           playerEmojis={(state.selectedEmojis as [string, string, string, string]) || ["", "", "", ""]}
           trophies={state.trophies}
+          playerRankedStars={state.rankedStars ?? 0}
+          playerAvatar={state.avatar || getAvatarForName(state.username)}
+          playerColor={state.profileColor}
+          playerFont={state.profileFont}
           opponentName={opponent.name}
+          opponentAvatar={opponent.avatar || getAvatarForName(opponent.name)}
           opponentTrophies={opponent.trophies}
           opponentRankedStars={opponent.rankedStars}
           opponentWins={opponent.wins}
@@ -1253,7 +1240,7 @@ function BattleTab({
       {trophies < 5000 && (
         <div className="bg-slate-950/40 border border-slate-900/60 rounded-xl px-3 py-2 text-center shadow-inner">
           <span className="text-[11px] text-slate-400 font-medium">
-            🔒 Dereceli Mod <b>5000 Kupa</b> değerinde açılır. Şampiyonlar Ligi'ne girmek için {5000 - trophies} kupa daha kazanın!
+            🔒 Dereceli Mod <b>5000 Kupa</b> değerinde açılır. Dereceli moda girmek için {5000 - trophies} kupa daha kazanın!
           </span>
         </div>
       )}
@@ -1320,7 +1307,7 @@ function BattleTab({
           ) : (
             <div className="pt-2 space-y-2">
               <div className="text-center text-xs text-cyan-300 font-bold font-mono">
-                Şampiyonlar Ligi Seviyesi 🌟
+                Dereceli Seviye 🌟
               </div>
               <button 
                 onClick={(e) => {

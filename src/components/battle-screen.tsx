@@ -6,7 +6,8 @@ import { ArenaView } from "./arena-view";
 import { db } from "@/firebase";
 import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { submitPlacements, submitAbilityTrigger, submitEmoji, BattlePlacement, cancelMatchmaking } from "@/lib/matchmaking";
-import { cn } from "@/lib/utils";
+import { cn, getAvatarForName } from "@/lib/utils";
+import { PROFILE_COLORS } from "./home-tab";
 import {
   computeRewards,
   makeBotDeck,
@@ -25,39 +26,49 @@ import {
 
 type Phase = "drafting" | "placing" | "fighting" | "done";
 
-function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[], arenaId?: number, mode?: string): { col: number; row: number } {
+function getBotPlacementCoordinate(
+  card: CardDef, 
+  existingUnits: Unit[], 
+  arenaId?: number, 
+  mode?: string, 
+  botTrophies: number = 0
+): { col: number; row: number } {
   const isOccupied = (c: number, r: number) => {
     return existingUnits.some(u => Math.round(u.col) === c && Math.round(u.row) === r);
   };
 
   const playerUnits = existingUnits.filter(u => u.side === "player");
-  
-  // Calculate column weight based on player units to try to align tanks or avoid threats
-  // Player is at row 13..24. We are at row 0..11.
+  const botUnits = existingUnits.filter(u => u.side === "bot");
+
+  const isSquishyRanged = ["okcu", "topcu", "bombalama-ucagi", "kus-ordusu", "kardan-adam", "volkan", "tufekci"].includes(card.id);
+  const isExtremeBack = ["sapanci", "buz-dolabi", "zombi"].includes(card.id);
+  const isHeavyTank = ["golem", "dev", "zirhli", "lav-kopegi", "kopek-baligi"].includes(card.id) || card.hp >= 150;
+  const isHealerSupport = ["doktor", "mercan"].includes(card.id);
+  const isAssassinFast = ["samuray", "vampir", "balik", "karinca-ordusu", "kabile"].includes(card.id);
+
+  // Column weights:
   const getColWeight = (c: number, r: number, wantAlign: boolean) => {
     let w = 0;
     for (const pu of playerUnits) {
       const distCol = Math.abs(pu.col - c);
       if (wantAlign) {
-        w += Math.max(0, 5 - distCol); // higher weight if closer column
+        w += Math.max(0, 6 - distCol);
       } else {
-        w -= Math.max(0, 5 - distCol); // lower weight if closer column
+        w -= Math.max(0, 6 - distCol);
       }
     }
 
-    // Spread bot units out so they aren't clustered together
-    const botUnits = existingUnits.filter(u => u.side === "bot");
+    // Spread bot units out slightly so they don't block each other
     for (const bu of botUnits) {
       const dist = Math.abs(bu.col - c) + Math.abs(bu.row - r);
-      if (dist < 4) {
-        w -= (5 - dist) * 2; // Penalize placing too close
+      if (dist < 2) {
+        w -= (3 - dist) * 3;
       }
     }
 
     return w;
   };
 
-  // Helper to find best column in a specific row
   const findBestColInRow = (r: number, wantAlign: boolean) => {
     let bestCol = -1;
     let bestW = -Infinity;
@@ -74,87 +85,183 @@ function getBotPlacementCoordinate(card: CardDef, existingUnits: Unit[], arenaId
     return bestCol !== -1 ? bestCol : null;
   };
 
-  const isSquishyRanged = ["okcu", "topcu", "bombalama-ucagi", "kus-ordusu", "kardan-adam", "volkan"].includes(card.id);
-  const isExtremeBack = ["sapanci", "buz-dolabi", "bira-varili"].includes(card.id);
+  // Find column with the highest density/threat of player units
+  const getPlayerThreatColumn = (): number => {
+    if (playerUnits.length === 0) return Math.floor(COLS / 2);
+    const colScores = new Array(COLS).fill(0);
+    playerUnits.forEach(pu => {
+      const c = Math.round(pu.col);
+      if (c >= 0 && c < COLS) {
+        const dmgNum = typeof pu.card.dmg === "number" ? pu.card.dmg : 40;
+        colScores[c] += (dmgNum * 2 + pu.hp);
+      }
+    });
+    let bestCol = Math.floor(COLS / 2);
+    let maxScore = -1;
+    colScores.forEach((score, col) => {
+      if (score > maxScore) {
+        maxScore = score;
+        bestCol = col;
+      }
+    });
+    return bestCol;
+  };
 
-  // Exception for Madenci
+  // === 1. MADENCI (Special placement across the whole board) ===
   if (card.id === "madenci") {
+    // 4000+ Bot: surgically place adjacent to player's squishiest / support unit (Doktor, Sapancı, Okçu, Topçu, etc.)
+    if (botTrophies >= 2000 && playerUnits.length > 0) {
+      // Find priority target: support or backline ranged
+      const priorityTargets = playerUnits.filter(u => 
+        ["doktor", "sapanci", "okcu", "topcu", "bombalama-ucagi", "bira-varili", "buz-dolabi", "tufekci"].includes(u.card.id)
+      );
+      const candidates = priorityTargets.length > 0 ? priorityTargets : [...playerUnits].sort((a, b) => b.row - a.row);
+      const target = candidates[0];
+
+      // Try adjacent squares (behind or beside)
+      const offsets = [
+        { dc: 0, dr: 1 },
+        { dc: 1, dr: 0 },
+        { dc: -1, dr: 0 },
+        { dc: 0, dr: -1 },
+        { dc: 1, dr: 1 },
+        { dc: -1, dr: 1 },
+      ];
+      for (const off of offsets) {
+        const tc = Math.round(target.col) + off.dc;
+        const tr = Math.round(target.row) + off.dr;
+        if (tc >= 0 && tc < COLS && tr >= 0 && tr < ROWS && tr !== RIVER_ROW && !isOccupied(tc, tr)) {
+          return { col: tc, row: tr };
+        }
+      }
+    }
+
+    // Default miner attempt
     let attempts = 0;
     while (attempts < 100) {
       const c = Math.floor(Math.random() * COLS);
       const r = Math.floor(Math.random() * ROWS);
       if (r !== RIVER_ROW && !isOccupied(c, r)) {
-        if (playerUnits.length > 0 && Math.random() < 0.9) {
+        if (playerUnits.length > 0 && Math.random() < 0.85) {
           const target = playerUnits[Math.floor(Math.random() * playerUnits.length)];
-          const tc = target.col;
-          const tr = target.row;
+          const tc = Math.round(target.col);
+          const tr = Math.round(target.row);
           const dCol = Math.floor(Math.random() * 3) - 1;
           const dRow = Math.floor(Math.random() * 3) - 1;
-          if (!isOccupied(tc + dCol, tr + dRow) && tr + dRow !== RIVER_ROW && tc + dCol >= 0 && tc + dCol < COLS && tr + dRow >= 0 && tr + dRow < ROWS) {
-             return { col: tc + dCol, row: tr + dRow };
+          const finalC = tc + dCol;
+          const finalR = tr + dRow;
+          if (finalC >= 0 && finalC < COLS && finalR >= 0 && finalR < ROWS && finalR !== RIVER_ROW && !isOccupied(finalC, finalR)) {
+            return { col: finalC, row: finalR };
           }
         } else {
-           return { col: c, row: r };
+          return { col: c, row: r };
         }
       }
       attempts++;
     }
   }
 
-  // Exception for Çığ
+  // === 2. ÇIĞ (Avalanche - wants front row directly facing player push) ===
   if (card.id === "cig") {
-    const rowsToTry = [10, 11, 9, 8];
+    const rowsToTry = [11, 10, 9];
+    const threatCol = getPlayerThreatColumn();
+    // Try threat column first
+    for (const r of rowsToTry) {
+      if (!isOccupied(threatCol, r)) return { col: threatCol, row: r };
+    }
     for (const r of rowsToTry) {
       const colOpt = findBestColInRow(r, true);
       if (colOpt !== null) return { col: colOpt, row: r };
     }
   }
 
-  // Extreme back cards
+  // === 3. BİRA VARİLİ (Center backline to radiate aura to both lanes) ===
+  if (card.id === "bira-varili") {
+    const centerCols = [2, 3, 1, 4];
+    const rowsToTry = [1, 2, 0];
+    for (const r of rowsToTry) {
+      for (const c of centerCols) {
+        if (!isOccupied(c, r)) return { col: c, row: r };
+      }
+    }
+  }
+
+  // === 4. HEAVY TANKS (Golem, Dev, Zırhlı, Lav Köpeği, Köpek Balığı) ===
+  if (isHeavyTank) {
+    // High IQ: Frontline (row 11 or 10), directly in the column facing player's biggest threat
+    const rowsToTry = botTrophies >= 2000 ? [11, 10, 9] : (Math.random() > 0.3 ? [11, 10] : [9, 8]);
+    const threatCol = getPlayerThreatColumn();
+
+    for (const r of rowsToTry) {
+      if (!isOccupied(threatCol, r)) return { col: threatCol, row: r };
+      // Try adjacent column
+      if (threatCol + 1 < COLS && !isOccupied(threatCol + 1, r)) return { col: threatCol + 1, row: r };
+      if (threatCol - 1 >= 0 && !isOccupied(threatCol - 1, r)) return { col: threatCol - 1, row: r };
+      const colOpt = findBestColInRow(r, true);
+      if (colOpt !== null) return { col: colOpt, row: r };
+    }
+  }
+
+  // === 5. DOKTOR & MERCAN (Support / Healer) ===
+  if (isHealerSupport) {
+    // 2000+ & 4000+ Bot: Place directly behind bot's tanks or frontline fighters!
+    if (botTrophies >= 2000) {
+      const botFrontline = botUnits.filter(u => u.row >= 9);
+      if (botFrontline.length > 0) {
+        const lead = botFrontline[0];
+        const behindRows = [Math.max(0, Math.round(lead.row) - 2), Math.max(0, Math.round(lead.row) - 3)];
+        for (const r of behindRows) {
+          const c = Math.round(lead.col);
+          if (!isOccupied(c, r)) return { col: c, row: r };
+          if (c + 1 < COLS && !isOccupied(c + 1, r)) return { col: c + 1, row: r };
+          if (c - 1 >= 0 && !isOccupied(c - 1, r)) return { col: c - 1, row: r };
+        }
+      }
+    }
+    const rowsToTry = [7, 8, 6, 5];
+    for (const r of rowsToTry) {
+      const colOpt = findBestColInRow(r, true);
+      if (colOpt !== null) return { col: colOpt, row: r };
+    }
+  }
+
+  // === 6. EXTREME BACKLINE ARTILLERY / BUILDINGS (Sapancı, Buz Dolabı, Mezarlık) ===
   if (isExtremeBack) {
-    const rowsToTry = Math.random() > 0.5 ? [0, 1, 2] : [1, 2, 0];
+    // Keep them safely at rows 0-2
+    const rowsToTry = [0, 1, 2];
     for (const r of rowsToTry) {
-      const colOpt = findBestColInRow(r, Math.random() > 0.5);
+      const colOpt = findBestColInRow(r, true);
       if (colOpt !== null) return { col: colOpt, row: r };
     }
   }
 
-  // Heavy tanks: Mostly front, sometimes mid
-  if (card.hp > 110) {
-    const rowsToTry = Math.random() > 0.3 ? [11, 10, 9] : [7, 8, 9];
-    for (const r of rowsToTry) {
-      const colOpt = findBestColInRow(r, Math.random() > 0.2);
-      if (colOpt !== null) return { col: colOpt, row: r };
-    }
-  }
-
-  // Ranged squishies: Mostly mid to back
+  // === 7. SQUISHY RANGED (Okçu, Topçu, Bombalama, Kuş Ordusu, Tüfekçi) ===
   if (isSquishyRanged) {
-    const rowsToTry = Math.random() > 0.4 ? [8, 9, 7] : [4, 5, 6];
+    // NEVER put them in front row 11 where they get insta-killed! Put them in mid-back (6-9)
+    const rowsToTry = [7, 8, 6, 9];
     for (const r of rowsToTry) {
-      const colOpt = findBestColInRow(r, Math.random() > 0.3);
+      const colOpt = findBestColInRow(r, true);
       if (colOpt !== null) return { col: colOpt, row: r };
     }
   }
 
-  // Other units: Sometimes front, sometimes mid, sometimes back
-  const placementStyle = Math.random();
-  let rowsToTry = [5, 6, 7];
-  if (placementStyle > 0.6) rowsToTry = [10, 9, 8];
-  else if (placementStyle > 0.3) rowsToTry = [3, 4, 5];
-
-  for (const r of rowsToTry) {
-    const colOpt = findBestColInRow(r, Math.random() > 0.3);
-    if (colOpt !== null) return { col: colOpt, row: r };
+  // === 8. FAST MELEE / ASSASSINS (Samuray, Vampir, Balık, Kabile) ===
+  if (isAssassinFast) {
+    // Put them in rows 10-11, targeting player's exposed column
+    const rowsToTry = [11, 10, 9];
+    const threatCol = getPlayerThreatColumn();
+    for (const r of rowsToTry) {
+      if (!isOccupied(threatCol, r)) return { col: threatCol, row: r };
+      const colOpt = findBestColInRow(r, true);
+      if (colOpt !== null) return { col: colOpt, row: r };
+    }
   }
 
-  // Fallback
-  let attempts = 0;
-  while (attempts < 100) {
-    const c = Math.floor(Math.random() * COLS);
-    const r = Math.floor(Math.random() * RIVER_ROW);
-    if (!isOccupied(c, r)) return { col: c, row: r };
-    attempts++;
+  // General fallback
+  const fallbackRows = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0];
+  for (const r of fallbackRows) {
+    const colOpt = findBestColInRow(r, true);
+    if (colOpt !== null) return { col: colOpt, row: r };
   }
 
   // Absolute fallback
@@ -174,7 +281,12 @@ interface Props {
   botDeckOverride?: string[] | null;
   playerEmojis?: [string, string, string, string];
   trophies: number;
+  playerRankedStars?: number;
+  playerAvatar?: string;
+  playerColor?: string;
+  playerFont?: string;
   opponentName: string;
+  opponentAvatar?: string;
   opponentTrophies: number;
   opponentRankedStars?: number;
   opponentWins?: number;
@@ -203,9 +315,35 @@ const RANKED_PREDEFINED_DECKS: Array<{ cards: string[] }> = [
   { cards: ["samuray", "bombalama-ucagi", "dev", "golem"] } // Meta Meta
 ];
 
-export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, playerEmojis = ["", "", "", ""], trophies, opponentName, opponentTrophies, opponentRankedStars, opponentWins, opponentTournamentWins, battleId, isPlayer1, mode = "standard", onFinish, onExit, username }: Props) {
+export function BattleScreen({ 
+  deck, 
+  playerCardLevels = {}, 
+  botDeckOverride, 
+  playerEmojis = ["", "", "", ""], 
+  trophies, 
+  playerRankedStars = 0,
+  playerAvatar,
+  playerColor,
+  playerFont,
+  opponentName, 
+  opponentAvatar,
+  opponentTrophies, 
+  opponentRankedStars, 
+  opponentWins, 
+  opponentTournamentWins, 
+  battleId, 
+  isPlayer1, 
+  mode = "standard", 
+  onFinish, 
+  onExit, 
+  username 
+}: Props) {
   const arena = arenaForTrophies(trophies);
   const oppWinsMax = Math.max(opponentWins ?? 0, opponentTournamentWins ?? 0);
+  const resolvedPlayerAvatar = playerAvatar || getAvatarForName(username);
+  const resolvedOpponentAvatar = opponentAvatar || getAvatarForName(opponentName);
+  const playerColorClass = PROFILE_COLORS.find((c) => c.value === playerColor)?.class || "text-slate-100";
+  const playerFontClass = playerFont || "font-display";
   const playerCards = useMemo(
     () => deck.map((id) => CARDS.find((c) => c.id === id)!).filter(Boolean),
     [deck],
@@ -267,6 +405,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
   const [placedIds, setPlacedIds] = useState<Set<string>>(new Set());
   const stateRef = useRef<BattleState>(makeInitialState());
   stateRef.current.arenaId = arena.id;
+  stateRef.current.botTrophies = opponentTrophies;
 
   const playerDeckCost = useMemo(() => {
     return deck.reduce((acc, id) => {
@@ -367,7 +506,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
       while (placedBotRef.current < 4) {
         const i = placedBotRef.current;
         const card = botDeck[i];
-        const coords = getBotPlacementCoordinate(card, stateRef.current.units, arena.id, mode);
+        const coords = getBotPlacementCoordinate(card, stateRef.current.units, arena.id, mode, opponentTrophies);
         const col = coords.col;
         const row = coords.row;
         const lvl = opponentCardLevels[card.id] ?? playerCardLevels[card.id] ?? 1;
@@ -421,7 +560,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
        while (placedBotRef.current < targetPlaced) {
          const i = placedBotRef.current;
          const card = botDeck[i];
-         const coords = getBotPlacementCoordinate(card, stateRef.current.units, arena.id, mode);
+         const coords = getBotPlacementCoordinate(card, stateRef.current.units, arena.id, mode, opponentTrophies);
          const col = coords.col;
          const row = coords.row;
          const lvl = opponentCardLevels[card.id] ?? playerCardLevels[card.id] ?? 1;
@@ -474,7 +613,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
         const unplacedOppCards = oppCards.filter(card => !spawnedBotCardIds.includes(card.id));
 
         unplacedOppCards.forEach(card => {
-          const coords = getBotPlacementCoordinate(card, stateRef.current.units, arena.id, mode);
+          const coords = getBotPlacementCoordinate(card, stateRef.current.units, arena.id, mode, opponentTrophies);
           const col = coords.col;
           const row = coords.row;
           const lvl = opponentCardLevels[card.id] ?? playerCardLevels[card.id] ?? 1;
@@ -705,37 +844,59 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
   return (
     <div className="fixed inset-y-0 left-1/2 -translate-x-1/2 z-40 flex flex-col bg-black w-full max-w-md shadow-2xl border-x border-slate-900">
       {/* header */}
-      <div className="flex items-center justify-between gap-2 bg-black/70 px-3 py-2 text-white">
-        <div className="w-[50px] flex items-center justify-start text-lg opacity-60">⚔️</div>
-        {(() => {
-          const oppRank = getRankForTrophies(opponentTrophies);
-          return (
-            <div className="text-center font-display">
-              <div className="text-stroke text-base leading-none text-slate-100 font-bold tracking-tight">
-                {opponentName} {opponentName.toLowerCase() === "dgoa" && "🛠️"}
-              </div>
-              <div className="text-[10px] opacity-95 flex items-center justify-center gap-1.5 mt-0.5">
-                {mode === "ranked" ? (
-                  <>
-                    <span className="text-cyan-300 font-medium">{opponentRankedStars ?? 0} ⭐</span>
-                  </>
-                ) : (
-                  <>
-                    <span>{opponentTrophies} 🏆</span>
-                    <span className="w-1 h-1 rounded-full bg-slate-600"></span>
-                    <span className="text-cyan-400 font-medium">{oppRank.current.name} {oppRank.current.emoji}</span>
-                  </>
-                )}
-              </div>
+      <div className="flex items-center justify-between gap-2 bg-slate-950/90 border-b border-slate-800 px-3 py-2 text-white shrink-0 shadow-md">
+        {/* Player Profile (Left - Blue Side) */}
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <span className="w-8 h-8 rounded-full bg-slate-900 border-2 border-blue-500/80 flex items-center justify-center text-lg shadow-sm shrink-0">
+            {resolvedPlayerAvatar}
+          </span>
+          <div className="min-w-0 text-left">
+            <div className={cn("text-xs font-bold truncate flex items-center gap-1 leading-tight", playerFontClass, playerColorClass)}>
+              <span>{username}</span>
+              {username.toLowerCase() === "dgoa" && <span>🛠️</span>}
             </div>
-          );
-        })()}
-        <div className="font-display text-lg text-amber-300">
-          {phase === "placing"
-            ? `⏱ ${placeTimer}s`
-            : phase === "fighting"
-            ? `⚔ ${Math.max(0, FIGHT_TIMEOUT - Math.floor(stateRef.current.time))}s`
-            : "—"}
+            <div className="text-[10px] text-blue-300 font-medium flex items-center gap-1 leading-tight">
+              {mode === "ranked" ? (
+                <span>{playerRankedStars ?? 0} ⭐</span>
+              ) : (
+                <span>{trophies} 🏆</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Center: Timer / VS */}
+        <div className="text-center shrink-0 px-1.5 flex flex-col items-center justify-center">
+          <div className="font-display text-sm sm:text-base font-bold text-amber-300 drop-shadow">
+            {phase === "placing"
+              ? `⏱ ${placeTimer}s`
+              : phase === "fighting"
+              ? `⚔ ${Math.max(0, FIGHT_TIMEOUT - Math.floor(stateRef.current.time))}s`
+              : "—"}
+          </div>
+          <div className="text-[8.5px] text-slate-400 font-mono uppercase tracking-wider leading-none">
+            {phase === "placing" ? "Yerleştirme" : phase === "fighting" ? "Savaş" : "Bitti"}
+          </div>
+        </div>
+
+        {/* Opponent Profile (Right - Red Side) */}
+        <div className="flex items-center justify-end gap-2 min-w-0 flex-1 text-right">
+          <div className="min-w-0">
+            <div className="text-xs font-bold text-slate-100 truncate flex items-center justify-end gap-1 font-display leading-tight">
+              <span>{opponentName}</span>
+              {opponentName.toLowerCase() === "dgoa" && <span>🛠️</span>}
+            </div>
+            <div className="text-[10px] text-red-300 font-medium flex items-center justify-end gap-1 leading-tight">
+              {mode === "ranked" ? (
+                <span>{opponentRankedStars ?? 0} ⭐</span>
+              ) : (
+                <span>{opponentTrophies} 🏆</span>
+              )}
+            </div>
+          </div>
+          <span className="w-8 h-8 rounded-full bg-slate-900 border-2 border-red-500/80 flex items-center justify-center text-lg shadow-sm shrink-0">
+            {resolvedOpponentAvatar}
+          </span>
         </div>
       </div>
 
@@ -823,7 +984,7 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
           {(() => {
             const playerAbilityUnits = stateRef.current.units.filter((u) => {
               if (u.side !== "player" || u.hp <= 0) return false;
-              return ["hayalet", "madenci", "doktor", "bira-varili", "bombalama-ucagi", "zirhli", "kurbaga", "lav-kopegi", "samuray", "cig", "vampir", "lanet"].includes(u.card.id);
+              return ["hayalet", "doktor", "bira-varili", "bombalama-ucagi", "zirhli", "kurbaga", "lav-kopegi", "samuray", "cig", "vampir", "lanet"].includes(u.card.id);
             });
 
             return (
@@ -838,14 +999,13 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
                       let statusText: string | null = null;
                       let isDisabled = false;
 
-                      if (u.card.id === "madenci") {
-                        isDisabled = !u.underground;
-                        statusText = u.underground ? "⛏️" : "✓";
-                      } else if (u.card.id === "doktor") {
-                        const cd = Math.ceil(u.doktorAbilityCd ?? 0);
-                        if (cd > 0) {
-                          statusText = `${cd}s`;
+                      if (u.card.id === "doktor") {
+                        const uses = u.doktorUsesLeft ?? 3;
+                        if (uses <= 0) {
+                          statusText = "0/3";
                           isDisabled = true;
+                        } else {
+                          statusText = `${uses}/3`;
                         }
                       } else if (u.card.id === "hayalet") {
                         const isImmune = (u.immuneTimeLeft ?? 0) > 0;
@@ -901,6 +1061,12 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
                       } else if (u.card.id === "samuray") {
                         if (u.samurayAbilityActive) {
                           statusText = "2x Damage";
+                          isDisabled = true;
+                        }
+                      } else if (u.card.id === "vampir") {
+                        const isInvis = (u.vampirInvisTimeLeft ?? 0) > 0;
+                        if (isInvis) {
+                          statusText = `${u.vampirInvisTimeLeft!.toFixed(1)}s`;
                           isDisabled = true;
                         }
                       } else if (u.card.id === "cig") {
@@ -1005,6 +1171,23 @@ export function BattleScreen({ deck, playerCardLevels = {}, botDeckOverride, pla
           <div className="w-full max-w-md panel-3d rounded-2xl p-4 text-center text-white">
             <div className="text-stroke font-display text-3xl">
               {winner === "player" ? "ZAFER! 🏆" : "BOZGUN 💀"}
+            </div>
+            
+            {/* Matchup Avatars */}
+            <div className="flex items-center justify-center gap-4 my-2.5 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80">
+              <div className="flex flex-col items-center">
+                <span className="w-10 h-10 rounded-full bg-slate-950 border-2 border-blue-500/80 flex items-center justify-center text-xl shadow">
+                  {resolvedPlayerAvatar}
+                </span>
+                <span className={cn("text-[11px] font-bold mt-1 max-w-[85px] truncate", playerFontClass, playerColorClass)}>{username}</span>
+              </div>
+              <span className="text-sm font-black text-amber-400 font-display">VS</span>
+              <div className="flex flex-col items-center">
+                <span className="w-10 h-10 rounded-full bg-slate-950 border-2 border-red-500/80 flex items-center justify-center text-xl shadow">
+                  {resolvedOpponentAvatar}
+                </span>
+                <span className="text-[11px] font-bold text-slate-200 mt-1 max-w-[85px] truncate font-display">{opponentName}</span>
+              </div>
             </div>
             {mode === "tournament" ? (
               <div className="mt-2 flex flex-col items-center justify-center gap-1 font-display">

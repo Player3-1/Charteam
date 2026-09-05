@@ -53,6 +53,7 @@ export interface Unit {
   cigTriggered?: boolean;
   buyucuInvisTriggered?: boolean;
   buyucuInvisTimeLeft?: number;
+  vampirInvisTimeLeft?: number;
   drag1CdLeft?: number;
   drag2CdLeft?: number;
   drag3CdLeft?: number;
@@ -67,7 +68,7 @@ export interface Projectile {
   toRow: number;
   t: number; // 0..1
   duration: number;
-  kind: "arrow" | "stone" | "bullet" | "bomb" | "fire" | "snowball" | "ice" | "tongue";
+  kind: "arrow" | "stone" | "bullet" | "bomb" | "fire" | "snowball" | "ice" | "tongue" | "shuriken" | "bat" | "blood";
   attackerUid: number;
   damage: number;
   aoeRange?: number;
@@ -159,32 +160,31 @@ export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: nu
     return;
   }
 
-  // Kabile spawns 6 individual tribe members
+  // Kabile spawns 2 squad members arranged with 1 slot gap between them on the same row
   if (card.id === "kabile") {
-    const offsets = [
-      [0, 0],
-      [-0.4, -0.4],
-      [0.4, -0.4],
-      [-0.4, 0.4],
-      [0.4, 0.4],
-      [0, 0.5]
+    let leftCol = col - 1;
+    let rightCol = col + 1;
+    if (leftCol < 0) { leftCol = 0; rightCol = 2; }
+    if (rightCol >= COLS) { rightCol = COLS - 1; leftCol = COLS - 3; }
+    const positions = [
+      { col: leftCol, row },
+      { col: rightCol, row }
     ];
-    const mult = side === "bot" ? -1 : 1;
-    offsets.forEach(([dc, dr], index) => {
-      const scaledHp = 25;
+    positions.forEach((pos, index) => {
+      const scaledHp = 150;
       state.units.push({
         uid: nextUid(),
         card: {
           ...card,
           id: `kabile-member-${index}`,
-          name: `Tribe Fighter ${index + 1}`,
+          name: `Kabile Savaşçısı ${index + 1}`,
           hp: scaledHp,
-          dmg: 15,
+          dmg: 50,
           cd: card.cd,
         },
         side,
-        col: Math.max(0, Math.min(COLS - 1, col + dc * mult)),
-        row: Math.max(0, Math.min(ROWS - 1, row + dr * mult)),
+        col: pos.col,
+        row: pos.row,
         hp: scaledHp,
         maxHp: scaledHp,
         cdLeft: card.cd,
@@ -215,7 +215,6 @@ export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: nu
   const hp = Math.max(1, Math.round(card.hp));
   
   // Custom setups for specific cards
-  const isMiner = card.id === "madenci";
   const isDoktor = card.id === "doktor";
 
   state.units.push({
@@ -228,8 +227,8 @@ export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: nu
     maxHp: hp,
     cdLeft: card.cd,
     flying: card.range === "hava" || card.id === "hayalet",
-    underground: isMiner,
-    doktorAbilityCd: isDoktor ? 0 : undefined,
+    underground: false,
+    doktorUsesLeft: isDoktor ? 3 : undefined,
     chargeTime: card.id === "atli" ? 0 : undefined,
     isCharging: card.id === "atli" ? true : undefined,
     bomberUsesLeft: card.id === "bombalama-ucagi" ? 1 : undefined,
@@ -240,6 +239,8 @@ export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: nu
 function attackRange(card: CardDef): number {
   if (card.id === "sapanci") return 25.0; // Extremely high range, can shoot targeting backline
   if (card.id === "volkan") return 20.0; // exactly 5 blocks less than sapanci (25.0 - 5.0)
+  if (card.id === "samuray") return 4.0; // Hybrid warrior: shuriken at range (up to 4.0), sword slash at melee
+  if (card.id === "vampir") return 4.0; // Ranged vampire
   if (card.range === "yakın") return 1.1;
   if (card.range === "hava") return 5.0;
   if (card.range === "uzak") return 4.0;
@@ -247,7 +248,7 @@ function attackRange(card: CardDef): number {
 }
 
 function speed(card: CardDef): number {
-  if (card.id === "mercan" || card.id === "volkan" || card.id === "lanet") return 0; // Static building/coral/spell
+  if (card.id === "mercan" || card.id === "volkan" || card.id === "lanet" || card.id === "zombi") return 0; // Static building/graveyard
   if (card.id === "kopek-baligi") return 2.0; // Fast shark (speed fast)
   if (card.id === "balik") return 1.3; // Fast fish
   if (card.id === "atli") return 2.4; // Fast cavalry
@@ -273,6 +274,8 @@ function projectileKind(card: CardDef): Projectile["kind"] | null {
   if (card.id === "kurbaga") return "tongue";
   if (card.id === "uc-basli-ejder") return "fire"; // Custom multishot fires ice/fire kinds
   if (card.id === "buyucu") return "bullet";
+  if (card.id === "vampir") return "blood";
+  if (card.id === "samuray") return "shuriken";
   if (card.id === "lanet") return null;
   if (card.range === "yakın") return null;
   return "arrow";
@@ -326,7 +329,7 @@ function handleProjectileImpact(p: Projectile, state: BattleState) {
           target.frozenTimeLeft = Math.max(target.frozenTimeLeft || 0, 0.6);
         } else if (p.ucBasliYakici) {
           target.burningTicksLeft = 3;
-          target.burningDmgPerTick = 11;
+          target.burningDmgPerTick = 9;
           target.burningCdLeft = 1.0;
         }
       }
@@ -540,6 +543,11 @@ export function tickBattle(state: BattleState, dt: number) {
       u.doktorAbilityCd = Math.max(0, u.doktorAbilityCd - dt);
     }
 
+    // Vampir invisibility timer
+    if (u.vampirInvisTimeLeft !== undefined && u.vampirInvisTimeLeft > 0) {
+      u.vampirInvisTimeLeft = Math.max(0, u.vampirInvisTimeLeft - dt);
+    }
+
     // Lav Köpeği ability duration timer
     if (u.lavKopegiAbilityTimeLeft !== undefined && u.lavKopegiAbilityTimeLeft > 0) {
       u.lavKopegiAbilityTimeLeft = Math.max(0, u.lavKopegiAbilityTimeLeft - dt);
@@ -621,10 +629,21 @@ export function tickBattle(state: BattleState, dt: number) {
           triggerUnitAbility(u, state);
         }
       }
+      // Vampir 4s invisibility if targeted or low health
+      if (u.card.id === "vampir" && (u.vampirInvisTimeLeft ?? 0) <= 0 && u.hp < u.maxHp * 0.7) {
+        triggerUnitAbility(u, state);
+      }
+      // Lanet trigger if player has 2+ units
+      if (u.card.id === "lanet" && (state.lanetTimeLeft ?? 0) <= 0) {
+        const playerUnits = state.units.filter(o => o.side !== u.side && o.hp > 0);
+        if (playerUnits.length >= 2) {
+          triggerUnitAbility(u, state);
+        }
+      }
       // Doktor heal if allies are injured
-      if (u.card.id === "doktor" && u.side !== "bot" && (u.doktorAbilityCd || 0) <= 0) {
+      if (u.card.id === "doktor" && (u.doktorUsesLeft ?? 3) > 0) {
         const injuredNearby = state.units.some(
-          (o) => o.side === u.side && o.hp > 0 && o.hp < o.maxHp * 0.9 && dist(u, o) <= 5.0
+          (o) => o.side === u.side && o.hp > 0 && o.hp <= o.maxHp - 75 && dist(u, o) <= 5.0
         );
         if (injuredNearby) {
           triggerUnitAbility(u, state);
@@ -652,33 +671,59 @@ export function tickBattle(state: BattleState, dt: number) {
           triggerUnitAbility(u, state);
         }
       }
-      
-      // Miner automatically emerges after 4 seconds underground
-      if (u.card.id === "madenci" && u.underground && state.time >= 4.0) {
-        emergeMiner(u);
-      }
     }
   }
 
   // Persistent abilities that trigger automatically regardless of side
   for (const u of state.units) {
     if (u.hp > 0) {
+      // Lanet freeze stops persistent abilities like buz-dolabi as well
+      if (state.lanetTimeLeft !== undefined && state.lanetTimeLeft > 0 && u.side !== state.lanetSide) {
+        continue;
+      }
       if (u.card.id === "buz-dolabi" && u.cdLeft <= 0) {
-        // We need to know if it succeeded. Let's make triggerUnitAbility return a boolean?
-        // Or just check here?
         const enemies = state.units.filter((e) => e.side !== u.side && isUnitTargetable(e));
         if (enemies.length > 0) {
           triggerUnitAbility(u, state);
           u.cdLeft = u.card.cd; 
         }
       }
+      // Mezarlik (zombi) spawns 300 HP / 30 DMG zombie every 4s
+      if (u.card.id === "zombi" && u.cdLeft <= 0) {
+        const spawnRow = u.side === "player" ? Math.max(0, u.row - 0.7) : Math.min(ROWS - 1, u.row + 0.7);
+        state.units.push({
+          uid: nextUid(),
+          card: {
+            id: "spawned-zombi",
+            name: "Zombi",
+            emoji: "🧟",
+            rarity: "common",
+            hp: 300,
+            dmg: 30,
+            cd: 1.4,
+            range: "yakın",
+            description: "Mezarlıktan çıkan zombi.",
+            stoneCost: 0,
+          },
+          side: u.side,
+          col: u.col,
+          row: spawnRow,
+          hp: 300,
+          maxHp: 300,
+          cdLeft: 0.5,
+          flying: false,
+          level: u.level || 1,
+        });
+        u.cdLeft = 4.0;
+      }
+      // Mercan passive heal (+50 HP every 2s)
       if (u.card.id === "mercan" && u.cdLeft <= 0) {
         state.units.forEach((targetUnit) => {
           if (targetUnit.side === u.side && targetUnit.hp > 0) {
-            targetUnit.hp = Math.min(targetUnit.maxHp, targetUnit.hp + 10);
+            targetUnit.hp = Math.min(targetUnit.maxHp, targetUnit.hp + 50);
           }
         });
-        u.cdLeft = u.card.cd; 
+        u.cdLeft = 2.0; 
       }
     }
   }
@@ -766,8 +811,8 @@ export function tickBattle(state: BattleState, dt: number) {
       continue;
     }
 
-    // Bira Varili and Cig do not move or attack
-    if (u.card.id === "bira-varili" || u.card.id === "cig") {
+    // Bira Varili, Cig, and Mezarlik (zombi) do not move or attack
+    if (u.card.id === "bira-varili" || u.card.id === "cig" || u.card.id === "zombi") {
       continue;
     }
 
@@ -776,6 +821,7 @@ export function tickBattle(state: BattleState, dt: number) {
       if (e.side === u.side || !isUnitTargetable(e)) return false;
       
       if (e.buyucuInvisTimeLeft !== undefined && e.buyucuInvisTimeLeft > 0) return false;
+      if (e.vampirInvisTimeLeft !== undefined && e.vampirInvisTimeLeft > 0) return false;
 
       // Ghost is invisible unless revealed
       // Ghost is also completely invisible and untargetable if its ability is active
@@ -818,9 +864,9 @@ export function tickBattle(state: BattleState, dt: number) {
       u.chargeTime = 0;
 
       if (u.card.id === "uc-basli-ejder") {
-        let dmg1 = 77;
-        let dmg2 = 77;
-        let dmg3 = 77;
+        let dmg1 = 62;
+        let dmg2 = 62;
+        let dmg3 = 62;
 
         // Apply Bira Varili damage aura boosts
         const activeAuraBarrels = state.units.filter(
@@ -911,7 +957,7 @@ export function tickBattle(state: BattleState, dt: number) {
 
         // Custom combat stats logic:
         if (u.card.id === "atli") {
-          dmgValueResult = u.isCharging ? 90 : 40;
+          dmgValueResult = u.isCharging ? 120 : 50;
           u.isCharging = false; // discharge charging stamp
         }
 
@@ -937,46 +983,51 @@ export function tickBattle(state: BattleState, dt: number) {
 
 
 
-        const kind = projectileKind(u.card);
-        if (kind) {
-          let aoeRange = 0;
-          if (u.card.id === "bombalama-ucagi") aoeRange = 2;
-          else if (u.card.id === "sapanci") aoeRange = 1.5;
-          else if (u.card.id === "ejder") aoeRange = 1.5;
-          else if (u.card.id === "buz-ejderi") aoeRange = 1.5;
-          else if (u.card.id === "topcu") aoeRange = 2.0;
-          else if (u.card.id === "buz-dolabi") aoeRange = 1.5;
-          else if (u.card.id === "volkan") aoeRange = 1.5;
-
-          let buyucuEffect: "normal" | "burn" | "slow" | undefined = undefined;
-          if (u.card.id === "buyucu") {
-            const roll = Math.random();
-            if (roll < 0.33) buyucuEffect = "burn";
-            else if (roll < 0.66) buyucuEffect = "slow";
-            else buyucuEffect = "normal";
-          }
-
-          state.projectiles.push({
-            uid: nextUid(),
-            side: u.side,
-            fromCol: u.col,
-            fromRow: u.row,
-            toCol: best.col,
-            toRow: best.row,
-            t: 0,
-            duration: u.card.id === "sapanci" ? Math.max(0.15, bestD * 0.04) : Math.max(0.3, bestD * 0.1),
-            kind,
-            attackerUid: u.uid,
-            damage: dmgValueResult,
-            aoeRange: aoeRange > 0 ? aoeRange : undefined,
-            targetUid: best.uid,
-            buyucuEffect,
-          });
-        } else {
-          // Direct single strike
+        if (u.card.id === "samuray" && bestD <= 1.2) {
+          // Samuray: Yakından kılıçla vurur
           applyCombatDamage(state, best, dmgValueResult, u);
-          if (u.card.id === "kopek-baligi") {
-            u.hp = Math.min(u.maxHp, u.hp + 40);
+        } else {
+          const kind = projectileKind(u.card);
+          if (kind) {
+            let aoeRange = 0;
+            if (u.card.id === "bombalama-ucagi") aoeRange = 2;
+            else if (u.card.id === "sapanci") aoeRange = 1.5;
+            else if (u.card.id === "ejder") aoeRange = 1.5;
+            else if (u.card.id === "buz-ejderi") aoeRange = 1.5;
+            else if (u.card.id === "topcu") aoeRange = 2.0;
+            else if (u.card.id === "buz-dolabi") aoeRange = 1.5;
+            else if (u.card.id === "volkan") aoeRange = 1.5;
+
+            let buyucuEffect: "normal" | "burn" | "slow" | undefined = undefined;
+            if (u.card.id === "buyucu") {
+              const roll = Math.random();
+              if (roll < 0.33) buyucuEffect = "burn";
+              else if (roll < 0.66) buyucuEffect = "slow";
+              else buyucuEffect = "normal";
+            }
+
+            state.projectiles.push({
+              uid: nextUid(),
+              side: u.side,
+              fromCol: u.col,
+              fromRow: u.row,
+              toCol: best.col,
+              toRow: best.row,
+              t: 0,
+              duration: u.card.id === "sapanci" ? Math.max(0.15, bestD * 0.04) : (u.card.id === "samuray" ? Math.max(0.18, bestD * 0.05) : Math.max(0.3, bestD * 0.1)),
+              kind,
+              attackerUid: u.uid,
+              damage: dmgValueResult,
+              aoeRange: aoeRange > 0 ? aoeRange : undefined,
+              targetUid: best.uid,
+              buyucuEffect,
+            });
+          } else {
+            // Direct single strike
+            applyCombatDamage(state, best, dmgValueResult, u);
+            if (u.card.id === "kopek-baligi") {
+              u.hp = Math.min(u.maxHp, u.hp + 40);
+            }
           }
         }
 
@@ -1098,6 +1149,10 @@ function applyCombatDamage(state: BattleState, defender: Unit, dmg: number, atta
   if (defender.buyucuInvisTimeLeft !== undefined && defender.buyucuInvisTimeLeft > 0) {
     return;
   }
+
+  if (defender.vampirInvisTimeLeft !== undefined && defender.vampirInvisTimeLeft > 0) {
+    return; // takes 0 damage while invisible
+  }
   
   // Zırhlı defense absorption (absorbs 25%, takes 75%)
   let finalDmg = defender.zirhliDefendingTimeLeft !== undefined && defender.zirhliDefendingTimeLeft > 0
@@ -1109,9 +1164,11 @@ function applyCombatDamage(state: BattleState, defender: Unit, dmg: number, atta
     finalDmg *= 2.0;
   }
 
-  // Custom balance: AoE cards take 3 hits to kill Tribe and Bird Army
+  // Custom balance: AoE cards take 6 hits to kill Tribe and 3 hits for Bird Army
   if (isAoe) {
-    if (defender.card.id.startsWith("kabile") || defender.card.id.startsWith("kus-ordusu")) {
+    if (defender.card.id.startsWith("kabile")) {
+      finalDmg = Math.min(finalDmg, defender.maxHp / 5.9);
+    } else if (defender.card.id.startsWith("kus-ordusu")) {
       finalDmg = Math.min(finalDmg, defender.maxHp / 2.9);
     }
   }
@@ -1128,13 +1185,12 @@ function applyCombatDamage(state: BattleState, defender: Unit, dmg: number, atta
     if (attacker.card.id === "zombi") {
       attacker.hp = Math.min(attacker.maxHp, attacker.hp + 44);
     } else if (attacker.card.id === "vampir") {
-      const prevMax = attacker.maxHp;
-      const nextMax = Math.min(500, prevMax + 50);
-      if (nextMax > prevMax) {
-        attacker.maxHp = nextMax;
-      }
-      // Vampir heals 45 on every hit
-      attacker.hp = Math.min(attacker.maxHp, attacker.hp + 45);
+      // Vampir: vurduğu hasar başına tüm dost kartların canı 30 dolar
+      state.units.forEach((friendlyUnit) => {
+        if (friendlyUnit.side === attacker.side && friendlyUnit.hp > 0) {
+          friendlyUnit.hp = Math.min(friendlyUnit.maxHp, friendlyUnit.hp + 30);
+        }
+      });
     }
   }
 
@@ -1161,7 +1217,7 @@ export function getAbilityStoneCost(cardId: string): number {
     case "zirhli": return 2;
     case "hayalet": return 1;
     case "madenci": return 0;
-    case "doktor": return 1;
+    case "doktor": return 0;
     case "bira-varili": return 2;
     case "bombalama-ucagi": return 1;
     case "cig": return 0;
@@ -1208,20 +1264,20 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
     }
   }
 
-  // 13. Doktor: hp healing 5x5 alanda +120
+  // 13. Doktor: hp healing 5x5 alanda +250, bedava, maks 3 kullanım, bekleme süresi yok
   else if (unit.card.id === "doktor") {
-    if (unit.side !== "bot" && (unit.doktorAbilityCd || 0) <= 0) {
-      unit.doktorAbilityCd = 5.0; // Cooldown 5s
+    const uses = unit.doktorUsesLeft ?? 3;
+    if (uses <= 0) return;
+    unit.doktorUsesLeft = uses - 1;
 
-      state.units.forEach((targetUnit) => {
-        if (targetUnit.side === unit.side && isUnitTargetable(targetUnit)) {
-          // Surrounding blocks (within 5.0 range / 5x5 area)
-          if (dist(targetUnit, unit) <= 5.0) {
-            targetUnit.hp = Math.min(targetUnit.maxHp, targetUnit.hp + 120); // heal 120 health
-          }
+    state.units.forEach((targetUnit) => {
+      if (targetUnit.side === unit.side && isUnitTargetable(targetUnit)) {
+        // Surrounding blocks (within 5.0 range / 5x5 area)
+        if (dist(targetUnit, unit) <= 5.0) {
+          targetUnit.hp = Math.min(targetUnit.maxHp, targetUnit.hp + 250); // heal 250 health
         }
-      });
-    }
+      }
+    });
   }
 
   // 22. Mercan: heals whole team by 75 HP
@@ -1392,10 +1448,10 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
     unit.samurayAbilityActive = true;
   }
   else if (unit.card.id === "vampir") {
-    unit.hp = unit.maxHp; // Maxes/fully heals HP
+    unit.vampirInvisTimeLeft = 4.0;
   }
   else if (unit.card.id === "lanet") {
-    state.lanetTimeLeft = 4.4;
+    state.lanetTimeLeft = 3.0;
     state.lanetSide = unit.side;
     unit.hp = 0;
   }

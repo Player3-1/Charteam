@@ -6,7 +6,7 @@ import { GameCard } from "@/components/game-card";
 import { CARDS } from "@/lib/cards";
 import { getRankForRankProgress } from "@/lib/arenas";
 import { motion, AnimatePresence } from "motion/react";
-import { cn } from "@/lib/utils";
+import { cn, getAvatarForName } from "@/lib/utils";
 
 export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: UserData; currentTrophies: number }) {
   const [topPlayers, setTopPlayers] = useState<UserData[]>([]);
@@ -93,6 +93,9 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
             >
               <div className="flex items-center gap-3.5 z-10">
                  <div className="text-4xl filter drop-shadow">{podiumEmojis[i] || ` #${i + 1}`}</div>
+                 <div className="w-11 h-11 rounded-xl bg-slate-900 border border-amber-500/30 flex items-center justify-center text-2xl shadow-inner shrink-0">
+                   {player.avatar || getAvatarForName(player.username)}
+                 </div>
                  <div>
                     <div className="font-display text-lg text-white font-black tracking-wide flex items-center gap-1.5">
                       {player.username} {player.username.toLowerCase() === "dgoa" && <span className="text-sm">🛠️</span>}
@@ -163,18 +166,14 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
       {selectedPlayer && (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
           <div className="rounded-3xl bg-slate-950 border border-slate-800 p-6 shadow-2xl w-full max-w-sm panel-3d relative max-h-[90vh] overflow-y-auto scrollbar-none flex flex-col">
-            <h2 className="text-2xl font-black text-white text-center mb-1 flex items-center justify-center gap-1.5 shrink-0">
-              {selectedPlayer.username} {selectedPlayer.username.toLowerCase() === "dgoa" && "🛠️"}
-            </h2>
-            {(() => {
-              const r = getRankForRankProgress(selectedPlayer.rankProgressTrophies || 0);
-              return (
-                <div className="text-center text-cyan-400 font-bold mb-4 flex items-center justify-center gap-1.5 text-xs tracking-wider uppercase bg-cyan-950/40 py-1 px-3 rounded-full border border-cyan-800/40 w-fit mx-auto shrink-0 animate-pulse">
-                  <span>{r.current.emoji}</span>
-                  <span>{r.current.name}</span>
-                </div>
-              );
-            })()}
+            <div className="flex items-center justify-center gap-2 mb-4 shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-slate-900 border border-amber-500/30 flex items-center justify-center text-2xl shadow-inner shrink-0">
+                {selectedPlayer.avatar || getAvatarForName(selectedPlayer.username)}
+              </div>
+              <h2 className="text-2xl font-black text-white text-center flex items-center gap-1.5">
+                {selectedPlayer.username} {selectedPlayer.username.toLowerCase() === "dgoa" && "🛠️"}
+              </h2>
+            </div>
             <div className="bg-slate-900/60 rounded-2xl p-4 border border-slate-800/60 mb-5 space-y-2 shrink-0">
               <div className="flex justify-between text-sm">
                 <span className="text-slate-400 font-medium">Toplam Kupa:</span>
@@ -370,6 +369,9 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
                       "bg-slate-900 border border-slate-800 text-slate-400"
                     )}>
                       {rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`}
+                    </div>
+                    <div className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-base shrink-0">
+                      {player.avatar || getAvatarForName(player.username)}
                     </div>
                     <div className="min-w-0">
                       <div className="text-sm font-black text-white truncate flex items-center gap-1">

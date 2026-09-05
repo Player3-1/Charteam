@@ -1,6 +1,7 @@
 import { db } from "@/firebase";
 import { collection, doc, getDoc, getDocs, query, setDoc, deleteDoc, onSnapshot, serverTimestamp, where, orderBy, limit, updateDoc, arrayUnion } from "firebase/firestore";
 import { UserData } from "@/types";
+import { getAvatarForName } from "@/lib/utils";
 
 export interface BattlePlacement {
   cardId: string;
@@ -15,8 +16,8 @@ export interface BattleAbilityTrigger {
 
 export interface BattleDoc {
   id: string;
-  player1: { username: string; trophies: number; deck: string[] };
-  player2: { username: string; trophies: number; deck: string[] };
+  player1: { username: string; trophies: number; deck: string[]; avatar?: string; rankedStars?: number; wins?: number };
+  player2: { username: string; trophies: number; deck: string[]; avatar?: string; rankedStars?: number; wins?: number };
   player1Placements: BattlePlacement[];
   player2Placements: BattlePlacement[];
   player1Abilities?: BattleAbilityTrigger[];
@@ -43,23 +44,28 @@ export async function findOrCreateMatch(user: UserData, mode: "standard" | "tour
       const rand = Math.floor(100000 + Math.random() * 900000);
       const battleId = `${oppDoc.id}_${user.username}_${rand}`;
       
+      const p1Avatar = oppData.avatar || getAvatarForName(oppData.username);
+      const p2Avatar = user.avatar || getAvatarForName(user.username);
+
       // Create battle doc
       await setDoc(doc(db, "battles", battleId), {
         id: battleId,
         mode: mode, // Save mode in battle
         player1: {
            username: oppData.username,
+           avatar: p1Avatar,
            trophies: oppData.trophies,
            rankedStars: oppData.rankedStars ?? 0,
            deck: oppData.deck,
-          wins: oppData.wins ?? 0,
+           wins: oppData.wins ?? 0,
         },
         player2: {
            username: user.username,
+           avatar: p2Avatar,
            trophies: user.trophies,
            rankedStars: user.rankedStars ?? 0,
            deck: user.deck,
-          wins: user.wins ?? 0,
+           wins: user.wins ?? 0,
         },
         player1Placements: [],
         player2Placements: [],
@@ -81,8 +87,10 @@ export async function findOrCreateMatch(user: UserData, mode: "standard" | "tour
   }
 
   // Join queue
+  const myAvatar = user.avatar || getAvatarForName(user.username);
   await setDoc(doc(db, "matchmaking", user.username), {
     username: user.username,
+    avatar: myAvatar,
     trophies: user.trophies,
     rankedStars: user.rankedStars ?? 0,
     deck: user.deck,
