@@ -7,6 +7,7 @@ import { CARDS } from "@/lib/cards";
 import { getRankForRankProgress } from "@/lib/arenas";
 import { motion, AnimatePresence } from "motion/react";
 import { cn, getAvatarForName } from "@/lib/utils";
+import { getPlayerStyle } from "@/lib/profile-customization";
 
 export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: UserData; currentTrophies: number }) {
   const [topPlayers, setTopPlayers] = useState<UserData[]>([]);
@@ -24,18 +25,22 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
         const allPlayers: UserData[] = [];
         querySnapshot.forEach((docSnap) => {
           const data = docSnap.data();
+          const isMe = data.username === currentUser.username || docSnap.id === currentUser.username;
           allPlayers.push({
             id: docSnap.id,
             username: data.username || "Player",
             gold: data.gold ?? 0,
-            trophies: data.trophies ?? 0,
+            trophies: isMe ? currentTrophies : (data.trophies ?? 0),
             collection: data.collection ?? {},
             deck: data.deck ?? ["mizrakli", "kilicli", "okcu", "dev"],
             cardLevels: data.cardLevels ?? {},
             wins: data.wins ?? 0,
             losses: data.losses ?? 0,
             rankProgressTrophies: data.rankProgressTrophies ?? 0,
-            rankedStars: data.rankedStars ?? 0,
+            rankedStars: isMe ? (currentUser.rankedStars ?? 0) : (data.rankedStars ?? 0),
+            avatar: isMe ? (currentUser.avatar || data.avatar || "") : (data.avatar || ""),
+            profileColor: isMe ? (currentUser.profileColor || data.profileColor || "white") : (data.profileColor || "white"),
+            profileFont: isMe ? (currentUser.profileFont || data.profileFont || "font-display") : (data.profileFont || "font-display"),
           });
         });
 
@@ -66,7 +71,7 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
     };
 
     fetchLeaderboardData();
-  }, [currentUser.username, currentTrophies]);
+  }, [currentUser.username, currentUser.avatar, currentUser.profileColor, currentUser.profileFont, currentUser.rankedStars, currentTrophies]);
 
   const podiumEmojis = ["🥇", "🥈", "🥉"];
   const podiumColors = ["from-amber-400/20 to-yellow-500/10 border-yellow-400/50", "from-slate-300/20 to-slate-400/10 border-slate-300/50", "from-amber-600/20 to-amber-700/10 border-amber-600/50"];
@@ -86,39 +91,43 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
         </div>
       ) : (
         <div className="space-y-3">
-          {topPlayers.map((player, i) => (
-            <div 
-              key={player.id || i} 
-              className={`panel-3d flex items-center justify-between rounded-2xl p-4 bg-gradient-to-br ${podiumColors[i] || "from-slate-800 to-slate-900 border-slate-700"} border relative overflow-hidden`}
-            >
-              <div className="flex items-center gap-3.5 z-10">
-                 <div className="text-4xl filter drop-shadow">{podiumEmojis[i] || ` #${i + 1}`}</div>
-                 <div className="w-11 h-11 rounded-xl bg-slate-900 border border-amber-500/30 flex items-center justify-center text-2xl shadow-inner shrink-0">
-                   {player.avatar || getAvatarForName(player.username)}
-                 </div>
-                 <div>
-                    <div className="font-display text-lg text-white font-black tracking-wide flex items-center gap-1.5">
-                      {player.username} {player.username.toLowerCase() === "dgoa" && <span className="text-sm">🛠️</span>}
-                    </div>
-                    <div className="text-sm font-bold text-amber-300 flex items-center gap-1.5 flex-wrap">
-                      <span>{player.trophies}</span>
-                      <span className="text-xs opacity-85">Kupa 🏆</span>
-                      {(player.rankedStars !== undefined && player.rankedStars > 0) && (
-                        <span className="text-cyan-300 font-extrabold flex items-center gap-0.5 bg-cyan-950/45 border border-cyan-800/30 px-1.5 py-0.5 rounded-full text-[11px] leading-none shadow shadow-cyan-500/10">
-                          ⭐ {player.rankedStars}
-                        </span>
-                      )}
-                    </div>
-                 </div>
-              </div>
-              <button 
-                onClick={() => setSelectedPlayer(player)}
-                className="bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:scale-105 active:scale-95 transition-all px-4 py-1.5 rounded-xl text-white text-xs font-black tracking-wider cursor-pointer z-10"
+          {topPlayers.map((player, i) => {
+            const { colorClass, fontClass } = getPlayerStyle(player);
+            return (
+              <div 
+                key={player.id || i} 
+                className={`panel-3d flex items-center justify-between rounded-2xl p-4 bg-gradient-to-br ${podiumColors[i] || "from-slate-800 to-slate-900 border-slate-700"} border relative overflow-hidden`}
               >
-                PROFİL
-              </button>
-            </div>
-          ))}
+                <div className="flex items-center gap-3.5 z-10">
+                   <div className="text-4xl filter drop-shadow">{podiumEmojis[i] || ` #${i + 1}`}</div>
+                   <div className="w-11 h-11 rounded-xl bg-slate-900 border border-amber-500/30 flex items-center justify-center text-2xl shadow-inner shrink-0">
+                     {player.avatar || getAvatarForName(player.username)}
+                   </div>
+                   <div>
+                      <div className={cn("text-lg font-black tracking-wide flex items-center gap-1.5", fontClass, colorClass)}>
+                        <span>{player.username}</span>
+                        {player.username.toLowerCase() === "dgoa" && <span className="text-sm">🛠️</span>}
+                      </div>
+                      <div className="text-sm font-bold text-amber-300 flex items-center gap-1.5 flex-wrap">
+                        <span>{player.trophies}</span>
+                        <span className="text-xs opacity-85">Kupa 🏆</span>
+                        {(player.rankedStars !== undefined && player.rankedStars > 0) && (
+                          <span className="text-cyan-300 font-extrabold flex items-center gap-0.5 bg-cyan-950/45 border border-cyan-800/30 px-1.5 py-0.5 rounded-full text-[11px] leading-none shadow shadow-cyan-500/10">
+                            ⭐ {player.rankedStars}
+                          </span>
+                        )}
+                      </div>
+                   </div>
+                </div>
+                <button 
+                  onClick={() => setSelectedPlayer(player)}
+                  className="bg-slate-900 hover:bg-slate-800 border border-slate-700 hover:scale-105 active:scale-95 transition-all px-4 py-1.5 rounded-xl text-white text-xs font-black tracking-wider cursor-pointer z-10"
+                >
+                  PROFİL
+                </button>
+              </div>
+            );
+          })}
 
           {/* Devamını Gör Button */}
           <div className="flex justify-center pt-1">
@@ -132,48 +141,67 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
           </div>
 
           {/* Current User Rank Position Sticky Card at the bottom of the tab content */}
-          <div className="panel-3d mt-4 rounded-2xl p-4 bg-gradient-to-r from-indigo-950/90 to-slate-900/90 border-2 border-indigo-500/40 shadow-lg shadow-indigo-500/10">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-indigo-500/20 border border-indigo-400/40 flex flex-col items-center justify-center">
-                  <span className="text-[10px] text-indigo-300 font-bold uppercase tracking-wider">COM</span>
-                  <span className="text-lg font-black text-white">#{userRank !== null ? userRank : "?"}</span>
-                </div>
-                <div>
-                  <div className="font-display font-black text-white text-base tracking-wide flex items-center gap-1">
-                    <span>{currentUser.username}</span>
-                    {currentUser.username.toLowerCase() === "dgoa" && <span>🛠️</span>}
-                    <span className="text-xs text-indigo-300 font-bold uppercase">(SEN)</span>
+          {(() => {
+            const userStyle = getPlayerStyle(currentUser);
+            return (
+              <div className="panel-3d mt-4 rounded-2xl p-4 bg-gradient-to-r from-indigo-950/90 to-slate-900/90 border-2 border-indigo-500/40 shadow-lg shadow-indigo-500/10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-indigo-500/20 border border-indigo-400/40 flex flex-col items-center justify-center shrink-0">
+                      <span className="text-[10px] text-indigo-300 font-bold uppercase tracking-wider">SIRA</span>
+                      <span className="text-lg font-black text-white">#{userRank !== null ? userRank : "?"}</span>
+                    </div>
+                    <div className="w-11 h-11 rounded-xl bg-slate-900 border border-indigo-400/40 flex items-center justify-center text-2xl shadow-inner shrink-0">
+                      {currentUser.avatar || getAvatarForName(currentUser.username)}
+                    </div>
+                    <div>
+                      <div className={cn("text-base font-black tracking-wide flex items-center gap-1", userStyle.fontClass, userStyle.colorClass)}>
+                        <span>{currentUser.username}</span>
+                        {currentUser.username.toLowerCase() === "dgoa" && <span>🛠️</span>}
+                        <span className="text-xs text-indigo-300 font-bold uppercase font-sans">(SEN)</span>
+                      </div>
+                      <div className="text-xs text-indigo-200 font-bold flex items-center gap-1 mt-0.5">
+                        <span>{currentTrophies} 🏆</span>
+                        {(currentUser.rankedStars !== undefined && currentUser.rankedStars > 0) && (
+                          <span className="text-cyan-300 font-extrabold flex items-center gap-0.5 bg-cyan-950/45 border border-cyan-800/30 px-1.5 py-0.5 rounded-full text-[10px] leading-none shadow shadow-cyan-500/10 ml-1">
+                            ⭐ {currentUser.rankedStars}
+                          </span>
+                        )}
+                        <span>·</span>
+                        <span>{currentUser.wins ?? 0} Galibiyet</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-xs text-indigo-200 font-bold flex items-center gap-1 mt-0.5">
-                    <span>{currentTrophies} 🏆</span>
-                    <span>·</span>
-                    <span>{currentUser.wins ?? 0} Galibiyet</span>
+                  <div className="text-right">
+                    <div className="text-[10px] text-slate-400 font-bold">DURUM</div>
+                    <div className="text-xs font-black text-indigo-400 uppercase mt-0.5">
+                      {userRank !== null && userRank <= 3 ? "KÜRESEL EN İYİ 3! 🎉" : "SAVAŞMAYA DEVAM! ⚔️"}
+                    </div>
                   </div>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-[10px] text-slate-400 font-bold">SIRALAMANIZ</div>
-                <div className="text-xs font-black text-indigo-400 uppercase mt-0.5">
-                  {userRank !== null && userRank <= 3 ? "KÜRESEL EN İYİ 3! 🎉" : "SAVAŞMAYA DEVAM! ⚔️"}
-                </div>
-              </div>
-            </div>
-          </div>
+            );
+          })()}
         </div>
       )}
       
       {selectedPlayer && (
         <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
           <div className="rounded-3xl bg-slate-950 border border-slate-800 p-6 shadow-2xl w-full max-w-sm panel-3d relative max-h-[90vh] overflow-y-auto scrollbar-none flex flex-col">
-            <div className="flex items-center justify-center gap-2 mb-4 shrink-0">
-              <div className="w-10 h-10 rounded-xl bg-slate-900 border border-amber-500/30 flex items-center justify-center text-2xl shadow-inner shrink-0">
-                {selectedPlayer.avatar || getAvatarForName(selectedPlayer.username)}
-              </div>
-              <h2 className="text-2xl font-black text-white text-center flex items-center gap-1.5">
-                {selectedPlayer.username} {selectedPlayer.username.toLowerCase() === "dgoa" && "🛠️"}
-              </h2>
-            </div>
+            {(() => {
+              const { colorClass, fontClass } = getPlayerStyle(selectedPlayer);
+              return (
+                <div className="flex items-center justify-center gap-2 mb-4 shrink-0">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-amber-500/30 flex items-center justify-center text-3xl shadow-inner shrink-0">
+                    {selectedPlayer.avatar || getAvatarForName(selectedPlayer.username)}
+                  </div>
+                  <h2 className={cn("text-2xl font-black text-center flex items-center gap-1.5", fontClass, colorClass)}>
+                    <span>{selectedPlayer.username}</span>
+                    {selectedPlayer.username.toLowerCase() === "dgoa" && <span>🛠️</span>}
+                  </h2>
+                </div>
+              );
+            })()}
             <div className="bg-slate-900/60 rounded-2xl p-4 border border-slate-800/60 mb-5 space-y-2 shrink-0">
               <div className="flex justify-between text-sm">
                 <span className="text-slate-400 font-medium">Toplam Kupa:</span>
@@ -253,18 +281,22 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
         const fetchedPlayers: UserData[] = [];
         querySnapshot.forEach((docSnap) => {
           const data = docSnap.data();
+          const isMe = data.username === currentUser.username || docSnap.id === currentUser.username;
           fetchedPlayers.push({
             id: docSnap.id,
             username: data.username || "Player",
             gold: data.gold ?? 0,
-            trophies: data.trophies ?? 0,
+            trophies: isMe ? currentTrophies : (data.trophies ?? 0),
             collection: data.collection ?? {},
             deck: data.deck ?? ["mizrakli", "kilicli", "okcu", "dev"],
             cardLevels: data.cardLevels ?? {},
             wins: data.wins ?? 0,
             losses: data.losses ?? 0,
             rankProgressTrophies: data.rankProgressTrophies ?? 0,
-            rankedStars: data.rankedStars ?? 0,
+            rankedStars: isMe ? (currentUser.rankedStars ?? 0) : (data.rankedStars ?? 0),
+            avatar: isMe ? (currentUser.avatar || data.avatar || "") : (data.avatar || ""),
+            profileColor: isMe ? (currentUser.profileColor || data.profileColor || "white") : (data.profileColor || "white"),
+            profileFont: isMe ? (currentUser.profileFont || data.profileFont || "font-display") : (data.profileFont || "font-display"),
           });
         });
 
@@ -289,7 +321,7 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
     };
 
     fetchTop100();
-  }, []);
+  }, [currentUser.username, currentUser.avatar, currentUser.profileColor, currentUser.profileFont, currentUser.rankedStars, currentTrophies]);
 
   const filteredPlayers = players.filter((p) =>
     p.username.toLowerCase().includes(searchQuery.toLowerCase())
@@ -349,6 +381,7 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
             filteredPlayers.map((player, index) => {
               const rank = players.findIndex((p) => p.id === player.id) + 1;
               const isMe = player.username === currentUser.username;
+              const { colorClass, fontClass } = getPlayerStyle(player);
 
               return (
                 <div
@@ -374,7 +407,7 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
                       {player.avatar || getAvatarForName(player.username)}
                     </div>
                     <div className="min-w-0">
-                      <div className="text-sm font-black text-white truncate flex items-center gap-1">
+                      <div className={cn("text-sm font-black truncate flex items-center gap-1", fontClass, colorClass)}>
                         <span>{player.username}</span>
                         {player.username.toLowerCase() === "dgoa" && <span className="text-xs">🛠️</span>}
                         {isMe && <span className="text-[9px] bg-indigo-500/20 text-indigo-300 font-sans px-1.5 py-0.5 rounded uppercase font-black tracking-wider ml-1">Sen</span>}

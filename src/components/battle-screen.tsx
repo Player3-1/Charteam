@@ -7,7 +7,7 @@ import { db } from "@/firebase";
 import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { submitPlacements, submitAbilityTrigger, submitEmoji, BattlePlacement, cancelMatchmaking } from "@/lib/matchmaking";
 import { cn, getAvatarForName } from "@/lib/utils";
-import { PROFILE_COLORS } from "./home-tab";
+import { PROFILE_COLORS } from "@/lib/profile-customization";
 import {
   computeRewards,
   makeBotDeck,
