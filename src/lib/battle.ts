@@ -117,6 +117,8 @@ export function isUnitTargetable(u: Unit): boolean {
   if (u.card.id === "lanet") return false;
   if (u.underground) return false;
   if (u.emergingTimeLeft !== undefined && u.emergingTimeLeft > 0) return false;
+  if (u.vampirInvisTimeLeft !== undefined && u.vampirInvisTimeLeft > 0) return false;
+  if (u.buyucuInvisTimeLeft !== undefined && u.buyucuInvisTimeLeft > 0) return false;
   return true;
 }
 

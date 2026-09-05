@@ -376,6 +376,8 @@ export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props
         }
         
         const isBuyucuInvis = u.card.id === "buyucu" && u.buyucuInvisTimeLeft !== undefined && u.buyucuInvisTimeLeft > 0;
+        const isVampirInvis = u.card.id === "vampir" && u.vampirInvisTimeLeft !== undefined && u.vampirInvisTimeLeft > 0;
+        const isInvisibleUnit = isInvisibleHayalet || isBuyucuInvis || isVampirInvis;
 
         return (
           <div
@@ -383,8 +385,8 @@ export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props
             className={cn(
               "pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 select-none transition-opacity duration-150",
               isEmerging && "opacity-40 scale-110 animate-pulse", // transparently visible and pulsing when emerging!
-              (isInvisibleHayalet || isBuyucuInvis) && u.side !== "player" && "opacity-0",
-              (isInvisibleHayalet || isBuyucuInvis) && u.side === "player" && "opacity-40 grayscale"
+              isInvisibleUnit && u.side !== "player" && "opacity-0 pointer-events-none",
+              isInvisibleUnit && u.side === "player" && "opacity-30 grayscale blur-[0.3px]"
             )}
             style={{
               left: `${cx(u.col)}%`,
@@ -394,6 +396,13 @@ export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props
           >
             <div className="relative">
               {/* Status visual rings / badges */}
+              {isVampirInvis && u.side === "player" && (
+                <div className="absolute inset-0 -m-1.5 rounded-full border-2 border-purple-500 bg-purple-950/40 animate-pulse shadow-[0_0_12px_rgba(168,85,247,0.7)] flex items-center justify-center pointer-events-none z-20">
+                  <div className="absolute -top-3.5 text-[9px] font-black text-purple-300 bg-slate-950/90 border border-purple-500/60 px-1 py-0.2 rounded shadow whitespace-nowrap">
+                    🦇 {u.vampirInvisTimeLeft?.toFixed(1)}s
+                  </div>
+                </div>
+              )}
               {u.card.id === "golem" && (
                 <div className="absolute inset-0 -m-1.5 rounded-full border-2 border-slate-500 bg-gradient-to-br from-slate-600 to-slate-800 shadow-[inset_0_2px_4px_rgba(255,255,255,0.35),_0_2px_6px_rgba(0,0,0,0.6)] animate-pulse" />
               )}
