@@ -71,6 +71,8 @@ export async function findOrCreateMatch(user: UserData, mode: "standard" | "tour
         player2Placements: [],
         player1Abilities: [],
         player2Abilities: [],
+        player1Charms: [],
+        player2Charms: [],
         status: "placing",
         createdAt: serverTimestamp(),
       });
@@ -143,5 +145,24 @@ export async function submitEmoji(battleId: string, isPlayer1: boolean, emoji: s
   const emojiField = isPlayer1 ? "player1Emojis" : "player2Emojis";
   await updateDoc(bRef, {
     [emojiField]: arrayUnion({ emoji, simTime })
+  });
+}
+
+export async function submitCharmTrigger(
+  battleId: string,
+  isPlayer1: boolean,
+  charmId: string,
+  extra?: { targetCardId?: string; tileCol?: number; tileRow?: number },
+  simTime?: number
+) {
+  const bRef = doc(db, "battles", battleId);
+  const charmField = isPlayer1 ? "player1Charms" : "player2Charms";
+  await updateDoc(bRef, {
+    [charmField]: arrayUnion({
+      charmId,
+      extra: extra || null,
+      simTime: simTime ?? 0,
+      timestamp: Date.now()
+    })
   });
 }

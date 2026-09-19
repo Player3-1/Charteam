@@ -6,7 +6,7 @@ import { arenaForTrophies, getRankForTrophies } from "@/lib/arenas";
 import { ArenaView } from "./arena-view";
 import { db } from "@/firebase";
 import { doc, onSnapshot, updateDoc } from "firebase/firestore";
-import { submitPlacements, submitAbilityTrigger, submitEmoji, BattlePlacement, cancelMatchmaking } from "@/lib/matchmaking";
+import { submitPlacements, submitAbilityTrigger, submitEmoji, submitCharmTrigger, BattlePlacement, cancelMatchmaking } from "@/lib/matchmaking";
 import { cn, getAvatarForName } from "@/lib/utils";
 import { AnimatedEmoji } from "./animated-emoji";
 import { PROFILE_COLORS } from "@/lib/profile-customization";
@@ -483,10 +483,12 @@ export function BattleScreen({
   const opponentPlacementsRef = useRef<any[]>([]);
   const myPlacementsRef = useRef<any[]>([]);
   const triggeredOpponentAbilitiesRef = useRef<Set<string>>(new Set());
+  const triggeredOpponentCharmsRef = useRef<Set<string>>(new Set());
   
   const triggeredOpponentEmojisRef = useRef<Set<string>>(new Set());
   const [displayedPlayerEmoji, setDisplayedPlayerEmoji] = useState<{ emoji: string, timestamp: number } | null>(null);
   const [displayedOpponentEmoji, setDisplayedOpponentEmoji] = useState<{ emoji: string, timestamp: number } | null>(null);
+  const [displayedOpponentCharm, setDisplayedOpponentCharm] = useState<{ name: string; emoji: string; timestamp: number } | null>(null);
   const [showEmojiMenu, setShowEmojiMenu] = useState(false);
 
   useEffect(() => {
@@ -504,6 +506,13 @@ export function BattleScreen({
   }, [displayedOpponentEmoji]);
 
   useEffect(() => {
+    if (displayedOpponentCharm) {
+      const t = setTimeout(() => setDisplayedOpponentCharm(null), 2500);
+      return () => clearTimeout(t);
+    }
+  }, [displayedOpponentCharm]);
+
+  useEffect(() => {
     stateRef.current = makeInitialState();
     stateRef.current.battleId = battleId || undefined;
     stateRef.current.isPlayer1 = isPlayer1;
@@ -513,6 +522,7 @@ export function BattleScreen({
     opponentPlacementsRef.current = [];
     placedBotRef.current = 0;
     triggeredOpponentAbilitiesRef.current.clear();
+    triggeredOpponentCharmsRef.current.clear();
     triggeredOpponentEmojisRef.current.clear();
     setWinner(null);
     winnerRef.current = null;
@@ -521,6 +531,65 @@ export function BattleScreen({
 
   const [placeTimer, setPlaceTimer] = useState(PLACE_SECONDS);
   const placedBotRef = useRef(0);
+
+  const applyOpponentCharm = (charmId: string, extra?: { targetCardId?: string; tileCol?: number; tileRow?: number }) => {
+    const s = stateRef.current;
+    const charmDef = CHARMS.find(c => c.id === charmId);
+    if (charmDef) {
+      setDisplayedOpponentCharm({ name: charmDef.name, emoji: charmDef.emoji, timestamp: Date.now() });
+    }
+
+    if (charmId === "kuvvet") {
+      s.botCharmKuvvetTimeLeft = 5.0; // 5 seconds 2x power for opponent
+    } else if (charmId === "hiz") {
+      s.botCharmHizTimeLeft = 4.0; // 4 seconds 2x speed for opponent
+    } else if (charmId === "kan-banyosu") {
+      s.botCharmKanBanyosuTimeLeft = 7.0; // 7 seconds lifesteal for opponent
+    } else if (charmId === "saglik") {
+      s.units.forEach(u => {
+        if (u.side === "bot" && u.hp > 0) {
+          u.hp = Math.min(u.maxHp, u.hp + (u.maxHp * 0.5));
+        }
+      });
+    } else if (charmId === "mutlak-guc") {
+      s.botCharmSafKuvvetTimeLeft = 5.0;
+      s.units.forEach(u => {
+        if (u.side === "bot" && u.hp > 0) {
+          u.hp = Math.max(1, Math.round(u.hp * 0.75));
+        }
+      });
+    } else if (charmId === "kutsanmislik") {
+      const targetCardId = extra?.targetCardId;
+      const target = s.units.find(u =>
+        u.side === "bot" &&
+        u.hp > 0 &&
+        (u.card.id === targetCardId || (targetCardId?.startsWith("kus-ordusu") && u.card.id.startsWith("kus-ordusu")))
+      );
+      if (target) {
+        target.maxHp = Math.round(target.maxHp * 2.5);
+        target.hp = Math.round(target.hp * 2.5);
+        target.kutsanmis = true;
+      }
+    } else if (charmId === "bomba") {
+      const oppCol = COLS - 1 - (extra?.tileCol ?? 0);
+      const oppRow = ROWS - 1 - (extra?.tileRow ?? 0);
+      if (!s.bombExplosions) s.bombExplosions = [];
+      s.bombExplosions.push({
+        uid: Date.now() + Math.random(),
+        col: oppCol,
+        row: oppRow,
+        timeLeft: 1.2,
+      });
+
+      // 4x4 area: within 2 tiles col and row
+      s.units.forEach(u => {
+        if (u.hp > 0 && Math.abs(u.col - oppCol) <= 2 && Math.abs(u.row - oppRow) <= 2) {
+          applyCombatDamage(s, u, 100, undefined, undefined, true);
+        }
+      });
+    }
+    rerender();
+  };
 
   const handleUseCharm = (charmId: string) => {
     if (usedCharms.includes(charmId)) return;
@@ -553,6 +622,9 @@ export function BattleScreen({
       });
     }
     rerender();
+    if (battleId) {
+      submitCharmTrigger(battleId, !!isPlayer1, charmId, undefined, s.time).catch(console.error);
+    }
   };
 
   const handleTargetCharmUnit = (targetUid: number) => {
@@ -566,6 +638,9 @@ export function BattleScreen({
         setUsedCharms(prev => [...prev, "kutsanmislik"]);
         setTargetingCharm(null);
         rerender();
+        if (battleId) {
+          submitCharmTrigger(battleId, !!isPlayer1, "kutsanmislik", { targetCardId: target.card.id }, s.time).catch(console.error);
+        }
       }
     }
   };
@@ -592,6 +667,9 @@ export function BattleScreen({
       setUsedCharms(prev => [...prev, "bomba"]);
       setTargetingCharm(null);
       rerender();
+      if (battleId) {
+        submitCharmTrigger(battleId, !!isPlayer1, "bomba", { tileCol: col, tileRow: row }, s.time).catch(console.error);
+      }
     }
   };
 
@@ -804,6 +882,17 @@ export function BattleScreen({
           if (!triggeredOpponentEmojisRef.current.has(key)) {
             triggeredOpponentEmojisRef.current.add(key);
             setDisplayedOpponentEmoji({ emoji, timestamp: Date.now() });
+          }
+        });
+
+        // Sync real-time opponent charms
+        const oppCharms: any[] = isPlayer1 ? (data.player2Charms || []) : (data.player1Charms || []);
+        oppCharms.forEach((item: any) => {
+          const { charmId, extra, simTime, timestamp } = item;
+          const key = `${charmId}_${simTime}_${timestamp || ""}_${extra ? JSON.stringify(extra) : ""}`;
+          if (!triggeredOpponentCharmsRef.current.has(key)) {
+            triggeredOpponentCharmsRef.current.add(key);
+            applyOpponentCharm(charmId, extra);
           }
         });
 
@@ -1103,6 +1192,16 @@ export function BattleScreen({
             >
               İptal
             </button>
+          </div>
+        )}
+
+        {/* Display Opponent Charm Notice */}
+        {displayedOpponentCharm && (
+          <div key={`opp_charm_${displayedOpponentCharm.timestamp}`} className="absolute top-14 left-1/2 -translate-x-1/2 z-50 pointer-events-none animate-bounce">
+            <div className="bg-red-950/95 border-2 border-red-500/80 px-4 py-1.5 rounded-full shadow-[0_0_18px_rgba(239,68,68,0.6)] flex items-center gap-2 text-xs text-red-100 font-extrabold backdrop-blur-md">
+              <span className="text-base">{displayedOpponentCharm.emoji}</span>
+              <span>Rakip {displayedOpponentCharm.name} kullandı!</span>
+            </div>
           </div>
         )}
 

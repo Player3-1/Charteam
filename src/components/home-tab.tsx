@@ -124,6 +124,8 @@ export function Home({ user }: { user: UserData }) {
         player2Placements: [],
         player1Abilities: [],
         player2Abilities: [],
+        player1Charms: [],
+        player2Charms: [],
         status: "placing",
         createdAt: serverTimestamp(),
       });

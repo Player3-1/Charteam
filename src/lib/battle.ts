@@ -119,6 +119,13 @@ export interface BattleState {
   charmMutlakGucTimer?: number;
   charmMutlakGucMult?: number;
   charmSafKuvvetTimeLeft?: number;
+  botCharmKuvvetTimeLeft?: number;
+  botCharmHizTimeLeft?: number;
+  botCharmKanBanyosuTimeLeft?: number;
+  botCharmMutlakGucActive?: boolean;
+  botCharmMutlakGucTimer?: number;
+  botCharmMutlakGucMult?: number;
+  botCharmSafKuvvetTimeLeft?: number;
   bombExplosions?: { uid: number; col: number; row: number; timeLeft: number }[];
   damagePopups?: DamagePopup[];
 }
@@ -514,14 +521,26 @@ export function tickBattle(state: BattleState, dt: number) {
   if (state.charmKuvvetTimeLeft !== undefined && state.charmKuvvetTimeLeft > 0) {
     state.charmKuvvetTimeLeft = Math.max(0, state.charmKuvvetTimeLeft - dt);
   }
+  if (state.botCharmKuvvetTimeLeft !== undefined && state.botCharmKuvvetTimeLeft > 0) {
+    state.botCharmKuvvetTimeLeft = Math.max(0, state.botCharmKuvvetTimeLeft - dt);
+  }
   if (state.charmHizTimeLeft !== undefined && state.charmHizTimeLeft > 0) {
     state.charmHizTimeLeft = Math.max(0, state.charmHizTimeLeft - dt);
+  }
+  if (state.botCharmHizTimeLeft !== undefined && state.botCharmHizTimeLeft > 0) {
+    state.botCharmHizTimeLeft = Math.max(0, state.botCharmHizTimeLeft - dt);
   }
   if (state.charmKanBanyosuTimeLeft !== undefined && state.charmKanBanyosuTimeLeft > 0) {
     state.charmKanBanyosuTimeLeft = Math.max(0, state.charmKanBanyosuTimeLeft - dt);
   }
+  if (state.botCharmKanBanyosuTimeLeft !== undefined && state.botCharmKanBanyosuTimeLeft > 0) {
+    state.botCharmKanBanyosuTimeLeft = Math.max(0, state.botCharmKanBanyosuTimeLeft - dt);
+  }
   if (state.charmSafKuvvetTimeLeft !== undefined && state.charmSafKuvvetTimeLeft > 0) {
     state.charmSafKuvvetTimeLeft = Math.max(0, state.charmSafKuvvetTimeLeft - dt);
+  }
+  if (state.botCharmSafKuvvetTimeLeft !== undefined && state.botCharmSafKuvvetTimeLeft > 0) {
+    state.botCharmSafKuvvetTimeLeft = Math.max(0, state.botCharmSafKuvvetTimeLeft - dt);
   }
   // Mutlak Güç: Her 3 saniyede bir karakterlerin hasarı 1.1x artar (maks 3x)
   if (state.charmMutlakGucActive) {
@@ -531,6 +550,16 @@ export function tickBattle(state: BattleState, dt: number) {
       const cur = state.charmMutlakGucMult || 1.0;
       if (cur < 3.0) {
         state.charmMutlakGucMult = Math.min(3.0, Number((cur * 1.1).toFixed(3)));
+      }
+    }
+  }
+  if (state.botCharmMutlakGucActive) {
+    state.botCharmMutlakGucTimer = (state.botCharmMutlakGucTimer || 0) + dt;
+    if (state.botCharmMutlakGucTimer >= 3.0) {
+      state.botCharmMutlakGucTimer -= 3.0;
+      const cur = state.botCharmMutlakGucMult || 1.0;
+      if (cur < 3.0) {
+        state.botCharmMutlakGucMult = Math.min(3.0, Number((cur * 1.1).toFixed(3)));
       }
     }
   }
@@ -1140,7 +1169,9 @@ export function tickBattle(state: BattleState, dt: number) {
         }
         
         if (fired) {
-          u.cdLeft = (u.side === "player" && state.charmSafKuvvetTimeLeft && state.charmSafKuvvetTimeLeft > 0) ? u.card.cd * 0.75 : u.card.cd;
+          const hasSafKuvv = (u.side === "player" && state.charmSafKuvvetTimeLeft && state.charmSafKuvvetTimeLeft > 0) ||
+                             (u.side === "bot" && state.botCharmSafKuvvetTimeLeft && state.botCharmSafKuvvetTimeLeft > 0);
+          u.cdLeft = hasSafKuvv ? u.card.cd * 0.75 : u.card.cd;
         }
       } else if (u.cdLeft <= 0 && u.card.cd > 0) {
         // Compute base damage
@@ -1288,12 +1319,16 @@ export function tickBattle(state: BattleState, dt: number) {
           }
         }
 
-        u.cdLeft = (u.side === "player" && state.charmSafKuvvetTimeLeft && state.charmSafKuvvetTimeLeft > 0) ? u.card.cd * 0.75 : u.card.cd;
+        const hasSafKuvv = (u.side === "player" && state.charmSafKuvvetTimeLeft && state.charmSafKuvvetTimeLeft > 0) ||
+                           (u.side === "bot" && state.botCharmSafKuvvetTimeLeft && state.botCharmSafKuvvetTimeLeft > 0);
+        u.cdLeft = hasSafKuvv ? u.card.cd * 0.75 : u.card.cd;
       }
     } else {
       // Movement sequence
       let speedFactor = speed(u.card);
-      if (u.side === "player" && state.charmHizTimeLeft !== undefined && state.charmHizTimeLeft > 0) speedFactor *= 2;
+      const hasHiz = (u.side === "player" && state.charmHizTimeLeft !== undefined && state.charmHizTimeLeft > 0) ||
+                     (u.side === "bot" && state.botCharmHizTimeLeft !== undefined && state.botCharmHizTimeLeft > 0);
+      if (hasHiz) speedFactor *= 2;
 
       // Frozen ability slowing effect
       if (u.frozenTimeLeft !== undefined && u.frozenTimeLeft > 0) {
@@ -1475,18 +1510,27 @@ export function applyCombatDamage(state: BattleState, defender: Unit, dmg: numbe
   }
 
   // Charm: Kuvvet - basıldığı an tüm kartların gücü 5 saniyeliğine 2 katına çıkar
-  if (state.charmKuvvetTimeLeft !== undefined && state.charmKuvvetTimeLeft > 0 && attacker && attacker.side === "player") {
+  const hasKuvvet = attacker && (
+    (attacker.side === "player" && state.charmKuvvetTimeLeft !== undefined && state.charmKuvvetTimeLeft > 0) ||
+    (attacker.side === "bot" && state.botCharmKuvvetTimeLeft !== undefined && state.botCharmKuvvetTimeLeft > 0)
+  );
+  if (hasKuvvet) {
     finalDmg *= 2.0;
   }
 
   // Charm: Saf Kuvvet - 5 saniyeliğine 2.5x güç
-  if (state.charmSafKuvvetTimeLeft !== undefined && state.charmSafKuvvetTimeLeft > 0 && attacker && attacker.side === "player") {
+  const hasSafKuvvDmg = attacker && (
+    (attacker.side === "player" && state.charmSafKuvvetTimeLeft !== undefined && state.charmSafKuvvetTimeLeft > 0) ||
+    (attacker.side === "bot" && state.botCharmSafKuvvetTimeLeft !== undefined && state.botCharmSafKuvvetTimeLeft > 0)
+  );
+  if (hasSafKuvvDmg) {
     finalDmg *= 2.5;
   }
 
   // Charm: Mutlak Güç - Her 3 saniyede bir karakterlerin hasarı 1.1x artar (maks 3x)
-  if (state.charmMutlakGucMult !== undefined && state.charmMutlakGucMult > 1.0 && attacker && attacker.side === "player") {
-    finalDmg *= state.charmMutlakGucMult;
+  const mutlakMult = attacker?.side === "player" ? state.charmMutlakGucMult : state.botCharmMutlakGucMult;
+  if (mutlakMult !== undefined && mutlakMult > 1.0) {
+    finalDmg *= mutlakMult;
   }
 
   // Custom balance: AoE cards take 6 hits to kill Tribe and 3 hits for Bird Army
@@ -1540,7 +1584,11 @@ export function applyCombatDamage(state: BattleState, defender: Unit, dmg: numbe
 
   if (attacker && wasAlive) {
     // Charm: Kan Banyosu - vurduğu hasar kadar can çalar (%100 lifesteal)
-    if (attacker.side === "player" && state.charmKanBanyosuTimeLeft !== undefined && state.charmKanBanyosuTimeLeft > 0) {
+    const hasKanBanyosu = attacker && (
+      (attacker.side === "player" && state.charmKanBanyosuTimeLeft !== undefined && state.charmKanBanyosuTimeLeft > 0) ||
+      (attacker.side === "bot" && state.botCharmKanBanyosuTimeLeft !== undefined && state.botCharmKanBanyosuTimeLeft > 0)
+    );
+    if (hasKanBanyosu) {
       attacker.hp = Math.min(attacker.maxHp, attacker.hp + actualDamageDealt);
     }
 
