@@ -1,3 +1,7 @@
+import { useDuels } from "@/hooks/use-duels";
+import { db } from "@/firebase";
+import { collection, query, where, getDocs, doc, getDoc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+
 import React, { useState, useEffect, useRef } from "react";
 import { usePlayer } from "@/hooks/use-player";
 import { UserData } from "@/types";
@@ -11,7 +15,8 @@ import {
   type CardDef,
   type Rarity,
 } from "@/lib/cards";
-import { ARENAS, arenaForTrophies, getUnlockedCardsUpToTrophies, MAX_TROPHIES, getArenaForCard, getRankForTrophies, getRankForWins, getRankForRankProgress } from "@/lib/arenas";
+import { ARENAS, arenaForTrophies, getUnlockedCardsUpToTrophies, MAX_TROPHIES, getArenaForCard, getRankForTrophies, getRankForWins, getRankForRankProgress, RANK_REWARDS } from "@/lib/arenas";
+import { CHARMS } from "@/lib/charms";
 import { GameCard } from "@/components/game-card";
 import { BattleScreen } from "@/components/battle-screen";
 import { ArenasView } from "@/components/arenas-view";
@@ -19,9 +24,20 @@ import { MatchmakingModal } from "@/components/matchmaking-modal";
 import { MetaTab } from "@/components/meta-tab";
 import { LeaderboardTab } from "@/components/leaderboard";
 import { RankedRoadModal } from "@/components/ranked-road-modal";
+import { RankRewardsModal } from "@/components/rank-rewards-modal";
 import { cn, getAvatarForName } from "@/lib/utils";
+import { AnimatedEmoji } from "@/components/animated-emoji";
 import { motion, AnimatePresence } from "motion/react";
 import { SHOP_EMOJIS } from "@/lib/emojis";
+
+export interface ChestRewardItem {
+  card?: CardDef;
+  isDuplicate?: boolean;
+  refundGold?: number;
+  type?: "card" | "charm" | "level_coin";
+  charm?: { id: string; name: string; emoji: string; description: string };
+  levelCoinsAmount?: number;
+}
 
 export function getRankedStarsDetails(points: number) {
   const totalStars = Math.floor(points / 10);
@@ -70,7 +86,94 @@ import { PROFILE_COLORS, PROFILE_FONTS, PROFILE_AVATARS } from "@/lib/profile-cu
 type Tab = "battle" | "cards" | "chests" | "meta" | "arenas" | "top3";
 
 export function Home({ user }: { user: UserData }) {
-  const { state, hydrated, claimChestRewards, spendGold, setDeckSlot, setActiveDeck, applyMatchReward, buyEmoji, setEmojiSlot, setTrophies, setGold, updateResources, resetRankedStars, claimProgressionReward, cheatUnlockAll, updateProfileCustomization, importDeck, upgradeCardLevel, claimRankedReward } = usePlayer(user.username);
+  const { state, hydrated, claimChestRewards, spendGold, setDeckSlot, setActiveDeck, applyMatchReward, buyEmoji, buyCharm, buyLevelCoins, setCharmSlot, setEmojiSlot, setTrophies, setGold, updateResources, resetRankedStars, claimProgressionReward, cheatUnlockAll, updateProfileCustomization, importDeck, upgradeCardLevel, upgradeCardLevelWithGold, claimRankedReward, claimRankReward } = usePlayer(user.username);
+  const { incomingDuels, outgoingDuels, sendDuelRequest, acceptDuel, declineDuel, cancelDuel } = useDuels(user.username);
+  const [inBattle, setInBattle] = useState(false);
+
+
+  const handleAcceptDuel = async (duel: any) => {
+    try {
+      const rand = Math.floor(100000 + Math.random() * 900000);
+      const battleId = `duel_${duel.challenger}_${user.username}_${rand}`;
+      
+      const oppRef = await getDoc(doc(db, "users", duel.challenger));
+      const oppData = oppRef.exists() ? oppRef.data() : {};
+      const p1Avatar = oppData?.avatar || getAvatarForName(duel.challenger);
+      const p2Avatar = state.avatar || getAvatarForName(user.username);
+      
+      await setDoc(doc(db, "battles", battleId), {
+        id: battleId,
+        mode: "standard",
+        player1: { 
+           username: duel.challenger, 
+           avatar: p1Avatar, 
+           trophies: oppData?.trophies ?? 1000,
+           rankedStars: oppData?.rankedStars ?? 0,
+           deck: oppData?.deck || ["mizrakli", "okcu", "dev", "kilicli"],
+           wins: oppData?.wins ?? 0,
+        },
+        player2: { 
+           username: user.username, 
+           avatar: p2Avatar, 
+           trophies: state.trophies,
+           rankedStars: state.rankedStars ?? 0,
+           deck: state.deck,
+           wins: state.wins ?? 0,
+        },
+        player1Placements: [],
+        player2Placements: [],
+        player1Abilities: [],
+        player2Abilities: [],
+        status: "placing",
+        createdAt: serverTimestamp(),
+      });
+      
+      await acceptDuel(duel.id, battleId);
+      
+      setOpponent({
+          name: duel.challenger,
+          avatar: p1Avatar,
+          trophies: oppData?.trophies ?? 1000,
+          rankedStars: oppData?.rankedStars ?? 0,
+          wins: oppData?.wins ?? 0,
+          battleId,
+          isPlayer1: false,
+          mode: "standard"
+      });
+      setInBattle(true);
+    } catch (e) {
+      console.error(e);
+      alert("Hata oluştu.");
+    }
+  };
+
+  useEffect(() => {
+    const accepted = outgoingDuels.find(d => d.status === "accepted" && d.battleId);
+    if (accepted && !inBattle) {
+       (async () => {
+         const oppRef = await getDoc(doc(db, "users", accepted.challenged));
+         const oppData = oppRef.exists() ? oppRef.data() : {};
+         setOpponent({
+            name: accepted.challenged,
+            avatar: oppData?.avatar || getAvatarForName(accepted.challenged),
+            trophies: oppData?.trophies ?? 1000,
+            rankedStars: oppData?.rankedStars ?? 0,
+            wins: oppData?.wins ?? 0,
+            battleId: accepted.battleId,
+            isPlayer1: true,
+            mode: "standard"
+         });
+         setInBattle(true);
+         cancelDuel(accepted.id); // clear it
+       })();
+    }
+    
+    const declined = outgoingDuels.find(d => d.status === "declined");
+    if (declined) {
+        alert(`${declined.challenged} davetini reddetti.`);
+        cancelDuel(declined.id);
+    }
+  }, [outgoingDuels, inBattle]);
   const [tab, setTab] = useState<Tab>("cards");
   const [direction, setDirection] = useState<"left" | "right">("right");
   const touchStartX = useRef(0);
@@ -78,6 +181,18 @@ export function Home({ user }: { user: UserData }) {
 
   const [showProfileCustomizer, setShowProfileCustomizer] = useState(false);
   const [isRankedRoadOpen, setIsRankedRoadOpen] = useState(false);
+  const [isRankRewardsOpen, setIsRankRewardsOpen] = useState(false);
+
+  const unclaimedRankRewardsCount = (RANK_REWARDS || []).filter((reward) => {
+    if (!state) return false;
+    const isClaimed = state.claimedRankTiers?.includes(reward.targetRankId);
+    if (isClaimed) return false;
+    const currentProgress = state.rankProgressTrophies ?? 0;
+    if (reward.targetRankId === "platin") {
+      return currentProgress >= 7000 || (state.rankedStars ?? 0) >= (reward.reqStars || 140);
+    }
+    return currentProgress >= reward.reqTrophies;
+  }).length;
 
   const handleClaimRankedReward = async (matchNum: number) => {
     if (!state) return;
@@ -229,9 +344,9 @@ export function Home({ user }: { user: UserData }) {
     setTab(newTab);
   };
 
-  const [openedRewards, setOpenedRewards] = useState<{ card: CardDef; isDuplicate: boolean; refundGold: number }[] | null>(null);
+  const [openedRewards, setOpenedRewards] = useState<ChestRewardItem[] | null>(null);
   const [openedChestName, setOpenedChestName] = useState("");
-  const [inBattle, setInBattle] = useState(false);
+
   const [opponent, setOpponent] = useState<{name: string, avatar?: string, trophies: number, rankedStars?: number, wins?: number, battleId?: string, isPlayer1?: boolean, mode?: "standard" | "tournament" | "ranked"} | null>(null);
   const [showMatchmaking, setShowMatchmaking] = useState(false);
   const [showArenas, setShowArenas] = useState(false);
@@ -251,17 +366,86 @@ export function Home({ user }: { user: UserData }) {
   const handleOpenChest = (chestId: string) => {
     const chest = CHESTS.find((c) => c.id === chestId)!;
     if (state.gold < chest.cost) return;
+
+    // 1. Charm Sandığı (50.000 Gold)
+    if (chestId === "charm_chest") {
+      const currentUnlocked = (state.unlockedCharms && state.unlockedCharms.length > 0)
+        ? state.unlockedCharms
+        : ["kuvvet", "saglik"];
+      const unowned = CHARMS.filter((c) => !currentUnlocked.includes(c.id));
+
+      if (unowned.length === 0) {
+        alert("✨ Tüm Charmlara zaten sahipsin! Harcama yapılmadı.");
+        return;
+      }
+
+      const wonCharm = unowned[Math.floor(Math.random() * unowned.length)];
+      buyCharm(wonCharm.id, chest.cost);
+
+      setOpenedChestName(chest.name);
+      setOpenedRewards([{
+        type: "charm",
+        charm: wonCharm,
+        isDuplicate: false,
+        refundGold: 0,
+      }]);
+      return;
+    }
+
+    // 2. Efsanevi Sandık (10.000 Gold) - Special Drop Probability
+    if (chestId === "magic") {
+      const rand = Math.random();
+
+      // %0.71 (0.0071) Charm düşme şansı
+      if (rand < 0.0071) {
+        const currentUnlocked = (state.unlockedCharms && state.unlockedCharms.length > 0)
+          ? state.unlockedCharms
+          : ["kuvvet", "saglik"];
+        const unowned = CHARMS.filter((c) => !currentUnlocked.includes(c.id));
+
+        if (unowned.length > 0) {
+          const wonCharm = unowned[Math.floor(Math.random() * unowned.length)];
+          buyCharm(wonCharm.id, chest.cost);
+
+          setOpenedChestName(chest.name);
+          setOpenedRewards([{
+            type: "charm",
+            charm: wonCharm,
+            isDuplicate: false,
+            refundGold: 0,
+          }]);
+          return;
+        }
+      }
+
+      // %14.19 (0.1419) Level Coin düşme şansı (0.0071 + 0.1419 = 0.1490)
+      if (rand < 0.1490) {
+        buyLevelCoins(chest.cost, 1);
+
+        setOpenedChestName(chest.name);
+        setOpenedRewards([{
+          type: "level_coin",
+          levelCoinsAmount: 1,
+          isDuplicate: false,
+          refundGold: 0,
+        }]);
+        return;
+      }
+
+      // %84.01 (0.8401) Kart düşme şansı -> Standart sandık kartları açılır
+    }
+
+    // Standard card rolling logic for chests
     const rolled: CardDef[] = [];
-    
     const unlockedIds = getUnlockedCardsUpToTrophies(state.trophies);
     rolled.push(rollCardFromUnlocked(unlockedIds, chest.guaranteedMin, chest.allowedRarities));
-    
+
     for (let i = 1; i < chest.cards; i++) {
-        rolled.push(rollCardFromUnlocked(unlockedIds, undefined, chest.allowedRarities));
+      rolled.push(rollCardFromUnlocked(unlockedIds, undefined, chest.allowedRarities));
     }
 
     const tempCollection = { ...state.collection };
-    const rewards: { card: CardDef; isDuplicate: boolean; refundGold: number }[] = [];
+    const rewards: ChestRewardItem[] = [];
     const refundValues: Record<Rarity, number> = {
       common: 250,
       rare: 500,
@@ -273,6 +457,7 @@ export function Home({ user }: { user: UserData }) {
       const isDuplicate = (tempCollection[card.id] ?? 0) > 0;
       const refundGold = refundValues[card.rarity];
       rewards.push({
+        type: "card",
         card,
         isDuplicate,
         refundGold,
@@ -282,7 +467,14 @@ export function Home({ user }: { user: UserData }) {
       }
     }
 
-    claimChestRewards(rewards, chest.cost);
+    claimChestRewards(
+      rewards.map((r) => ({
+        card: r.card!,
+        isDuplicate: r.isDuplicate!,
+        refundGold: r.refundGold!,
+      })),
+      chest.cost
+    );
     setOpenedChestName(chest.name);
     setOpenedRewards(rewards);
   };
@@ -296,40 +488,66 @@ export function Home({ user }: { user: UserData }) {
 
   return (
     <div className="mx-auto flex h-full max-w-md flex-col bg-slate-950 overflow-y-auto overflow-x-hidden relative scrollbar-none">
+      {/* Duel Invites UI */}
+      {incomingDuels.length > 0 && !inBattle && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[2000] w-full max-w-xs px-2">
+          {incomingDuels.map(duel => (
+            <div key={duel.id} className="bg-indigo-950/95 border border-indigo-500/50 rounded-xl p-2.5 shadow-2xl mb-2 backdrop-blur-md flex flex-col gap-2">
+              <div className="text-center flex-1">
+                <span className="font-bold text-white text-sm">{duel.challenger}</span>
+                <span className="text-indigo-200 text-xs ml-1 block leading-tight">1v1 davet etti!</span>
+              </div>
+              <div className="flex gap-1.5">
+                <button onClick={() => declineDuel(duel.id)} className="flex-1 bg-slate-800/80 hover:bg-slate-700 text-slate-300 py-1.5 rounded-lg text-xs font-bold transition-colors">Reddet</button>
+                <button onClick={() => handleAcceptDuel(duel)} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-1.5 rounded-lg text-xs font-bold shadow-lg shadow-emerald-500/20 transition-all">Kabul Et</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      
       {!(inBattle && opponent) && (
         <>
-          <header className="sticky top-0 z-20 panel-3d px-3 pb-3 pt-8 flex items-center justify-between gap-3 relative">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setShowProfileCustomizer(true)}>
+          <header className="sticky top-0 z-20 panel-3d px-3 pb-2.5 pt-7 flex items-center justify-between gap-2 relative">
+            <div className="flex items-center gap-2 cursor-pointer min-w-0 flex-1 mr-2" onClick={() => setShowProfileCustomizer(true)}>
               <div className="grid h-10 w-10 place-items-center rounded-full border-2 border-black/40 bg-gradient-to-br from-amber-300 to-amber-600 text-lg font-display text-amber-950 shadow-inner shrink-0 hover:brightness-110 active:scale-95 transition-all">
                 {state.avatar || getAvatarForName(state.username)}
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className={cn(
-                  "font-display text-lg leading-none",
+                  "font-display text-base leading-tight truncate",
                   PROFILE_COLORS.find(c => c.value === state.profileColor)?.class || "text-stroke text-white",
                   state.profileFont || "font-display"
                 )}>
                   {state.username} {state.username.toLowerCase() === "dgoa" && "🛠️"}
                 </div>
                 <div 
-                  className="mt-0.5 text-[11px] text-amber-200/90 underline decoration-amber-500/50 underline-offset-2 flex flex-col gap-0.5 hover:text-amber-100"
+                  className="mt-0.5 text-[11px] text-amber-200/90 underline decoration-amber-500/50 underline-offset-2 flex flex-col gap-0.5 hover:text-amber-100 truncate"
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowArenas(true);
                   }}
                 >
-                  <div>Arena {arena.id} · {arena.name}</div>
+                  <div className="truncate">Arena {arena.id} · {arena.name}</div>
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-col items-end gap-1.5 shrink-0">
-              <div className="flex flex-wrap justify-end gap-1.5">
+            <div className="flex flex-col items-end gap-1 shrink-0">
+              <div className="flex items-center justify-end gap-1">
                 <Stat icon="🏆" value={state.trophies} color="from-amber-300 to-orange-500" />
-                {(state.rankedStars !== undefined && state.rankedStars > 0) && (
-                  <Stat icon="⭐" value={state.rankedStars} color="from-cyan-300 to-blue-500 text-cyan-950 font-black shadow-[0_0_10px_rgba(6,182,212,0.35)] border-cyan-400/40" />
-                )}
                 <Stat icon="🪙" value={state.gold} color="from-yellow-200 to-amber-500" />
+              </div>
+              <div className="flex items-center justify-end gap-1">
+                {(state.rankedStars !== undefined && state.rankedStars > 0) && (
+                  <Stat icon="⭐" value={state.rankedStars} color="from-cyan-300 to-blue-500 text-cyan-950 font-black shadow-[0_0_8px_rgba(6,182,212,0.35)] border-cyan-400/40" />
+                )}
+                <Stat
+                  icon="✨"
+                  value={state.levelCoins || 0}
+                  color="from-amber-300 to-yellow-500"
+                  label="Jeton"
+                />
               </div>
             </div>
           </header>
@@ -351,6 +569,7 @@ export function Home({ user }: { user: UserData }) {
                 {tab === "battle" && (
                   <BattleTab
                     deck={state.deck}
+                    selectedCharms={state.selectedCharms}
                     trophies={state.trophies}
                     rankProgressTrophies={state.rankProgressTrophies || 0}
                     rankedStars={state.rankedStars || 0}
@@ -361,10 +580,16 @@ export function Home({ user }: { user: UserData }) {
                     onClaimStarReward={handleClaimStarReward}
                     cardLevels={state.cardLevels || {}}
                     onOpenRankedRoad={() => setIsRankedRoadOpen(true)}
+                    onOpenRankRewards={() => setIsRankRewardsOpen(true)}
+                    unclaimedRankRewardsCount={unclaimedRankRewardsCount}
                   />
                 )}
                 {tab === "cards" && (
                   <CardsTab
+                    unlockedCharms={state.unlockedCharms}
+                    selectedCharms={state.selectedCharms}
+                    setCharmSlot={setCharmSlot}
+                    levelCoins={state.levelCoins}
                     collection={state.collection}
                     deck={state.deck}
                     decks={state.decks}
@@ -378,10 +603,15 @@ export function Home({ user }: { user: UserData }) {
                     cardLevels={state.cardLevels || {}}
                     cardProgress={state.cardProgress || {}}
                     onUpgradeCardLevel={upgradeCardLevel}
+                    onUpgradeCardLevelWithGold={upgradeCardLevelWithGold}
                   />
                 )}
                 {tab === "chests" && (
                   <ChestsTab 
+                     unlockedCharms={state.unlockedCharms}
+                     levelCoins={state.levelCoins}
+                     onBuyCharm={buyCharm}
+                     onBuyLevelCoins={buyLevelCoins}
                     gold={state.gold} 
                     unlockedEmojis={state.unlockedEmojis ?? []} 
                     onOpen={handleOpenChest}
@@ -392,7 +622,7 @@ export function Home({ user }: { user: UserData }) {
                   <MetaTab user={state} onImportDeck={importDeck} />
                 )}
                 {tab === "top3" && (
-                  <LeaderboardTab currentUser={state} currentTrophies={state.trophies} />
+                  <LeaderboardTab currentUser={state} currentTrophies={state.trophies} onInviteDuel={async (target) => { await sendDuelRequest(target); alert("Davet gönderildi!"); }} />
                 )}
               </motion.div>
             </AnimatePresence>
@@ -592,11 +822,23 @@ export function Home({ user }: { user: UserData }) {
         onClaim={handleClaimRankedReward}
       />
 
+      <RankRewardsModal
+        isOpen={isRankRewardsOpen}
+        onClose={() => setIsRankRewardsOpen(false)}
+        state={state}
+        onClaimReward={claimRankReward}
+        onShowChestRewards={(chestName, rewards) => {
+          setOpenedChestName(chestName);
+          setOpenedRewards(rewards);
+        }}
+      />
+
       {inBattle && opponent && (
         <BattleScreen
           deck={state.deck}
           playerCardLevels={state.cardLevels || {}}
           playerEmojis={(state.selectedEmojis as [string, string, string, string]) || ["", "", "", ""]}
+          selectedCharms={state.selectedCharms || ["kuvvet", ""]}
           trophies={state.trophies}
           playerRankedStars={state.rankedStars ?? 0}
           playerAvatar={state.avatar || getAvatarForName(state.username)}
@@ -626,16 +868,34 @@ export function Home({ user }: { user: UserData }) {
   );
 }
 
-function Stat({ icon, value, color }: { icon: string; value: number | null | undefined; color: string }) {
+function Stat({ 
+  icon, 
+  value, 
+  color, 
+  label,
+  onClick,
+}: { 
+  icon: string; 
+  value: number | null | undefined; 
+  color: string; 
+  label?: string;
+  onClick?: () => void;
+}) {
   return (
     <div
+      onClick={onClick}
+      role={onClick ? "button" : undefined}
       className={cn(
-        "flex items-center gap-1.5 rounded-full border-2 border-black/40 bg-gradient-to-r px-2.5 py-0.5 text-sm font-bold text-amber-950 shadow",
+        "flex items-center gap-1.5 rounded-full border border-black/50 bg-gradient-to-r px-2.5 sm:px-3 py-0.5 sm:py-1 text-xs sm:text-sm font-black text-amber-950 shadow-md shrink-0 whitespace-nowrap",
+        onClick && "cursor-pointer active:scale-95 transition-transform hover:brightness-110",
         color,
       )}
     >
-      <span className="text-base leading-none">{icon}</span>
-      <span className="tabular-nums">{value?.toLocaleString("tr-TR") ?? 0}</span>
+      <span className="text-sm sm:text-base leading-none shrink-0 drop-shadow">{icon}</span>
+      <span className="tabular-nums font-mono text-xs sm:text-sm font-black leading-none drop-shadow-sm">
+        {value?.toLocaleString("tr-TR") ?? 0}
+      </span>
+      {label && <span className="text-[10px] font-sans font-black opacity-90 leading-none">{label}</span>}
     </div>
   );
 }
@@ -670,6 +930,10 @@ function NavBtn({
 }
 
 function CardsTab({
+  unlockedCharms = ["kuvvet", "saglik"],
+  selectedCharms = ["kuvvet", ""],
+  setCharmSlot,
+  levelCoins,
   collection,
   deck,
   decks,
@@ -683,8 +947,13 @@ function CardsTab({
   cardLevels,
   cardProgress,
   onUpgradeCardLevel,
+  onUpgradeCardLevelWithGold,
 }: {
   collection: Record<string, number>;
+  unlockedCharms?: string[];
+  selectedCharms?: string[];
+  setCharmSlot: (slot: number, charmId: string) => void;
+  levelCoins?: number;
   deck: [string, string, string, string];
   decks?: Record<string, [string, string, string, string]>;
   activeDeckIndex?: number;
@@ -697,9 +966,11 @@ function CardsTab({
   cardLevels: Record<string, number>;
   cardProgress: Record<string, number>;
   onUpgradeCardLevel: (cardId: string) => void;
+  onUpgradeCardLevelWithGold: (cardId: string) => void;
 }) {
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
   const [activeEmojiSlot, setActiveEmojiSlot] = useState<number | null>(null);
+  const [activeCharmSlot, setActiveCharmSlot] = useState<number | null>(null);
 
   const owned = CARDS.filter((c) => (collection[c.id] ?? 0) > 0);
   const locked = CARDS.filter((c) => (collection[c.id] ?? 0) === 0);
@@ -815,41 +1086,82 @@ function CardsTab({
     <div className="space-y-6">
       <section>
         <div className="mb-2 flex flex-col justify-start">
-          <div className="flex items-center justify-between">
-            <h2 className="text-stroke text-2xl text-white flex items-center gap-2">
-              <span>Deste</span>
-              <span className={cn(
-                "text-xs font-mono font-bold px-2.5 py-0.5 rounded-full border shadow-sm transition-colors",
-                deckStoneCost > 20 
-                  ? "bg-red-950/80 text-red-400 border-red-500/40" 
-                  : deckStoneCost === 20 
-                    ? "bg-emerald-950/80 text-emerald-400 border-emerald-500/40" 
-                    : "bg-indigo-950/80 text-cyan-300 border-indigo-400/30"
-              )}>
-                💎 {deckStoneCost}/20
-              </span>
-            </h2>
-            <div className="flex gap-1">
-              {Object.keys(decks ?? { "0": deck }).map((key) => {
-                const index = parseInt(key);
-                return (
-                  <button
-                    key={index}
-                    onClick={() => setActiveDeck(index)}
-                    className={cn(
-                      "text-xs font-bold w-8 h-8 rounded-lg flex items-center justify-center transition-all",
-                      index === activeDeckIndex
-                        ? "bg-amber-500 text-amber-950 shadow-md scale-105"
-                        : "bg-slate-800 text-slate-400 hover:bg-slate-700"
-                    )}
-                  >
-                    {index + 1}
-                  </button>
-                );
-              })}
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {/* Deste & Taş Maliyeti */}
+              <div className="flex items-center gap-2">
+                <h2 className="text-stroke text-2xl text-white font-display">Deste</h2>
+                <span className={cn(
+                  "text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border shadow-sm transition-colors whitespace-nowrap",
+                  deckStoneCost > 20 
+                    ? "bg-red-950/80 text-red-400 border-red-500/40" 
+                    : deckStoneCost === 20 
+                      ? "bg-emerald-950/80 text-emerald-400 border-emerald-500/40" 
+                      : "bg-indigo-950/80 text-cyan-300 border-indigo-400/30"
+                )}>
+                  💎 {deckStoneCost}/20
+                </span>
+              </div>
+
+              {/* Deste taş maliyeti ile desteler arasındaki boşlukta yer alan kompakt Charm Seçimi */}
+              <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-700/80 px-2 py-1 rounded-xl shadow-xs">
+                <span className="text-[10px] font-black text-amber-400 font-display uppercase tracking-wide flex items-center gap-1">
+                  <span>✨</span>
+                  <span className="hidden xs:inline">Charm:</span>
+                </span>
+                <div className="flex items-center gap-1">
+                  {[0, 1].map((slot) => {
+                    const charmId = selectedCharms[slot];
+                    const charm = CHARMS.find((c) => c.id === charmId);
+                    const isSelecting = activeCharmSlot === slot;
+                    return (
+                      <button
+                        key={slot}
+                        type="button"
+                        onClick={() => setActiveCharmSlot(activeCharmSlot === slot ? null : slot)}
+                        className={cn(
+                          "flex items-center gap-1 px-2 py-0.5 rounded-lg border text-xs transition-all cursor-pointer font-sans",
+                          isSelecting
+                            ? "bg-amber-500/30 border-amber-400 ring-2 ring-amber-400/60 scale-105"
+                            : charm
+                              ? "bg-slate-800 border-slate-600 hover:border-amber-400 text-white hover:bg-slate-750"
+                              : "bg-slate-950/70 border-dashed border-slate-700 text-slate-400 hover:border-slate-500"
+                        )}
+                        title={charm ? `${charm.name} (Değiştirmek için tıkla)` : `Charm ${slot + 1} Seç`}
+                      >
+                        <span className="text-sm leading-none">{charm ? charm.emoji : "+"}</span>
+                        <span className="text-[10px] font-bold max-w-[60px] sm:max-w-[75px] truncate leading-tight">
+                          {charm ? charm.name : `Charm ${slot + 1}`}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Desteler */}
+              <div className="flex gap-1">
+                {Object.keys(decks ?? { "0": deck }).map((key) => {
+                  const index = parseInt(key);
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => setActiveDeck(index)}
+                      className={cn(
+                        "text-xs font-bold w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer",
+                        index === activeDeckIndex
+                          ? "bg-amber-500 text-amber-950 shadow-md scale-105 font-black"
+                          : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                      )}
+                    >
+                      {index + 1}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
-          <p className="text-[11px] text-amber-200/90 mt-0.5 font-medium min-h-[16px] leading-tight">
+          <p className="text-[11px] text-amber-200/90 mt-1 font-medium min-h-[16px] leading-tight">
             {activeSlot !== null 
               ? "👉 Kuşanmak için aşağıdaki bir karaktere dokun!" 
               : "ℹ️ Çıkarmak için bir savaşçıya dokun."}
@@ -877,9 +1189,10 @@ function CardsTab({
                     {(() => {
                       const lvl = cardLevels[card.id] || 1;
                       const prog = cardProgress[card.id] || 0;
-                      const reqXp = lvl === 1 ? 50 : lvl === 2 ? 100 : lvl === 3 ? 150 : lvl === 4 ? 250 : 250;
+                      const reqXp = lvl === 1 ? 50 : lvl === 2 ? 100 : lvl === 3 ? 150 : 250;
+                      const reqCoins = lvl === 1 ? 1 : lvl === 2 ? 2 : lvl === 3 ? 3 : 5;
                       const percent = lvl >= 5 ? 100 : Math.min(100, (prog / reqXp) * 100);
-                      const canUpgrade = lvl < 5 && prog >= reqXp;
+                      const hasCoins = (levelCoins || 0) >= reqCoins;
                       return (
                         <div className="w-full mt-1.5 px-0.5 flex flex-col items-center">
                           <div className="relative w-full h-4 bg-slate-950 border border-slate-800 rounded-md overflow-hidden flex items-center justify-center">
@@ -894,17 +1207,51 @@ function CardsTab({
                               {lvl >= 5 ? "MAX 👑" : `${prog}/${reqXp}`}
                             </span>
                           </div>
-                          {canUpgrade && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onUpgradeCardLevel(card.id);
-                              }}
-                              className="mt-1 w-full py-0.5 rounded text-[9px] font-black uppercase tracking-wider transition-all shadow-md active:scale-95 text-center flex items-center justify-center gap-0.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-amber-950 cursor-pointer hover:brightness-110 animate-bounce"
-                            >
-                              <span>YÜKSELT</span>
-                              <span>🌟</span>
-                            </button>
+                          {lvl < 5 && (
+                            <div className="mt-1 w-full flex flex-col gap-1">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onUpgradeCardLevelWithGold(card.id);
+                                }}
+                                className={cn(
+                                  "w-full py-0.5 px-1 rounded text-[8px] font-black uppercase tracking-tight transition-all shadow active:scale-95 flex items-center justify-between cursor-pointer",
+                                  prog >= reqXp && gold >= (lvl === 1 ? 500 : lvl === 2 ? 1500 : lvl === 3 ? 3500 : 7500)
+                                    ? "bg-amber-500 hover:bg-amber-400 text-amber-950 font-black shadow-[0_0_8px_rgba(245,158,11,0.5)]"
+                                    : "bg-slate-800/90 border border-slate-700/80 text-slate-400 opacity-85"
+                                )}
+                                title={prog < reqXp ? "Altın ile yükseltmek için kart XP'si tam dolmalı!" : "Altın ile Yükselt"}
+                              >
+                                <span className="font-black flex items-center gap-0.5">
+                                  <span>▲</span>
+                                  <span>{prog < reqXp ? "XP GEREKLİ" : "YÜKSELT"}</span>
+                                </span>
+                                <span className="font-mono text-[8px] font-black">
+                                  🪙{(lvl === 1 ? 500 : lvl === 2 ? 1500 : lvl === 3 ? 3500 : 7500).toLocaleString("tr-TR")}
+                                </span>
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onUpgradeCardLevel(card.id);
+                                }}
+                                className={cn(
+                                  "w-full py-0.5 px-1 rounded text-[8px] font-black uppercase tracking-tight transition-all shadow active:scale-95 flex items-center justify-between cursor-pointer",
+                                  hasCoins
+                                    ? "bg-purple-600 hover:bg-purple-500 text-white font-black"
+                                    : "bg-slate-800/80 border border-slate-700/80 text-purple-300/70"
+                                )}
+                                title="Jeton ile Yükselt"
+                              >
+                                <span className="font-black flex items-center gap-0.5">
+                                  <span>✨</span>
+                                  <span>JETON</span>
+                                </span>
+                                <span className="font-mono text-[8px] font-black">
+                                  ✨{reqCoins}
+                                </span>
+                              </button>
+                            </div>
                           )}
                         </div>
                       );
@@ -943,7 +1290,7 @@ function CardsTab({
               : "ℹ️ Savaşta kullanmak için 4 emoji seçin."}
           </p>
         </div>
-        <div className="flex gap-2 justify-center mb-4 panel-3d border border-slate-700 p-2 rounded-xl bg-slate-900/60">
+        <div className="flex gap-2.5 justify-center mb-4 panel-3d border border-slate-700 p-2.5 rounded-2xl bg-slate-900/60">
           {selectedEmojis.map((emoji, i) => {
             const isActive = activeEmojiSlot === i;
             return (
@@ -951,14 +1298,18 @@ function CardsTab({
                 key={i}
                 onClick={() => handleEmojiSlotClick(i, !!emoji)}
                 className={cn(
-                  "w-12 h-12 flex items-center justify-center text-3xl rounded-xl border relative shadow-inner",
-                  isActive ? "border-amber-400 bg-amber-500/20 text-amber-300 scale-110 shadow-[0_0_10px_rgba(245,158,11,0.5)] animate-pulse z-10" : "border-slate-600 bg-slate-800 text-slate-300",
-                  !emoji && !isActive && "opacity-50"
+                  "w-14 h-14 flex items-center justify-center rounded-2xl border-2 relative shadow-inner transition-all",
+                  isActive ? "border-amber-400 bg-amber-500/20 scale-110 shadow-[0_0_12px_rgba(245,158,11,0.5)] z-10" : "border-slate-600 bg-slate-800/90 hover:bg-slate-700 hover:border-slate-500",
+                  !emoji && !isActive && "opacity-45"
                 )}
               >
-                {emoji || "?"}
+                {emoji ? (
+                  <AnimatedEmoji emoji={emoji} size="xl" mode={isActive ? "action" : "ambient"} interactive={true} />
+                ) : (
+                  <span className="text-slate-500 font-mono text-lg">?</span>
+                )}
                 {isActive && (
-                  <span className="absolute -bottom-1.5 bg-amber-500 text-amber-950 text-[6px] font-black tracking-wider px-1 py-0 rounded border border-black shadow">
+                  <span className="absolute -bottom-2 bg-amber-500 text-amber-950 text-[7px] font-black tracking-wider px-1.5 py-0.5 rounded-full border border-black shadow">
                     SEÇİLDİ
                   </span>
                 )}
@@ -968,7 +1319,7 @@ function CardsTab({
         </div>
 
         {activeEmojiSlot !== null && (
-          <div className="grid grid-cols-4 gap-2 p-2 border border-dashed border-amber-500/30 bg-amber-500/10 rounded-xl mb-4">
+          <div className="grid grid-cols-4 gap-2.5 p-3 border-2 border-dashed border-amber-500/40 bg-amber-500/10 rounded-2xl mb-4 animate-emoji-bubble-pop">
             {unlockedEmojis.length === 0 ? (
               <div className="col-span-4 text-center text-sm text-amber-200/70 py-2">
                 Hiç emojiniz yok! Onları Mağaza menüsünden satın alabilirsiniz.
@@ -978,9 +1329,9 @@ function CardsTab({
                 <button
                   key={`${emoji}_${index}`}
                   onClick={() => handleEmojiSelect(emoji)}
-                  className="text-3xl bg-slate-800 border border-slate-600 rounded-lg py-1 hover:bg-slate-700 focus:outline-none"
+                  className="h-14 flex items-center justify-center bg-slate-800/90 border-2 border-slate-600 rounded-xl hover:bg-slate-700 hover:border-amber-400 hover:scale-110 active:scale-95 transition-all shadow"
                 >
-                  {emoji}
+                  <AnimatedEmoji emoji={emoji} size="xl" interactive={true} />
                 </button>
               ))
             )}
@@ -998,8 +1349,10 @@ function CardsTab({
             const inDeck = deck.includes(card.id);
             const lvl = cardLevels[card.id] || 1;
             const prog = cardProgress[card.id] || 0;
-            const reqXp = lvl === 1 ? 50 : lvl === 2 ? 100 : lvl === 3 ? 150 : lvl === 4 ? 250 : 250;
+            const reqXp = lvl === 1 ? 50 : lvl === 2 ? 100 : lvl === 3 ? 150 : 250;
+            const reqCoins = lvl === 1 ? 1 : lvl === 2 ? 2 : lvl === 3 ? 3 : 5;
             const percent = lvl >= 5 ? 100 : Math.min(100, (prog / reqXp) * 100);
+            const hasCoins = (levelCoins || 0) >= reqCoins;
 
             return (
               <div key={card.id} className="flex flex-col items-center gap-1.5 p-1 rounded-xl bg-slate-900/40 border border-slate-800/40">
@@ -1043,18 +1396,52 @@ function CardsTab({
                     </div>
                   </div>
 
-                  {/* Upgrade Button if progress is enough and level < 5 */}
-                  {lvl < 5 && prog >= reqXp && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onUpgradeCardLevel(card.id);
-                      }}
-                      className="mt-1.5 w-full py-1 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all shadow-md active:scale-95 text-center flex items-center justify-center gap-1 bg-gradient-to-r from-amber-500 to-yellow-400 text-amber-950 cursor-pointer hover:brightness-110"
-                    >
-                      <span>YÜKSELT</span>
-                      <span className="font-mono text-[9px] bg-black/20 px-1 py-0.5 rounded">🌟</span>
-                    </button>
+                  {/* Upgrade Buttons if level < 5 */}
+                  {lvl < 5 && (
+                    <div className="mt-1.5 w-full flex flex-col gap-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onUpgradeCardLevelWithGold(card.id);
+                        }}
+                        className={cn(
+                          "w-full py-1 px-1.5 rounded-lg text-[9px] font-black uppercase tracking-tight transition-all shadow active:scale-95 flex items-center justify-between cursor-pointer",
+                          prog >= reqXp && gold >= (lvl === 1 ? 500 : lvl === 2 ? 1500 : lvl === 3 ? 3500 : 7500)
+                            ? "bg-amber-500 hover:bg-amber-400 text-amber-950 font-black shadow-[0_0_8px_rgba(245,158,11,0.5)]"
+                            : "bg-slate-800 border border-slate-700 text-slate-400 opacity-85"
+                        )}
+                        title={prog < reqXp ? "Altın ile yükseltmek için kart XP'si tam dolmalı!" : "Altın ile Yükselt"}
+                      >
+                        <span className="font-black flex items-center gap-1">
+                          <span>▲</span>
+                          <span>{prog < reqXp ? "XP GEREKLİ" : "ALTIN"}</span>
+                        </span>
+                        <span className="font-mono text-[9px] font-black">
+                          🪙{(lvl === 1 ? 500 : lvl === 2 ? 1500 : lvl === 3 ? 3500 : 7500).toLocaleString("tr-TR")}
+                        </span>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onUpgradeCardLevel(card.id);
+                        }}
+                        className={cn(
+                          "w-full py-1 px-1.5 rounded-lg text-[9px] font-black uppercase tracking-tight transition-all shadow active:scale-95 flex items-center justify-between cursor-pointer",
+                          hasCoins
+                            ? "bg-purple-600 hover:bg-purple-500 text-white font-black"
+                            : "bg-slate-800/80 border border-slate-700/80 text-purple-300/70"
+                        )}
+                        title="Jeton ile Yükselt"
+                      >
+                        <span className="font-black flex items-center gap-1">
+                          <span>✨</span>
+                          <span>JETON</span>
+                        </span>
+                        <span className="font-mono text-[9px] font-black">
+                          ✨{reqCoins}
+                        </span>
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1091,12 +1478,145 @@ function CardsTab({
           </div>
         </section>
       )}
+
+      {/* Charm Selection Modal */}
+      {activeCharmSlot !== null && (
+        <div 
+          className="fixed inset-0 z-[2500] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in"
+          onClick={() => setActiveCharmSlot(null)}
+        >
+          <div 
+            className="panel-3d w-full max-w-sm rounded-2xl bg-slate-900 border border-slate-700 p-4 shadow-2xl flex flex-col max-h-[82vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">✨</span>
+                <div>
+                  <h3 className="font-display font-bold text-white text-base leading-none">
+                    Charm Seçimi ({activeCharmSlot + 1}. Slot)
+                  </h3>
+                  <p className="text-[11px] text-amber-200/80 mt-0.5">
+                    Destene avantaj sağlayan Charm'ını kuşan
+                  </p>
+                </div>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setActiveCharmSlot(null)}
+                className="w-7 h-7 rounded-lg bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center font-bold text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto pr-1 space-y-2.5">
+              {/* Empty / Unequip Option */}
+              <button
+                type="button"
+                onClick={() => {
+                  setCharmSlot(activeCharmSlot, "");
+                  setActiveCharmSlot(null);
+                }}
+                className={cn(
+                  "w-full flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer font-sans",
+                  selectedCharms[activeCharmSlot] === "" 
+                    ? "border-amber-400 bg-amber-500/20 shadow-md" 
+                    : "border-slate-700/80 bg-slate-800/50 hover:bg-slate-800"
+                )}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-2xl p-1.5 rounded-xl bg-slate-950 border border-slate-700">🚫</span>
+                  <div className="text-left">
+                    <div className="text-xs font-black text-white">Charm'ı Çıkar (Boş Bırak)</div>
+                    <div className="text-[10px] text-slate-400">Bu slotta hiçbir charm aktif olmasın</div>
+                  </div>
+                </div>
+                {selectedCharms[activeCharmSlot] === "" && (
+                  <span className="text-xs text-amber-300 font-black px-2.5 py-1 rounded-full bg-amber-500/20 border border-amber-400/40">✓ Seçili</span>
+                )}
+              </button>
+
+              {/* Unlocked Charms list (2 PER ROW GRID) */}
+              <div className="grid grid-cols-2 gap-2.5">
+                {CHARMS.filter(c => (unlockedCharms || []).includes(c.id)).map(charm => {
+                  const isCurrent = selectedCharms[activeCharmSlot] === charm.id;
+                  const otherSlot = activeCharmSlot === 0 ? 1 : 0;
+                  const isOther = selectedCharms[otherSlot] === charm.id;
+
+                  return (
+                    <div
+                      key={charm.id}
+                      onClick={() => {
+                        setCharmSlot(activeCharmSlot, charm.id);
+                        setActiveCharmSlot(null);
+                      }}
+                      className={cn(
+                        "flex flex-col justify-between p-3 rounded-2xl border-2 transition-all cursor-pointer text-left shadow-md",
+                        isCurrent 
+                          ? "border-emerald-500 bg-emerald-950/60 shadow-[0_0_12px_rgba(16,185,129,0.25)]" 
+                          : isOther
+                            ? "border-slate-700/50 bg-slate-850/40 opacity-70"
+                            : "border-slate-700/80 bg-slate-800/80 hover:border-amber-400/80 hover:bg-slate-800"
+                      )}
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-1 mb-2">
+                          <span className="text-3xl shrink-0 p-2 rounded-xl bg-slate-950 border border-slate-700 shadow-inner">
+                            {charm.emoji}
+                          </span>
+                          {isCurrent && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-black uppercase">
+                              Kuşanıldı
+                            </span>
+                          )}
+                          {isOther && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-700 text-slate-300 font-bold uppercase">
+                              Slotta
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs sm:text-sm font-black text-white font-display leading-tight">{charm.name}</div>
+                        <p className="text-[10px] text-amber-200/80 leading-snug line-clamp-3 mt-1 min-h-[2.4rem]">
+                          {charm.description}
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        className={cn(
+                          "mt-3 w-full py-2 rounded-xl font-display text-xs font-black transition-all shadow-sm flex items-center justify-center gap-1",
+                          isCurrent
+                            ? "bg-emerald-600 text-white border border-emerald-400"
+                            : "bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 hover:brightness-110 active:scale-95"
+                        )}
+                      >
+                        {isCurrent ? "✓ Seçili" : "✨ Kuşan"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Locked Charms hint */}
+              {CHARMS.filter(c => !(unlockedCharms || []).includes(c.id)).length > 0 && (
+                <div className="pt-2 text-center border-t border-slate-800/80 mt-2">
+                  <p className="text-[11px] text-slate-400">
+                    🔒 Kilitli diğer charmları açmak için <span className="text-amber-300 font-bold">Mağaza</span> sekmesine göz at!
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function BattleTab({
   deck,
+  selectedCharms,
   trophies,
   rankProgressTrophies,
   rankedStars,
@@ -1107,8 +1627,11 @@ function BattleTab({
   onClaimStarReward,
   cardLevels,
   onOpenRankedRoad,
+  onOpenRankRewards,
+  unclaimedRankRewardsCount = 0,
 }: {
   deck: [string, string, string, string];
+  selectedCharms?: string[];
   trophies: number;
   rankProgressTrophies: number;
   rankedStars: number;
@@ -1119,6 +1642,8 @@ function BattleTab({
   onClaimStarReward: (threshold: number, rewardType: "gold" | "chest", value: string | number) => void;
   cardLevels: Record<string, number>;
   onOpenRankedRoad: () => void;
+  onOpenRankRewards?: () => void;
+  unclaimedRankRewardsCount?: number;
 }) {
   const deckCards = deck.map((id) => CARDS.find((c) => c.id === id));
   const deckStoneCost = deckCards.reduce((sum, c) => sum + (c ? c.stoneCost : 0), 0);
@@ -1162,12 +1687,19 @@ function BattleTab({
       case 9: return { emoji: "⛩️🏯🏮", desc: "Kadim ruhların uyandığı tapınak" };
       case 10: return { emoji: "🏔️🧗‍♂️🐐", desc: "Bulutlara uzanan dondurucu zirve" };
       case 11: return { emoji: "🌸🌸🍡", desc: "Dökülen pembe taç yapraklı bahçe" };
+      case 12: return { emoji: "🐲❄️🏔️", desc: "Ejderhaların koruduğu dondurucu vadi" };
+      case 13: return { emoji: "🏰🦇🧛", desc: "Karanlık şato ve zombilerin diyarı" };
+      case 14: return { emoji: "🔮🧙‍♂️✨", desc: "Büyülü ve sihirli gizemli arena" };
+      case 15: return { emoji: "🐭💀🪦", desc: "Çürümüş diyarlar ve dev fareler" };
+      case 16: return { emoji: "☢️🐍☣️", desc: "Toksik zehirle kaplı radyoaktif arena" };
+      case 17: return { emoji: "🕷️🍄🌺", desc: "Egzotik tarantulalar ve kan mantarları" };
+      case 18: return { emoji: "🌌🔮✨", desc: "Mistik ve kozmik şampiyonlar arenası" };
       default: return { emoji: "⚔️🏆🌟", desc: "Efsanevi Savaş Alanı" };
     }
   };
 
   const visuals = getArenaVisuals(arena.id);
-  const rank = getRankForRankProgress(rankProgressTrophies);
+  const rank = getRankForRankProgress(rankProgressTrophies, rankedStars);
 
   return (
     <div className="space-y-4">
@@ -1186,7 +1718,7 @@ function BattleTab({
         </button>
         <button
           onClick={() => {
-            if (trophies >= 5000) {
+            if (trophies >= 7000) {
               setBattleMode("ranked");
             }
           }}
@@ -1195,10 +1727,10 @@ function BattleTab({
             battleMode === "ranked"
               ? "bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold shadow-md"
               : "text-slate-400 hover:text-white",
-            trophies < 5000 && "opacity-45 cursor-not-allowed"
+            trophies < 7000 && "opacity-45 cursor-not-allowed"
           )}
         >
-          {trophies < 5000 ? (
+          {trophies < 7000 ? (
             <span className="flex items-center gap-1 text-slate-400">
               <span>🔒</span> Dereceli Mod
             </span>
@@ -1211,10 +1743,10 @@ function BattleTab({
         </button>
       </div>
 
-      {trophies < 5000 && (
+      {trophies < 7000 && (
         <div className="bg-slate-950/40 border border-slate-900/60 rounded-xl px-3 py-2 text-center shadow-inner">
           <span className="text-[11px] text-slate-400 font-medium">
-            🔒 Dereceli Mod <b>5000 Kupa</b> değerinde açılır. Dereceli moda girmek için {5000 - trophies} kupa daha kazanın!
+            🔒 Dereceli Mod <b>7000 Kupa</b> değerinde açılır. Dereceli moda girmek için {7000 - trophies} kupa daha kazanın!
           </span>
         </div>
       )}
@@ -1299,35 +1831,59 @@ function BattleTab({
 
       {/* Modern Rank/League Tracking Card */}
       {battleMode === "standard" && (
-        <div className="panel-3d rounded-2xl p-4 bg-slate-900 border border-slate-800/80 flex items-center justify-between text-white shadow-lg">
-          <div className="flex items-center gap-3">
-            <div className="text-4xl drop-shadow">{rank.current.emoji}</div>
-            <div className="text-left font-display">
-              <div className="text-[9px] text-slate-400 font-semibold tracking-wider uppercase leading-none">Mevcut Rütbe</div>
-              <div className={cn("text-lg font-black text-stroke-sm tracking-tight leading-tight mt-0.5", 
-                rank.current.name.includes("Bronz") ? "text-amber-600" : 
-                rank.current.name.includes("Silver") ? "text-slate-300" : 
-                rank.current.name.includes("Gold") ? "text-yellow-400" : "text-cyan-400"
-              )}>{rank.current.name}</div>
-            </div>
-          </div>
-          <div className="text-right font-display pl-4 flex-1 max-w-[150px]">
-            <div className="flex justify-between items-center text-[9.5px] text-amber-200 font-bold mb-1">
-              <span>Rütbe İlerlemesi</span>
-              <span>{rank.next ? `${Math.floor(rank.currentProgressValue)}/${rank.requiredForNext}` : "MAKS"}</span>
-            </div>
-            <div className="h-2 w-full bg-slate-950 border border-slate-800 rounded-full overflow-hidden relative">
-              <div 
-                className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-400 transition-all duration-300"
-                style={{ width: `${rank.progress}%` }}
-              />
-            </div>
-            {rank.next && (
-              <div className="text-[10px] text-slate-400 mt-1 leading-none font-medium">
-                Sonraki: <span className="text-white font-bold">{rank.next.name}</span>
+        <div className="panel-3d rounded-2xl p-4 bg-slate-900 border border-slate-800/80 text-white shadow-lg space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="text-4xl drop-shadow">{rank.current.emoji}</div>
+              <div className="text-left font-display">
+                <div className="text-[9px] text-slate-400 font-semibold tracking-wider uppercase leading-none">Mevcut Rütbe</div>
+                <div className={cn("text-lg font-black text-stroke-sm tracking-tight leading-tight mt-0.5", 
+                  rank.current.name.includes("Bronz") ? "text-amber-600" : 
+                  rank.current.name.includes("Gümüş") || rank.current.name.includes("Silver") ? "text-slate-300" : 
+                  rank.current.name.includes("Altın") || rank.current.name.includes("Gold") ? "text-yellow-400" : "text-cyan-400"
+                )}>{rank.current.name}</div>
               </div>
-            )}
+            </div>
+            <div className="text-right font-display pl-4 flex-1 max-w-[150px]">
+              <div className="flex justify-between items-center text-[9.5px] text-amber-200 font-bold mb-1">
+                <span>Rütbe İlerlemesi</span>
+                <span>{rank.next ? `${Math.floor(rank.currentProgressValue)}/${rank.requiredForNext}` : "MAKS"}</span>
+              </div>
+              <div className="h-2 w-full bg-slate-950 border border-slate-800 rounded-full overflow-hidden relative">
+                <div 
+                  className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-blue-400 transition-all duration-300"
+                  style={{ width: `${rank.progress}%` }}
+                />
+              </div>
+              {rank.next && (
+                <div className="text-[10px] text-slate-400 mt-1 leading-none font-medium">
+                  Sonraki: <span className="text-white font-bold">{rank.next.name}</span>
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Rütbe Ödülleri Butonu */}
+          {onOpenRankRewards && (
+            <button
+              onClick={onOpenRankRewards}
+              className="w-full flex items-center justify-between rounded-xl bg-gradient-to-r from-amber-950/80 via-yellow-950/70 to-amber-950/80 border border-amber-500/50 hover:border-amber-400 p-2.5 text-xs font-bold text-amber-300 shadow-md active:scale-[0.99] transition-all cursor-pointer"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-base">🎁</span>
+                <span>Rütbe Yolu Ödülleri</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {unclaimedRankRewardsCount > 0 ? (
+                  <span className="bg-gradient-to-r from-red-600 to-amber-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full animate-bounce shadow-sm">
+                    {unclaimedRankRewardsCount} ÖDÜL HAZIR!
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-slate-400 font-medium">Ödülleri Gör ➔</span>
+                )}
+              </div>
+            </button>
+          )}
         </div>
       )}
 
@@ -1366,19 +1922,46 @@ function BattleTab({
             💎 {deckStoneCost}/20 Elmas
           </span>
         </div>
-        <div className="grid grid-cols-4 gap-2 rounded-2xl panel-3d p-3">
-          {deckCards.map((card, i) =>
-            card ? (
-              <GameCard key={i} card={card} size="sm" level={cardLevels[card.id] || 1} />
-            ) : (
-              <div
-                key={i}
-                className="grid aspect-[3/4] w-20 place-items-center rounded-xl border-2 border-dashed border-amber-300/40 text-amber-300/40 text-3xl font-bold"
-              >
-                ?
-              </div>
-            ),
-          )}
+        <div className="rounded-2xl panel-3d p-3 space-y-3">
+          <div className="grid grid-cols-4 gap-2">
+            {deckCards.map((card, i) =>
+              card ? (
+                <GameCard key={i} card={card} size="sm" level={cardLevels[card.id] || 1} />
+              ) : (
+                <div
+                  key={i}
+                  className="grid aspect-[3/4] w-20 place-items-center rounded-xl border-2 border-dashed border-amber-300/40 text-amber-300/40 text-3xl font-bold"
+                >
+                  ?
+                </div>
+              ),
+            )}
+          </div>
+
+          {/* Equipped Charms Bar */}
+          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
+            <span className="text-[10px] font-black uppercase text-amber-400 font-display flex items-center gap-1 shrink-0">
+              <span>✨</span>
+              <span>Charmlar:</span>
+            </span>
+            <div className="grid grid-cols-2 gap-2 flex-1 min-w-0">
+              {[0, 1].map((slot) => {
+                const charmId = (selectedCharms || [])[slot];
+                const charm = CHARMS.find((c) => c.id === charmId);
+                return (
+                  <div
+                    key={slot}
+                    className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-slate-900 border border-slate-800/80 text-xs font-sans truncate"
+                  >
+                    <span className="text-sm shrink-0">{charm ? charm.emoji : "❓"}</span>
+                    <span className="text-[10px] font-bold text-slate-200 truncate">
+                      {charm ? charm.name : "Boş Slot"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1386,15 +1969,15 @@ function BattleTab({
         <h3 className="text-stroke text-base text-white mb-1 font-display">Savaş Ödülleri</h3>
         {battleMode === "ranked" ? (
           <ul className="space-y-1">
-            <li>• Savaşı kazanırsan: <b>1.000🪙 · +10⭐</b> kazanırsın.</li>
+            <li>• Savaşı kazanırsan: <b>500🪙 · +30🏆</b> kazanırsın.</li>
             <li>• Savaşı kaybedersen: <b>-10 ila -20⭐</b> kaybedersin.</li>
             <li>• Her kümede gerekli ⭐ biriktir ve efsanevi rütbelere ulaş!</li>
           </ul>
         ) : (
           <ul className="space-y-1">
-            <li>• Benzer kupaya sahip rakibi yen: <b>1.000🪙 · +10🏆</b></li>
-            <li>• Daha yüksek kupaya sahip rakibi yen: <b>2.000🪙 · +15🏆</b></li>
-            <li>• Daha düşük kupaya sahip rakibi yen: <b>500🪙 · +7🏆</b></li>
+            <li>• Normal maç kazanırsan: <b>500🪙 · +30🏆</b></li>
+            
+            
             <li>• Savaş kaybedilirse: Seviyenize göre kazanacağınız miktar kadar kupa kaybedersiniz.</li>
           </ul>
         )}
@@ -1404,12 +1987,20 @@ function BattleTab({
 }
 
 function ChestsTab({
+  unlockedCharms = ["kuvvet", "saglik"],
+  levelCoins = 0,
+  onBuyCharm,
+  onBuyLevelCoins,
   gold,
   unlockedEmojis,
   onOpen,
   onBuyEmoji,
 }: {
   gold: number;
+  unlockedCharms?: string[];
+  levelCoins?: number;
+  onBuyCharm: (charmId: string, cost: number) => void;
+  onBuyLevelCoins: (cost: number, amount: number) => void;
   unlockedEmojis: string[];
   onOpen: (id: string) => void;
   onBuyEmoji: (emoji: string, cost: number) => void;
@@ -1426,34 +2017,143 @@ function ChestsTab({
             return (
               <div
                 key={chest.id}
-                className="panel-3d flex items-center gap-3 rounded-2xl p-3 bg-gradient-to-br from-slate-900/90 to-slate-950/90"
+                className="panel-3d flex items-center gap-3.5 rounded-2xl p-3.5 bg-gradient-to-br from-slate-900 via-slate-850 to-amber-950/20 border-2 border-amber-500/30 shadow-lg hover:border-amber-400/60 transition-colors"
               >
-                <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-slate-800 to-slate-950 text-5xl shadow-inner border border-slate-800/80">
+                <div className="grid h-20 w-20 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-slate-800 to-slate-950 text-5xl shadow-inner border border-amber-500/30">
                   {chest.emoji}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-display text-lg text-white font-bold">{chest.name}</div>
-                  <div className="text-xs text-amber-200/80">
-                    {chest.cards} kart · Garanti min:{" "}
-                    <span className="font-semibold text-stroke-sm text-white">
-                      {RARITY_LABEL[chest.guaranteedMin]}
-                    </span>
+                  <div className="font-display text-lg sm:text-xl text-white font-bold">{chest.name}</div>
+                  <div className="text-xs text-amber-200/90 mt-0.5">
+                    {chest.id === "charm_chest" ? (
+                      <>
+                        <span className="font-bold text-amber-300">1 Charm</span> · Garanti:{" "}
+                        <span className="font-bold text-stroke-sm text-yellow-300">Yeni Charm ✨</span>
+                      </>
+                    ) : (
+                      <>
+                        {chest.cards} kart · Garanti min:{" "}
+                        <span className="font-bold text-stroke-sm text-white">
+                          {RARITY_LABEL[chest.guaranteedMin]}
+                        </span>
+                      </>
+                    )}
                   </div>
                   <button
                     onClick={() => onOpen(chest.id)}
                     disabled={!can}
                     className={cn(
-                      "mt-2 rounded-xl px-4 py-1.5 text-sm font-display text-primary-foreground text-stroke",
+                      "mt-2.5 rounded-xl px-4 py-2 text-sm sm:text-base font-display text-primary-foreground text-stroke font-black shadow-md flex items-center gap-1.5",
                       "btn-pop active:btn-pop-active",
-                      !can && "opacity-50",
+                      !can && "opacity-50 cursor-not-allowed",
                     )}
                   >
-                    🪙 {chest.cost.toLocaleString("tr-TR")}
+                    <span>🪙</span>
+                    <span className="font-mono font-black">{chest.cost.toLocaleString("tr-TR")}</span>
+                    <span className="text-xs uppercase font-sans font-bold opacity-90">Altın</span>
                   </button>
                 </div>
               </div>
             );
           })}
+        </div>
+      </div>
+
+      <div className="space-y-3 pt-6 border-t border-slate-800">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-stroke text-2xl text-white font-display">Charm Mağazası</h2>
+            <p className="text-xs text-amber-200/80">Charmlar doğrudan satın alınamaz. Charm Sandığı (50.000 Altın) açarak yeni bir Charm kazanabilirsin!</p>
+          </div>
+          <span className="text-xs sm:text-sm font-mono font-black text-amber-300 bg-amber-500/15 border-2 border-amber-500/40 px-3 py-1 rounded-full shadow-inner flex items-center gap-1">
+            <span>🪙</span>
+            <span>{gold.toLocaleString("tr-TR")}</span>
+          </span>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          {CHARMS.map((charm) => {
+            const hasCharm = (unlockedCharms || []).includes(charm.id);
+            return (
+              <div 
+                key={charm.id} 
+                className={cn(
+                  "panel-3d flex flex-col justify-between p-3.5 sm:p-4 rounded-2xl transition-all border-2 shadow-lg text-left",
+                  hasCharm 
+                    ? "bg-slate-900/60 border-slate-800/80" 
+                    : "bg-gradient-to-br from-slate-850 via-slate-900 to-indigo-950/50 border-indigo-500/30"
+                )}
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-1.5 flex-wrap sm:flex-nowrap">
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center text-2xl sm:text-3xl rounded-xl bg-slate-950 border-2 border-indigo-500/40 shadow-inner shrink-0">
+                      {charm.emoji}
+                    </div>
+                    {hasCharm ? (
+                      <span className="text-[9px] sm:text-[10px] font-black uppercase text-emerald-400 bg-emerald-950/80 border border-emerald-500/50 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full">
+                        Sahipsin ✓
+                      </span>
+                    ) : (
+                      <span className="text-[9px] sm:text-[10px] font-black uppercase text-amber-300 bg-amber-950/80 border border-amber-500/50 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full">
+                        Sandıkta 🔮
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-sm sm:text-base font-black text-white mt-2 font-display leading-tight">{charm.name}</div>
+                  <p className="text-[11px] sm:text-xs text-slate-300/90 mt-1 leading-snug line-clamp-3 min-h-[2.5rem]">
+                    {charm.description}
+                  </p>
+                </div>
+
+                <div className="mt-3 pt-2.5 border-t border-slate-800/80">
+                  <button
+                    disabled={true}
+                    className={cn(
+                      "w-full rounded-xl px-2.5 py-2.5 text-xs font-display whitespace-nowrap transition-all shadow-md flex items-center justify-center gap-1 font-black cursor-default",
+                      hasCharm 
+                        ? "bg-emerald-950/60 text-emerald-300 border border-emerald-500/40" 
+                        : "bg-slate-800/80 text-amber-300 border border-slate-700"
+                    )}
+                  >
+                    {hasCharm ? "Açıldı ✓" : "🔮 Sandıktan Çıkar"}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      
+      <div className="space-y-3 pt-6 border-t border-slate-800">
+        <div className="panel-3d flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5 rounded-2xl p-4 bg-gradient-to-br from-indigo-900/90 via-indigo-950 to-slate-900 border-2 border-indigo-500/40 shadow-lg">
+           <div className="flex items-center gap-3.5">
+             <div className="grid h-14 w-14 sm:h-16 sm:w-16 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-indigo-800 to-indigo-950 text-3xl sm:text-4xl shadow-inner border border-indigo-400/50">
+               ✨
+             </div>
+             <div className="min-w-0">
+               <div className="font-display text-base sm:text-lg text-white font-bold flex items-center gap-1.5">
+                 Level Jetonu Al <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-400/40 px-2 py-0.5 rounded-full font-sans font-medium">1 Jeton = 5.000 🪙</span>
+               </div>
+               <div className="text-xs text-indigo-200/90 leading-tight">
+                 Kartların seviyesini yükseltmek için kullanılır. Sahip olunan: <span className="font-mono font-bold text-amber-300 text-sm">{levelCoins} ✨</span>
+               </div>
+             </div>
+           </div>
+           <div className="flex items-center gap-2 w-full sm:w-auto">
+             <button
+               onClick={() => onBuyLevelCoins(5000, 1)}
+               disabled={gold < 5000}
+               className={cn(
+                 "w-full sm:w-auto rounded-xl px-5 py-2.5 text-xs sm:text-sm font-display text-primary-foreground text-stroke font-black flex items-center justify-center gap-1.5",
+                 "btn-pop active:btn-pop-active",
+                 gold < 5000 && "opacity-50 cursor-not-allowed",
+               )}
+             >
+               <span>🪙</span>
+               <span className="font-mono text-sm">5.000</span>
+               <span className="text-white ml-0.5">➔ 1 Jeton</span>
+             </button>
+           </div>
         </div>
       </div>
 
@@ -1466,8 +2166,10 @@ function ChestsTab({
             const hasEmoji = unlockedEmojis.includes(emoji);
             const can = !hasEmoji && gold >= cost;
             return (
-              <div key={emoji} className="panel-3d flex flex-col items-center gap-2 p-3 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 text-center">
-                <div className="text-4xl">{emoji}</div>
+              <div key={emoji} className="panel-3d flex flex-col items-center gap-2 p-3 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 text-center hover:border-slate-500 transition-all">
+                <div className="py-2 flex items-center justify-center">
+                  <AnimatedEmoji emoji={emoji} size="2xl" mode="ambient" interactive={true} />
+                </div>
                 <button
                   onClick={() => onBuyEmoji(emoji, cost)}
                   disabled={hasEmoji || !can}
@@ -1494,7 +2196,7 @@ function ChestReveal({
   onClose,
 }: {
   chestName: string;
-  rewards: { card: CardDef; isDuplicate: boolean; refundGold: number }[];
+  rewards: ChestRewardItem[];
   onClose: () => void;
 }) {
   const [phase, setPhase] = useState<"intro" | "tapping" | "summary">("intro");
@@ -1502,6 +2204,7 @@ function ChestReveal({
   const [isShaking, setIsShaking] = useState(false);
 
   const getChestEmoji = (isOpen = false) => {
+    if (chestName.includes("Charm")) return isOpen ? "🔮" : "🔮";
     if (chestName.includes("Efsanevi")) return isOpen ? "💫" : "✨";
     if (chestName.includes("Epik")) return isOpen ? "👑" : "🏆";
     if (chestName.includes("Nadir")) return isOpen ? "🎉" : "🎁";
@@ -1540,6 +2243,9 @@ function ChestReveal({
 
   const activeReward = rewards[Math.max(0, Math.min(tapCount, rewards.length) - 1)];
   const activeCard = activeReward?.card;
+  const activeCharm = activeReward?.charm;
+  const isCharm = activeReward?.type === "charm";
+  const isLevelCoin = activeReward?.type === "level_coin";
 
   const getRarityGlowClass = (rarity: Rarity) => {
     switch (rarity) {
@@ -1601,7 +2307,7 @@ function ChestReveal({
             </div>
 
             <div className="text-slate-400 text-xs font-mono bg-black/50 py-2.5 rounded-xl border border-slate-900">
-              Sandık İçeriği: {rewards.length} Karakter Kartı
+              Sandık İçeriği: {chestName.includes("Charm") ? "1 Charm ✨" : `${rewards.length} Ödül`}
             </div>
             
             <button className="mx-auto block w-full py-3 font-display text-lg text-primary-foreground text-stroke btn-pop active:btn-pop-active mt-2">
@@ -1610,7 +2316,7 @@ function ChestReveal({
           </motion.div>
         )}
 
-        {phase === "tapping" && activeCard && (
+        {phase === "tapping" && activeReward && (
           <motion.div 
             key="tapping"
             initial={{ scale: 0.9, opacity: 0 }}
@@ -1624,7 +2330,7 @@ function ChestReveal({
               className="relative transition-transform hover:scale-105 bg-black/40 p-3 rounded-2xl border border-slate-800 flex flex-col items-center justify-center gap-1"
             >
               <div className="absolute -top-2.5 bg-yellow-500 text-amber-950 font-mono font-bold text-[10px] px-2.5 py-0.5 rounded-full border border-black shadow">
-                {tapCount} / {rewards.length} KART AÇILDI
+                {tapCount} / {rewards.length} ÖDÜL AÇILDI
               </div>
               
               <div className="relative pt-1 flex justify-center">
@@ -1650,55 +2356,103 @@ function ChestReveal({
               </div>
             </div>
 
-            {/* Revealed Card popping out of the chest */}
+            {/* Revealed Item popping out of the chest */}
             <AnimatePresence mode="wait">
-              <motion.div 
-                key={tapCount}
-                initial={{ scale: 0.3, y: -40, opacity: 0, rotate: -8 }}
-                animate={{ scale: 1.05, y: 0, opacity: 1, rotate: 0 }}
-                whileInView={{ scale: 1 }}
-                transition={{ type: "spring", stiffness: 150, damping: 15 }}
-                className="py-4 flex flex-col items-center justify-center"
-              >
-                <div className={cn("px-6 py-5 rounded-[20px] border-2 transition-all flex flex-col items-center justify-center transform w-52 shadow-2xl relative", getRarityGlowClass(activeCard.rarity))}>
-                  <span className="text-7xl mb-4 drop-shadow-[0_4px_8px_rgba(0,0,0,0.4)] select-none animate-bounce duration-1000">{activeCard.emoji}</span>
-                  <div className="font-display text-2xl text-white text-stroke leading-tight tracking-wide">{activeCard.name}</div>
-                  <div className={cn("text-xs font-black tracking-wider font-display uppercase mt-1 px-3 py-0.5 rounded-full border text-stroke-sm", getRarityTextClass(activeCard.rarity), getRarityBgClass(activeCard.rarity))}>
-                    {RARITY_LABEL[activeCard.rarity]}
+              {isCharm && activeCharm ? (
+                <motion.div 
+                  key={tapCount}
+                  initial={{ scale: 0.3, y: -40, opacity: 0, rotate: -8 }}
+                  animate={{ scale: 1.05, y: 0, opacity: 1, rotate: 0 }}
+                  whileInView={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 150, damping: 15 }}
+                  className="py-4 flex flex-col items-center justify-center"
+                >
+                  <div className="px-6 py-5 rounded-[20px] border-2 border-yellow-500 bg-gradient-to-b from-indigo-900/90 to-yellow-950/80 shadow-[0_0_45px_#eab308] flex flex-col items-center justify-center w-56 text-center relative">
+                    <span className="text-7xl mb-3 drop-shadow-[0_4px_8px_rgba(0,0,0,0.4)] select-none animate-bounce duration-1000">{activeCharm.emoji}</span>
+                    <div className="font-display text-2xl text-white text-stroke leading-tight tracking-wide">{activeCharm.name}</div>
+                    <div className="text-xs font-black tracking-wider font-display uppercase mt-1 px-3 py-0.5 rounded-full border text-stroke-sm bg-yellow-600/30 border-yellow-500/50 text-yellow-300 animate-pulse">
+                      ✨ EFSANEVİ CHARM
+                    </div>
+                    <p className="text-xs text-amber-100/90 mt-2 leading-tight">{activeCharm.description}</p>
                   </div>
-                </div>
 
-                {activeReward.isDuplicate ? (
-                  <div className="mt-4 flex flex-col items-center justify-center gap-1 rounded-2xl bg-amber-500/15 border border-amber-500/40 px-5 py-2 text-center animate-pulse shadow-md w-full max-w-[240px]">
-                    <span className="text-[11px] text-amber-500 font-bold uppercase tracking-wider">Zaten Sahipsin!</span>
-                    <span className="font-display text-base font-black text-emerald-400 flex items-center justify-center gap-1 text-stroke-sm">
-                      +20 XP Kazanıldı! 🌟
-                    </span>
+                  <div className="mt-4 flex flex-col items-center gap-0.5 rounded-full bg-amber-500/30 border border-amber-400/50 px-5 py-2 text-[11px] font-black text-amber-300 animate-bounce tracking-widest shadow-md">
+                    <span>🎉 YENİ CHARM KAZANILDI!</span>
                   </div>
-                ) : (
-                  <div className="mt-4 flex flex-col items-center gap-0.5 rounded-full bg-emerald-500/30 border border-emerald-400/50 px-5 py-2 text-[11px] font-black text-emerald-300 animate-bounce tracking-widest shadow-md">
-                    <span>🎉 YENİ SAVAŞÇI AÇILDI!</span>
-                    <span className="text-[10px] text-emerald-400 font-bold font-mono">+20 XP 🌟</span>
+                </motion.div>
+              ) : isLevelCoin ? (
+                <motion.div 
+                  key={tapCount}
+                  initial={{ scale: 0.3, y: -40, opacity: 0, rotate: -8 }}
+                  animate={{ scale: 1.05, y: 0, opacity: 1, rotate: 0 }}
+                  whileInView={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 150, damping: 15 }}
+                  className="py-4 flex flex-col items-center justify-center"
+                >
+                  <div className="px-6 py-5 rounded-[20px] border-2 border-cyan-400 bg-cyan-950/80 shadow-[0_0_35px_#22d3ee] flex flex-col items-center justify-center w-56 text-center relative">
+                    <span className="text-7xl mb-3 drop-shadow-[0_4px_8px_rgba(0,0,0,0.4)] select-none animate-bounce duration-1000">✨</span>
+                    <div className="font-display text-2xl text-white text-stroke leading-tight tracking-wide">1 Level Jetonu</div>
+                    <div className="text-xs font-black tracking-wider font-display uppercase mt-1 px-3 py-0.5 rounded-full border text-stroke-sm bg-cyan-600/30 border-cyan-500/50 text-cyan-300">
+                      💎 SEVİYE JETONU
+                    </div>
+                    <p className="text-xs text-cyan-100/90 mt-2 leading-tight">Kartlarının seviyesini anında yükseltmek için kullanılır.</p>
                   </div>
-                )}
-              </motion.div>
+
+                  <div className="mt-4 flex flex-col items-center gap-0.5 rounded-full bg-cyan-500/30 border border-cyan-400/50 px-5 py-2 text-[11px] font-black text-cyan-300 animate-bounce tracking-widest shadow-md">
+                    <span>🎉 LEVEL JETONU KAZANILDI!</span>
+                  </div>
+                </motion.div>
+              ) : activeCard ? (
+                <motion.div 
+                  key={tapCount}
+                  initial={{ scale: 0.3, y: -40, opacity: 0, rotate: -8 }}
+                  animate={{ scale: 1.05, y: 0, opacity: 1, rotate: 0 }}
+                  whileInView={{ scale: 1 }}
+                  transition={{ type: "spring", stiffness: 150, damping: 15 }}
+                  className="py-4 flex flex-col items-center justify-center"
+                >
+                  <div className={cn("px-6 py-5 rounded-[20px] border-2 transition-all flex flex-col items-center justify-center transform w-52 shadow-2xl relative", getRarityGlowClass(activeCard.rarity))}>
+                    <span className="text-7xl mb-4 drop-shadow-[0_4px_8px_rgba(0,0,0,0.4)] select-none animate-bounce duration-1000">{activeCard.emoji}</span>
+                    <div className="font-display text-2xl text-white text-stroke leading-tight tracking-wide">{activeCard.name}</div>
+                    <div className={cn("text-xs font-black tracking-wider font-display uppercase mt-1 px-3 py-0.5 rounded-full border text-stroke-sm", getRarityTextClass(activeCard.rarity), getRarityBgClass(activeCard.rarity))}>
+                      {RARITY_LABEL[activeCard.rarity]}
+                    </div>
+                  </div>
+
+                  {activeReward.isDuplicate ? (
+                    <div className="mt-4 flex flex-col items-center justify-center gap-1 rounded-2xl bg-amber-500/15 border border-amber-500/40 px-5 py-2 text-center animate-pulse shadow-md w-full max-w-[240px]">
+                      <span className="text-[11px] text-amber-500 font-bold uppercase tracking-wider">Zaten Sahipsin!</span>
+                      <span className="font-display text-base font-black text-emerald-400 flex items-center justify-center gap-1 text-stroke-sm">
+                        +20 XP Kazanıldı! 🌟
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="mt-4 flex flex-col items-center gap-0.5 rounded-full bg-emerald-500/30 border border-emerald-400/50 px-5 py-2 text-[11px] font-black text-emerald-300 animate-bounce tracking-widest shadow-md">
+                      <span>🎉 YENİ SAVAŞÇI AÇILDI!</span>
+                      <span className="text-[10px] text-emerald-400 font-bold font-mono">+20 XP 🌟</span>
+                    </div>
+                  )}
+                </motion.div>
+              ) : null}
             </AnimatePresence>
 
-            {/* Stat Box Details */}
-            <div className="space-y-1.5 bg-black/60 p-3 rounded-2xl border border-slate-800/80">
-              <div className="text-xs text-slate-355 flex justify-between">
-                <span>Can Değeri:</span>
-                <span className="font-bold text-white">❤️ {activeCard.hp}</span>
+            {/* Stat Box Details (for cards) */}
+            {activeCard && (
+              <div className="space-y-1.5 bg-black/60 p-3 rounded-2xl border border-slate-800/80">
+                <div className="text-xs text-slate-355 flex justify-between">
+                  <span>Can Değeri:</span>
+                  <span className="font-bold text-white">❤️ {activeCard.hp}</span>
+                </div>
+                <div className="text-xs text-slate-355 flex justify-between">
+                  <span>Maksimum Hasar:</span>
+                  <span className="font-bold text-white">⚔️ {activeCard.dmg}</span>
+                </div>
+                <div className="text-xs text-slate-356 flex justify-between">
+                  <span>Saldırı Tipi:</span>
+                  <span className="font-bold text-amber-300 capitalize">{activeCard.range === "yakın" ? "Yakın" : activeCard.range === "uzak" ? "Uzak" : "Hava"}</span>
+                </div>
               </div>
-              <div className="text-xs text-slate-355 flex justify-between">
-                <span>Maksimum Hasar:</span>
-                <span className="font-bold text-white">⚔️ {activeCard.dmg}</span>
-              </div>
-              <div className="text-xs text-slate-356 flex justify-between">
-                <span>Saldırı Tipi:</span>
-                <span className="font-bold text-amber-300 capitalize">{activeCard.range === "yakın" ? "Yakın" : activeCard.range === "uzak" ? "Uzak" : "Hava"}</span>
-              </div>
-            </div>
+            )}
           </motion.div>
         )}
 
@@ -1712,31 +2466,58 @@ function ChestReveal({
           >
             <div className="text-stroke text-3xl text-yellow-400 font-display uppercase tracking-widest leading-none">TEBRİKLER! 🎉</div>
             <p className="text-xs text-slate-300 font-medium px-2 leading-relaxed">
-              Sandıktan çıkan ödüller hesabınıza başarıyla eklendi. Çıkan her kart için +20 XP kazandınız!
+              Sandıktan çıkan ödüller hesabınıza başarıyla eklendi.
             </p>
 
             <div className="grid grid-cols-3 gap-2.5 max-h-[30vh] overflow-y-auto p-1.5 bg-black/40 border border-slate-950 rounded-2xl my-4">
               {rewards.map((reward, i) => {
-                const c = reward.card;
-                return (
-                  <div key={i} className="relative flex flex-col items-center p-2.5 rounded-xl bg-slate-900/50 border border-slate-800/80 shadow-md">
-                    <span className="text-4xl mb-1 select-none">{c.emoji}</span>
-                    <span className="text-[10px] text-white font-bold font-display truncate w-full px-1">{c.name}</span>
-                    <span className={cn("text-[8px] font-bold uppercase tracking-tight", getRarityTextClass(c.rarity))}>
-                      {RARITY_LABEL[c.rarity]}
-                    </span>
-                    
-                    {reward.isDuplicate ? (
-                      <span className="absolute -top-1.5 -right-1 bg-emerald-500 text-white font-black text-[9px] px-1.5 py-0.5 rounded-full border border-black shadow">
-                        +20 XP 🌟
+                if (reward.type === "charm" && reward.charm) {
+                  return (
+                    <div key={i} className="relative flex flex-col items-center p-2.5 rounded-xl bg-indigo-950/80 border border-indigo-500/60 shadow-md">
+                      <span className="text-4xl mb-1 select-none">{reward.charm.emoji}</span>
+                      <span className="text-[10px] text-white font-bold font-display truncate w-full px-1">{reward.charm.name}</span>
+                      <span className="text-[8px] font-bold uppercase tracking-tight text-amber-300">Charm</span>
+                      <span className="absolute -top-1.5 -right-1 bg-amber-500 text-slate-950 font-black text-[8px] px-1.5 py-0.5 rounded-full border border-black shadow">
+                        YENİ CHARM! ✨
                       </span>
-                    ) : (
-                      <span className="absolute -top-1.5 -right-1 bg-emerald-500 text-white font-black text-[9px] px-1.5 py-0.5 rounded-full border border-black shadow animate-pulse">
-                        YENİ! +20 XP
+                    </div>
+                  );
+                }
+                if (reward.type === "level_coin") {
+                  return (
+                    <div key={i} className="relative flex flex-col items-center p-2.5 rounded-xl bg-cyan-950/80 border border-cyan-500/60 shadow-md">
+                      <span className="text-4xl mb-1 select-none">✨</span>
+                      <span className="text-[10px] text-white font-bold font-display truncate w-full px-1">1 Level Jetonu</span>
+                      <span className="text-[8px] font-bold uppercase tracking-tight text-cyan-300">Jeton</span>
+                      <span className="absolute -top-1.5 -right-1 bg-cyan-400 text-slate-950 font-black text-[8px] px-1.5 py-0.5 rounded-full border border-black shadow">
+                        +1 JETON ✨
                       </span>
-                    )}
-                  </div>
-                );
+                    </div>
+                  );
+                }
+                if (reward.card) {
+                  const c = reward.card;
+                  return (
+                    <div key={i} className="relative flex flex-col items-center p-2.5 rounded-xl bg-slate-900/50 border border-slate-800/80 shadow-md">
+                      <span className="text-4xl mb-1 select-none">{c.emoji}</span>
+                      <span className="text-[10px] text-white font-bold font-display truncate w-full px-1">{c.name}</span>
+                      <span className={cn("text-[8px] font-bold uppercase tracking-tight", getRarityTextClass(c.rarity))}>
+                        {RARITY_LABEL[c.rarity]}
+                      </span>
+                      
+                      {reward.isDuplicate ? (
+                        <span className="absolute -top-1.5 -right-1 bg-emerald-500 text-white font-black text-[9px] px-1.5 py-0.5 rounded-full border border-black shadow">
+                          +20 XP 🌟
+                        </span>
+                      ) : (
+                        <span className="absolute -top-1.5 -right-1 bg-emerald-500 text-white font-black text-[9px] px-1.5 py-0.5 rounded-full border border-black shadow animate-pulse">
+                          YENİ! +20 XP
+                        </span>
+                      )}
+                    </div>
+                  );
+                }
+                return null;
               })}
             </div>
 

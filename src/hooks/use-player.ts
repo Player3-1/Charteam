@@ -1,21 +1,22 @@
 import { useEffect, useState, useCallback } from "react";
 import { CARDS } from "@/lib/cards";
 import { db, handleFirestoreError, OperationType } from "@/firebase";
-import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, updateDoc } from "firebase/firestore";
 import { UserData } from "@/types";
 import { MAX_TROPHIES, arenaForTrophies } from "@/lib/arenas";
 
 const STARTER_DECK: UserData["deck"] = ["mizrakli", "kilicli", "okcu", "dev"];
+const CURRENT_RANK_SEASON = 3;
 
 function defaultState(username: string): UserData {
+  const isDgoa = username.toLowerCase() === "dgoa";
   const collection: Record<string, number> = {};
-  const starterCards = ["mizrakli", "kilicli", "okcu", "dev", "atli", "tufekci", "sapanci", "topcu"];
-  for (const cardId of starterCards) {
+  for (const cardId of STARTER_DECK) {
     collection[cardId] = 1;
   }
   return {
     username,
-    gold: 1000,
+    gold: isDgoa ? 365000 : 1000,
     trophies: 0,
     collection,
     deck: STARTER_DECK,
@@ -25,14 +26,18 @@ function defaultState(username: string): UserData {
     losses: 0,
     rankProgressTrophies: 0,
     rankedStars: 0,
+    rankSeason: CURRENT_RANK_SEASON,
     unlockedEmojis: ["👍", "😂", "😡", "😱"],
     selectedEmojis: ["👍", "😂", "😡", "😱"],
+    unlockedCharms: ["kuvvet", "saglik"],
+    selectedCharms: ["kuvvet", "saglik"],
     avatar: "",
     profileStyleUnlocked: false,
     profileColor: "white",
     profileFont: "font-display",
     rankedMatchesPlayed: 0,
     claimedRankedRewards: [],
+    claimedRankTiers: [],
   };
 }
 
@@ -54,8 +59,23 @@ export function usePlayer(username: string) {
         const wins = Number(data.wins ?? 0);
 
         const collection = { ...(data.collection ?? {}) };
+        if (Object.keys(collection).length === 0) {
+          for (const cardId of STARTER_DECK) {
+            collection[cardId] = 1;
+          }
+        }
 
-        const nextState = { 
+        const isDgoa = username.toLowerCase() === "dgoa";
+        const isOldSeason = (data.rankSeason ?? 1) < CURRENT_RANK_SEASON;
+        const currentRankedStars = isOldSeason ? 0 : (data.rankedStars ?? 0);
+        const currentRankProgressTrophies = isOldSeason
+          ? 0
+          : (data.rankProgressTrophies !== undefined ? data.rankProgressTrophies : 0);
+
+        const currentRankedMatchesPlayed = isOldSeason ? 0 : (data.rankedMatchesPlayed ?? 0);
+        const currentClaimedTiers = isOldSeason ? [] : (data.claimedRankTiers ?? []);
+
+        const nextState: UserData = { 
           ...data, 
           collection,
           cardLevels: (data.cardLevels ?? {}),
@@ -65,8 +85,9 @@ export function usePlayer(username: string) {
           activeDeckIndex: data.activeDeckIndex ?? 0,
           wins: wins,
           losses: data.losses ?? 0,
-          rankProgressTrophies: data.rankProgressTrophies ?? 0,
-          rankedStars: data.rankedStars ?? 0,
+          rankProgressTrophies: currentRankProgressTrophies,
+          rankedStars: currentRankedStars,
+          rankSeason: CURRENT_RANK_SEASON,
           unlockedEmojis: (data.unlockedEmojis && data.unlockedEmojis.length > 0) ? data.unlockedEmojis : ["👍", "😂", "😡", "😱"],
           selectedEmojis: (data.selectedEmojis && data.selectedEmojis.length > 0) ? data.selectedEmojis : ["👍", "😂", "😡", "😱"],
           claimedMilestones: data.claimedMilestones ?? [],
@@ -74,9 +95,21 @@ export function usePlayer(username: string) {
           profileStyleUnlocked: data.profileStyleUnlocked ?? false,
           profileColor: data.profileColor ?? "white",
           profileFont: data.profileFont ?? "font-display",
-          rankedMatchesPlayed: data.rankedMatchesPlayed ?? 0,
-          claimedRankedRewards: data.claimedRankedRewards ?? [],
+          rankedMatchesPlayed: currentRankedMatchesPlayed,
+          claimedRankedRewards: isOldSeason ? [] : (data.claimedRankedRewards ?? []),
+          claimedRankTiers: currentClaimedTiers,
         };
+
+        if (isOldSeason) {
+          updateDoc(userRef, {
+            rankedStars: 0,
+            rankProgressTrophies: isDgoa ? 100 : 0,
+            rankedMatchesPlayed: 0,
+            claimedRankedRewards: [],
+            claimedRankTiers: isDgoa ? ["bronz_1"] : [],
+            rankSeason: CURRENT_RANK_SEASON,
+          }).catch(() => {});
+        }
 
         setState(nextState);
       } else {
@@ -162,16 +195,16 @@ export function usePlayer(username: string) {
       nextTrophies = state.trophies;
       nextMaxTrophies = state.maxTrophies ?? state.trophies;
     } else {
-      // Standard trophies logic (strictly +10 for win, -10 for loss, no extra card level adjustments)
-      const progressTrophies = state.rankProgressTrophies ?? 0;
-      nextProgressTrophies = Math.max(0, progressTrophies + trophy);
-      
+      // Standard trophies logic (wins grant trophies with level scaling, defeats lose that same amount)
       const proposedTrophies = state.trophies + trophy;
-      
-      const finalTrophies = proposedTrophies;
-      
-      nextTrophies = Math.max(0, Math.min(MAX_TROPHIES, finalTrophies));
+      nextTrophies = Math.max(0, Math.min(MAX_TROPHIES, proposedTrophies));
       nextMaxTrophies = Math.max(state.maxTrophies ?? 0, nextTrophies);
+
+      // Rank progress is NOT tied to fluctuating current trophies.
+      // It accumulates as you grind and gain trophies on victory (kastıkça artar) and does not drop on loss.
+      const progressTrophies = state.rankProgressTrophies ?? 0;
+      const gainOnWin = win ? Math.max(0, trophy) : 0;
+      nextProgressTrophies = progressTrophies + gainOnWin;
     }
 
     // Accumulate card XP based on match result (+10 XP per win, +5 XP per loss for cards in active deck)
@@ -210,26 +243,74 @@ export function usePlayer(username: string) {
     await updateFirestore(newState);
   }, [state, updateFirestore]);
 
+  const upgradeCardLevelWithGold = useCallback(async (cardId: string) => {
+    if (!state) return false;
+    const cardLevels = { ...(state.cardLevels || {}) };
+    const cardProgress = { ...(state.cardProgress || {}) };
+    
+    const lvl = cardLevels[cardId] || 1;
+    if (lvl >= 5) {
+      alert("Bu kart zaten maksimum seviyede (Level 5)!");
+      return false;
+    }
+    
+    // Altın ile yükseltme yapmak için Kart XP'sinin dolu olması gerekir
+    const reqXp = lvl === 1 ? 50 : lvl === 2 ? 100 : lvl === 3 ? 150 : 250;
+    const currentProgress = cardProgress[cardId] || 0;
+    if (currentProgress < reqXp) {
+      alert(`⚠️ Kart XP'si Yetersiz!\n\nBu kartı Altın ile Seviye ${lvl + 1}'e yükseltmek için önce kart XP'sinin tamamen dolması gerekmektedir (${currentProgress}/${reqXp} XP).\n\nSavaş kazanarak XP biriktirebilir veya Dükkandan Level Jetonu alarak XP doldurmadan yükseltebilirsin!`);
+      return false;
+    }
+    
+    // Normal yükseltme maliyetleri (Altın)
+    const reqGold = lvl === 1 ? 500 : lvl === 2 ? 1500 : lvl === 3 ? 3500 : 7500;
+    const currentGold = state.gold || 0;
+    if (currentGold < reqGold) {
+      alert(`Yetersiz Altın!\n\nBu kartı Seviye ${lvl + 1}'e yükseltmek için ${reqGold.toLocaleString("tr-TR")} Altın gerekiyor.\nŞu an sahip olduğun Altın: ${currentGold.toLocaleString("tr-TR")}`);
+      return false;
+    }
+    
+    const newState: UserData = {
+      ...state,
+      gold: currentGold - reqGold,
+      cardLevels: {
+        ...cardLevels,
+        [cardId]: lvl + 1
+      },
+      cardProgress: {
+        ...cardProgress,
+        [cardId]: Math.max(0, currentProgress - reqXp)
+      }
+    };
+    
+    setState(newState);
+    await updateFirestore(newState);
+    alert(`🎉 Tebrikler! Kart Seviye ${lvl + 1}'e yükseltildi!`);
+    return true;
+  }, [state, updateFirestore]);
+
   const upgradeCardLevel = useCallback(async (cardId: string) => {
     if (!state) return false;
     const cardLevels = { ...(state.cardLevels || {}) };
     const cardProgress = { ...(state.cardProgress || {}) };
     
     const lvl = cardLevels[cardId] || 1;
-    const prog = cardProgress[cardId] || 0;
     
     if (lvl >= 5) {
       alert("Bu kart zaten maksimum seviyede (Level 5)!");
       return false;
     }
     
-    const reqXp = lvl === 1 ? 50 : lvl === 2 ? 100 : lvl === 3 ? 150 : lvl === 4 ? 250 : 250;
-    if (prog < reqXp) {
-      alert(`Bu kartı yükseltmek için yeterli XP'ye sahip değilsin! (${prog}/${reqXp} XP gerekiyor)`);
+    const reqCoins = lvl === 1 ? 1 : lvl === 2 ? 2 : lvl === 3 ? 3 : 5;
+    const currentCoins = state.levelCoins || 0;
+    if (currentCoins < reqCoins) {
+      alert(`Yetersiz Level Jetonu!\n\nBu kartı Jeton ile Seviye ${lvl + 1}'e yükseltmek için ${reqCoins} Level Jetonu gerekiyor.\nŞu an sahip olduğun Jeton: ${currentCoins}\n\nDükkan sekmesinden 1 Level Jetonunu 5.000 Altın karşılığında alabilirsin.`);
       return false;
     }
+
+    const reqXp = lvl === 1 ? 50 : lvl === 2 ? 100 : lvl === 3 ? 150 : 250;
     
-    const newState = {
+    const newState: UserData = {
       ...state,
       cardLevels: {
         ...cardLevels,
@@ -237,12 +318,14 @@ export function usePlayer(username: string) {
       },
       cardProgress: {
         ...cardProgress,
-        [cardId]: prog - reqXp
-      }
+        [cardId]: Math.max(0, (cardProgress[cardId] || 0) - reqXp)
+      },
+      levelCoins: currentCoins - reqCoins
     };
     
     setState(newState);
     await updateFirestore(newState);
+    alert(`🎉 Tebrikler! Level Jetonu ile kart Seviye ${lvl + 1}'e yükseltildi!`);
     return true;
   }, [state, updateFirestore]);
 
@@ -310,6 +393,24 @@ export function usePlayer(username: string) {
     await updateFirestore(newState);
   }, [state, updateFirestore]);
 
+  const setCharmSlot = useCallback(async (slot: number, charmId: string) => {
+    if (!state) return;
+    const selectedCharms = [...(state.selectedCharms ?? ["", ""])];
+    
+    if (charmId === "") {
+        selectedCharms[slot] = "";
+    } else {
+        const existingSlot = selectedCharms.indexOf(charmId);
+        if (existingSlot >= 0) {
+            selectedCharms[existingSlot] = selectedCharms[slot];
+        }
+        selectedCharms[slot] = charmId;
+    }
+    const newState = { ...state, selectedCharms };
+    setState(newState);
+    await updateFirestore({ selectedCharms });
+  }, [state, updateFirestore]);
+
   const setEmojiSlot = useCallback(async (slot: number, emoji: string) => {
     if (!state) return;
     const selectedEmojis = [...(state.selectedEmojis ?? ["", "", "", ""])] as string[];
@@ -326,6 +427,33 @@ export function usePlayer(username: string) {
     const newState = { ...state, selectedEmojis };
     setState(newState);
     await updateFirestore(newState);
+  }, [state, updateFirestore]);
+
+  const buyCharm = useCallback(async (charmId: string, cost: number) => {
+    if (!state) return false;
+    if (state.gold < cost) {
+      return false;
+    }
+    const currentUnlocked = (state.unlockedCharms && state.unlockedCharms.length > 0)
+      ? state.unlockedCharms
+      : ["kuvvet", "saglik"];
+    if (currentUnlocked.includes(charmId)) return true;
+    const unlockedCharms = [...currentUnlocked, charmId];
+    const newState = { ...state, gold: state.gold - cost, unlockedCharms };
+    setState(newState);
+    await updateFirestore({ gold: state.gold - cost, unlockedCharms });
+    return true;
+  }, [state, updateFirestore]);
+
+  const buyLevelCoins = useCallback(async (cost: number, amount: number) => {
+    if (!state) return false;
+    if (state.gold < cost) {
+      return false;
+    }
+    const newState = { ...state, gold: state.gold - cost, levelCoins: (state.levelCoins || 0) + amount };
+    setState(newState);
+    await updateFirestore({ gold: state.gold - cost, levelCoins: (state.levelCoins || 0) + amount });
+    return true;
   }, [state, updateFirestore]);
 
   const buyEmoji = useCallback(async (emoji: string, cost: number) => {
@@ -375,25 +503,8 @@ export function usePlayer(username: string) {
   }, [state, updateFirestore]);
 
   const cheatUnlockAll = useCallback(async () => {
-    if (!state) return;
-    const nextCollection = { ...state.collection };
-    const nextCardLevels: Record<string, number> = { ...(state.cardLevels || {}) };
-    const nextCardProgress: Record<string, number> = { ...(state.cardProgress || {}) };
-    CARDS.forEach(c => {
-      nextCollection[c.id] = Math.max(nextCollection[c.id] || 0, 100);
-      nextCardLevels[c.id] = 5;
-      nextCardProgress[c.id] = 0;
-    });
-    const newState = {
-      ...state,
-      collection: nextCollection,
-      gold: state.gold + 100000,
-      cardLevels: nextCardLevels,
-      cardProgress: nextCardProgress,
-    };
-    setState(newState);
-    await updateFirestore(newState);
-  }, [state, updateFirestore]);
+    alert("Hile sistemi kapatılmıştır.");
+  }, []);
 
   const updateProfileCustomization = useCallback(async (customization: { avatar?: string, profileStyleUnlocked?: boolean, profileColor?: string, profileFont?: string }) => {
     if (!state) return;
@@ -440,5 +551,35 @@ export function usePlayer(username: string) {
     await updateFirestore(newState);
   }, [state, updateFirestore]);
 
-  return { state, hydrated, addCards, claimChestRewards, spendGold, setDeckSlot, setActiveDeck, applyMatchReward, setEmojiSlot, buyEmoji, setTrophies, setGold, updateResources, resetRankedStars, claimProgressionReward, cheatUnlockAll, updateProfileCustomization, importDeck, upgradeCardLevel, claimRankedReward };
+  const claimRankReward = useCallback(async (
+    targetRankId: string,
+    goldReward: number,
+    levelCoinsReward: number,
+    rewards: { card: any; isDuplicate: boolean; refundGold: number }[]
+  ) => {
+    if (!state) return;
+    const totalRefund = rewards.reduce((sum, r) => sum + (r.isDuplicate ? r.refundGold : 0), 0);
+    const newState = {
+      ...state,
+      gold: state.gold + goldReward + totalRefund,
+      levelCoins: (state.levelCoins || 0) + levelCoinsReward,
+      collection: { ...state.collection },
+      cardProgress: { ...(state.cardProgress || {}) },
+      claimedRankTiers: [...(state.claimedRankTiers || []), targetRankId],
+    };
+
+    rewards.forEach(reward => {
+      const cardId = reward.card.id;
+      newState.collection[cardId] = (newState.collection[cardId] || 0) + 1;
+      const currentLvl = (state.cardLevels?.[cardId]) || 1;
+      if (currentLvl < 5) {
+        newState.cardProgress[cardId] = (newState.cardProgress[cardId] ?? 0) + 10;
+      }
+    });
+
+    setState(newState);
+    await updateFirestore(newState);
+  }, [state, updateFirestore]);
+
+  return { state, hydrated, addCards, claimChestRewards, spendGold, setDeckSlot, setActiveDeck, applyMatchReward, setEmojiSlot, setCharmSlot, buyEmoji, buyCharm, buyLevelCoins, setTrophies, setGold, updateResources, resetRankedStars, claimProgressionReward, cheatUnlockAll, updateProfileCustomization, importDeck, upgradeCardLevel, upgradeCardLevelWithGold, claimRankedReward, claimRankReward };
 }

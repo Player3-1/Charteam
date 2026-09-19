@@ -178,3 +178,359 @@
   animation: gradient-flow 3s linear infinite;
 }
 
+/* ============================================================ */
+/* NATURAL FLUID EMOJI ANIMATIONS                              */
+/* ============================================================ */
+
+@keyframes emoji-bubble-pop {
+  0% { 
+    transform: scale(0.4) translateY(16px); 
+    opacity: 0; 
+  }
+  60% { 
+    transform: scale(1.08) translateY(-4px); 
+    opacity: 1; 
+  }
+  80% { 
+    transform: scale(0.96) translateY(1px); 
+  }
+  100% { 
+    transform: scale(1) translateY(0); 
+    opacity: 1; 
+  }
+}
+
+@keyframes emoji-ambient {
+  0%, 100% { 
+    transform: translateY(0) scale(1) rotate(0deg); 
+  }
+  50% { 
+    transform: translateY(-3px) scale(1.04) rotate(1.5deg); 
+  }
+}
+
+@keyframes emoji-pop {
+  0%, 100% { 
+    transform: scale(1) rotate(0deg); 
+  }
+  30% { 
+    transform: scale(1.12, 0.92) rotate(-3deg); 
+  }
+  60% { 
+    transform: scale(0.95, 1.08) rotate(3deg); 
+  }
+}
+
+@keyframes emoji-cry {
+  0%, 100% { 
+    transform: translateY(0) scale(1, 1); 
+  }
+  20% { 
+    transform: translateY(-4px) scale(0.94, 1.08); 
+  }
+  40% { 
+    transform: translateY(2px) scale(1.06, 0.94); 
+  }
+  60% { 
+    transform: translateY(-3px) scale(0.96, 1.05); 
+  }
+  80% { 
+    transform: translateY(1px) scale(1.03, 0.97); 
+  }
+}
+
+@keyframes emoji-laugh {
+  0%, 100% { 
+    transform: translateY(0) rotate(0deg) scale(1); 
+  }
+  20% { 
+    transform: translateY(-6px) rotate(-8deg) scale(1.12, 0.92); 
+  }
+  40% { 
+    transform: translateY(0) rotate(4deg) scale(0.96, 1.06); 
+  }
+  60% { 
+    transform: translateY(-5px) rotate(-6deg) scale(1.1, 0.94); 
+  }
+  80% { 
+    transform: translateY(0) rotate(2deg) scale(0.98, 1.03); 
+  }
+}
+
+@keyframes emoji-rage {
+  0%, 100% { 
+    transform: translate(0, 0) scale(1); 
+  }
+  15% { 
+    transform: translate(-2px, 1px) scale(1.06); 
+  }
+  30% { 
+    transform: translate(2px, -1px) scale(1.08); 
+  }
+  45% { 
+    transform: translate(-2px, -1px) scale(1.06); 
+  }
+  60% { 
+    transform: translate(2px, 1px) scale(1.08); 
+  }
+  75% { 
+    transform: translate(-1px, 0) scale(1.04); 
+  }
+}
+
+@keyframes emoji-scream {
+  0%, 100% { 
+    transform: scale(1) translateY(0); 
+  }
+  25% { 
+    transform: scale(1.18, 0.88) translateY(-4px); 
+  }
+  50% { 
+    transform: scale(0.92, 1.12) translateY(2px); 
+  }
+  75% { 
+    transform: scale(1.08, 0.95) translateY(-2px); 
+  }
+}
+
+@keyframes emoji-smirk {
+  0%, 100% { 
+    transform: rotate(0deg) scale(1); 
+  }
+  35% { 
+    transform: rotate(7deg) scale(1.08) translateY(-2px); 
+  }
+  70% { 
+    transform: rotate(3deg) scale(1.04); 
+  }
+}
+
+@keyframes emoji-shush {
+  0%, 100% { 
+    transform: scale(1) rotate(0deg); 
+  }
+  35% { 
+    transform: scale(1.08) rotate(-4deg) translateY(-2px); 
+  }
+  70% { 
+    transform: scale(0.98) rotate(2deg); 
+  }
+}
+
+@keyframes emoji-poop {
+  0%, 100% { 
+    transform: translateY(0) scale(1, 1); 
+  }
+  25% { 
+    transform: translateY(-8px) scale(0.92, 1.12); 
+  }
+  50% { 
+    transform: translateY(2px) scale(1.1, 0.92); 
+  }
+  75% { 
+    transform: translateY(-4px) scale(0.96, 1.05); 
+  }
+}
+
+@keyframes emoji-cool {
+  0%, 100% { 
+    transform: translateY(0) rotate(0deg) scale(1); 
+  }
+  30% { 
+    transform: translateY(-4px) rotate(-4deg) scale(1.06); 
+  }
+  70% { 
+    transform: translateY(-4px) rotate(4deg) scale(1.06); 
+  }
+}
+
+@keyframes emoji-money {
+  0%, 100% { 
+    transform: scale(1) translateY(0); 
+  }
+  25% { 
+    transform: scale(1.14, 0.92) translateY(-6px) rotate(4deg); 
+  }
+  50% { 
+    transform: scale(0.96, 1.06) translateY(1px); 
+  }
+  75% { 
+    transform: scale(1.08, 0.96) translateY(-3px) rotate(-3deg); 
+  }
+}
+
+@keyframes emoji-kiss {
+  0%, 100% { 
+    transform: scale(1) translateY(0); 
+  }
+  30% { 
+    transform: scale(1.15, 0.92) translateY(-4px); 
+  }
+  60% { 
+    transform: scale(0.96, 1.05) translateY(0); 
+  }
+}
+
+@keyframes emoji-clown {
+  0%, 100% { 
+    transform: rotate(0deg) scale(1); 
+  }
+  25% { 
+    transform: rotate(-10deg) scale(1.12) translateY(-3px); 
+  }
+  50% { 
+    transform: rotate(8deg) scale(0.95) translateY(1px); 
+  }
+  75% { 
+    transform: rotate(-6deg) scale(1.06) translateY(-2px); 
+  }
+}
+
+@keyframes emoji-gold {
+  0%, 100% { 
+    transform: translateY(0) scale(1); 
+  }
+  50% { 
+    transform: translateY(-4px) scale(1.1) rotate(4deg); 
+  }
+}
+
+@keyframes emoji-thumbsup {
+  0%, 100% { 
+    transform: scale(1) rotate(0deg); 
+  }
+  30% { 
+    transform: scale(1.16) rotate(-8deg) translateY(-4px); 
+  }
+  60% { 
+    transform: scale(0.96) rotate(2deg); 
+  }
+}
+
+@keyframes emoji-wiggle {
+  0%, 100% { 
+    transform: rotate(0deg) scale(1); 
+  }
+  25% { 
+    transform: rotate(-8deg) scale(1.08); 
+  }
+  75% { 
+    transform: rotate(8deg) scale(1.08); 
+  }
+}
+
+@keyframes emoji-particle {
+  0% { 
+    transform: translate(0, 0) scale(0.6); 
+    opacity: 0; 
+  }
+  25% { 
+    opacity: 0.9; 
+    transform: translate(0, -6px) scale(1); 
+  }
+  80% { 
+    opacity: 0.6; 
+    transform: translate(var(--drift-x, 2px), -18px) scale(0.85); 
+  }
+  100% { 
+    opacity: 0; 
+    transform: translate(var(--drift-x, 4px), -24px) scale(0.4); 
+  }
+}
+
+@keyframes emoji-tear {
+  0% { 
+    transform: translateY(0) scale(0.5); 
+    opacity: 0; 
+  }
+  20% { 
+    opacity: 0.9; 
+    transform: translateY(3px) scale(1); 
+  }
+  80% { 
+    opacity: 0.7; 
+    transform: translateY(18px) scale(0.9); 
+  }
+  100% { 
+    opacity: 0; 
+    transform: translateY(24px) scale(0.4); 
+  }
+}
+
+@utility animate-emoji-bubble-pop {
+  animation: emoji-bubble-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@utility animate-emoji-ambient {
+  animation: emoji-ambient 2.4s ease-in-out infinite;
+}
+
+@utility animate-emoji-pop {
+  animation: emoji-pop 1.8s ease-in-out infinite;
+}
+
+@utility animate-emoji-cry {
+  animation: emoji-cry 1.5s ease-in-out infinite;
+}
+
+@utility animate-emoji-laugh {
+  animation: emoji-laugh 1.4s ease-in-out infinite;
+}
+
+@utility animate-emoji-rage {
+  animation: emoji-rage 1.0s ease-in-out infinite;
+}
+
+@utility animate-emoji-scream {
+  animation: emoji-scream 1.4s ease-in-out infinite;
+}
+
+@utility animate-emoji-smirk {
+  animation: emoji-smirk 1.8s ease-in-out infinite;
+}
+
+@utility animate-emoji-shush {
+  animation: emoji-shush 1.8s ease-in-out infinite;
+}
+
+@utility animate-emoji-poop {
+  animation: emoji-poop 1.3s cubic-bezier(0.34, 1.4, 0.64, 1) infinite;
+}
+
+@utility animate-emoji-cool {
+  animation: emoji-cool 2.0s ease-in-out infinite;
+}
+
+@utility animate-emoji-money {
+  animation: emoji-money 1.5s ease-in-out infinite;
+}
+
+@utility animate-emoji-kiss {
+  animation: emoji-kiss 1.5s ease-in-out infinite;
+}
+
+@utility animate-emoji-clown {
+  animation: emoji-clown 1.4s ease-in-out infinite;
+}
+
+@utility animate-emoji-gold {
+  animation: emoji-gold 1.8s ease-in-out infinite;
+}
+
+@utility animate-emoji-thumbsup {
+  animation: emoji-thumbsup 1.4s ease-in-out infinite;
+}
+
+@utility animate-emoji-wiggle {
+  animation: emoji-wiggle 0.4s ease-in-out infinite;
+}
+
+@utility animate-emoji-particle {
+  animation: emoji-particle 1.6s ease-out infinite;
+}
+
+@utility animate-emoji-tear {
+  animation: emoji-tear 1.3s ease-in infinite;
+}
+
+

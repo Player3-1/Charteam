@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CardDef } from "@/lib/cards";
 import { CARDS } from "@/lib/cards";
+import { CHARMS } from "@/lib/charms";
 import { arenaForTrophies, getRankForTrophies } from "@/lib/arenas";
 import { ArenaView } from "./arena-view";
 import { db } from "@/firebase";
 import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { submitPlacements, submitAbilityTrigger, submitEmoji, BattlePlacement, cancelMatchmaking } from "@/lib/matchmaking";
 import { cn, getAvatarForName } from "@/lib/utils";
+import { AnimatedEmoji } from "./animated-emoji";
 import { PROFILE_COLORS } from "@/lib/profile-customization";
 import {
   computeRewards,
@@ -17,6 +19,7 @@ import {
   tickBattle,
   triggerUnitAbility,
   getAbilityStoneCost,
+  applyCombatDamage,
   COLS,
   ROWS,
   RIVER_ROW,
@@ -45,6 +48,11 @@ function getBotPlacementCoordinate(
   const isHeavyTank = ["golem", "dev", "zirhli", "lav-kopegi", "kopek-baligi"].includes(card.id) || card.hp >= 150;
   const isHealerSupport = ["doktor", "mercan"].includes(card.id);
   const isAssassinFast = ["samuray", "vampir", "balik", "karinca-ordusu", "kabile"].includes(card.id);
+
+  const isRankedMode = mode === "ranked";
+  const isMasterTier = isRankedMode || botTrophies >= 3000;
+  const isMediumTier = isMasterTier || botTrophies >= 1000;
+  const isEasyTier = !isMasterTier && botTrophies < 500;
 
   // Column weights:
   const getColWeight = (c: number, r: number, wantAlign: boolean) => {
@@ -107,13 +115,13 @@ function getBotPlacementCoordinate(
     return bestCol;
   };
 
-  // === 1. MADENCI (Special placement across the whole board) ===
+  // === 1. MADENCI (Miner placement) ===
   if (card.id === "madenci") {
-    // 4000+ Bot: surgically place adjacent to player's squishiest / support unit (Doktor, Sapancı, Okçu, Topçu, etc.)
-    if (botTrophies >= 2000 && playerUnits.length > 0) {
-      // Find priority target: support or backline ranged
+    // Ranked & Master Tier: Surgically place adjacent to player's squishiest / support unit
+    const shouldSurgicallyTarget = isMasterTier || (isMediumTier && Math.random() < 0.65);
+    if (shouldSurgicallyTarget && playerUnits.length > 0) {
       const priorityTargets = playerUnits.filter(u => 
-        ["doktor", "sapanci", "okcu", "topcu", "bombalama-ucagi", "bira-varili", "buz-dolabi", "tufekci"].includes(u.card.id)
+        ["doktor", "tufekci", "bombalama-ucagi", "topcu", "okcu", "mercan", "sapanci", "buz-dolabi", "bira-varili"].includes(u.card.id)
       );
       const candidates = priorityTargets.length > 0 ? priorityTargets : [...playerUnits].sort((a, b) => b.row - a.row);
       const target = candidates[0];
@@ -136,38 +144,26 @@ function getBotPlacementCoordinate(
       }
     }
 
-    // Default miner attempt
+    // Default casual miner attempt
     let attempts = 0;
     while (attempts < 100) {
       const c = Math.floor(Math.random() * COLS);
       const r = Math.floor(Math.random() * ROWS);
       if (r !== RIVER_ROW && !isOccupied(c, r)) {
-        if (playerUnits.length > 0 && Math.random() < 0.85) {
-          const target = playerUnits[Math.floor(Math.random() * playerUnits.length)];
-          const tc = Math.round(target.col);
-          const tr = Math.round(target.row);
-          const dCol = Math.floor(Math.random() * 3) - 1;
-          const dRow = Math.floor(Math.random() * 3) - 1;
-          const finalC = tc + dCol;
-          const finalR = tr + dRow;
-          if (finalC >= 0 && finalC < COLS && finalR >= 0 && finalR < ROWS && finalR !== RIVER_ROW && !isOccupied(finalC, finalR)) {
-            return { col: finalC, row: finalR };
-          }
-        } else {
-          return { col: c, row: r };
-        }
+        return { col: c, row: r };
       }
       attempts++;
     }
   }
 
-  // === 2. ÇIĞ (Avalanche - wants front row directly facing player push) ===
+  // === 2. ÇIĞ (Avalanche - wants front row facing player push) ===
   if (card.id === "cig") {
     const rowsToTry = [11, 10, 9];
     const threatCol = getPlayerThreatColumn();
-    // Try threat column first
-    for (const r of rowsToTry) {
-      if (!isOccupied(threatCol, r)) return { col: threatCol, row: r };
+    if (isMasterTier || isMediumTier) {
+      for (const r of rowsToTry) {
+        if (!isOccupied(threatCol, r)) return { col: threatCol, row: r };
+      }
     }
     for (const r of rowsToTry) {
       const colOpt = findBestColInRow(r, true);
@@ -188,15 +184,18 @@ function getBotPlacementCoordinate(
 
   // === 4. HEAVY TANKS (Golem, Dev, Zırhlı, Lav Köpeği, Köpek Balığı) ===
   if (isHeavyTank) {
-    // High IQ: Frontline (row 11 or 10), directly in the column facing player's biggest threat
-    const rowsToTry = botTrophies >= 2000 ? [11, 10, 9] : (Math.random() > 0.3 ? [11, 10] : [9, 8]);
+    const rowsToTry = isMasterTier ? [11, 10] : (isMediumTier ? [11, 10, 9] : [9, 8, 10]);
     const threatCol = getPlayerThreatColumn();
 
+    if (isMasterTier || isMediumTier) {
+      for (const r of rowsToTry) {
+        if (!isOccupied(threatCol, r)) return { col: threatCol, row: r };
+        if (threatCol + 1 < COLS && !isOccupied(threatCol + 1, r)) return { col: threatCol + 1, row: r };
+        if (threatCol - 1 >= 0 && !isOccupied(threatCol - 1, r)) return { col: threatCol - 1, row: r };
+      }
+    }
+
     for (const r of rowsToTry) {
-      if (!isOccupied(threatCol, r)) return { col: threatCol, row: r };
-      // Try adjacent column
-      if (threatCol + 1 < COLS && !isOccupied(threatCol + 1, r)) return { col: threatCol + 1, row: r };
-      if (threatCol - 1 >= 0 && !isOccupied(threatCol - 1, r)) return { col: threatCol - 1, row: r };
       const colOpt = findBestColInRow(r, true);
       if (colOpt !== null) return { col: colOpt, row: r };
     }
@@ -204,8 +203,8 @@ function getBotPlacementCoordinate(
 
   // === 5. DOKTOR & MERCAN (Support / Healer) ===
   if (isHealerSupport) {
-    // 2000+ & 4000+ Bot: Place directly behind bot's tanks or frontline fighters!
-    if (botTrophies >= 2000) {
+    // Master & Medium Tier: Position safely 2-3 rows behind bot's tanks
+    if (!isEasyTier) {
       const botFrontline = botUnits.filter(u => u.row >= 9);
       if (botFrontline.length > 0) {
         const lead = botFrontline[0];
@@ -218,7 +217,7 @@ function getBotPlacementCoordinate(
         }
       }
     }
-    const rowsToTry = [7, 8, 6, 5];
+    const rowsToTry = isEasyTier ? [8, 9, 7] : [7, 8, 6, 5];
     for (const r of rowsToTry) {
       const colOpt = findBestColInRow(r, true);
       if (colOpt !== null) return { col: colOpt, row: r };
@@ -227,7 +226,7 @@ function getBotPlacementCoordinate(
 
   // === 6. EXTREME BACKLINE ARTILLERY / BUILDINGS (Sapancı, Buz Dolabı, Mezarlık) ===
   if (isExtremeBack) {
-    // Keep them safely at rows 0-2
+    // Keep safely at rows 0-2
     const rowsToTry = [0, 1, 2];
     for (const r of rowsToTry) {
       const colOpt = findBestColInRow(r, true);
@@ -237,8 +236,21 @@ function getBotPlacementCoordinate(
 
   // === 7. SQUISHY RANGED (Okçu, Topçu, Bombalama, Kuş Ordusu, Tüfekçi) ===
   if (isSquishyRanged) {
-    // NEVER put them in front row 11 where they get insta-killed! Put them in mid-back (6-9)
-    const rowsToTry = [7, 8, 6, 9];
+    if (isMasterTier) {
+      // In master/ranked tier, place ranged units directly behind the bot's frontline tank for protection!
+      const botFrontline = botUnits.filter(u => u.row >= 9);
+      if (botFrontline.length > 0) {
+        const lead = botFrontline[0];
+        const protectedRows = [Math.max(0, Math.round(lead.row) - 3), Math.max(0, Math.round(lead.row) - 2), Math.max(0, Math.round(lead.row) - 4)];
+        for (const r of protectedRows) {
+          const c = Math.round(lead.col);
+          if (!isOccupied(c, r)) return { col: c, row: r };
+          if (c + 1 < COLS && !isOccupied(c + 1, r)) return { col: c + 1, row: r };
+          if (c - 1 >= 0 && !isOccupied(c - 1, r)) return { col: c - 1, row: r };
+        }
+      }
+    }
+    const rowsToTry = isEasyTier ? [9, 8, 7] : [7, 8, 6, 9];
     for (const r of rowsToTry) {
       const colOpt = findBestColInRow(r, true);
       if (colOpt !== null) return { col: colOpt, row: r };
@@ -247,11 +259,14 @@ function getBotPlacementCoordinate(
 
   // === 8. FAST MELEE / ASSASSINS (Samuray, Vampir, Balık, Kabile) ===
   if (isAssassinFast) {
-    // Put them in rows 10-11, targeting player's exposed column
-    const rowsToTry = [11, 10, 9];
+    const rowsToTry = isMasterTier ? [11, 10] : [11, 10, 9];
     const threatCol = getPlayerThreatColumn();
+    if (isMasterTier) {
+      for (const r of rowsToTry) {
+        if (!isOccupied(threatCol, r)) return { col: threatCol, row: r };
+      }
+    }
     for (const r of rowsToTry) {
-      if (!isOccupied(threatCol, r)) return { col: threatCol, row: r };
       const colOpt = findBestColInRow(r, true);
       if (colOpt !== null) return { col: colOpt, row: r };
     }
@@ -280,6 +295,7 @@ interface Props {
   playerCardLevels?: Record<string, number>; // Added
   botDeckOverride?: string[] | null;
   playerEmojis?: [string, string, string, string];
+  selectedCharms?: string[];
   trophies: number;
   playerRankedStars?: number;
   playerAvatar?: string;
@@ -303,23 +319,24 @@ const PLACE_SECONDS = 15;
 const FIGHT_TIMEOUT = 60;
 
 const RANKED_PREDEFINED_DECKS: Array<{ cards: string[] }> = [
-  { cards: ["golem", "bombalama-ucagi", "hayalet", "tufekci"] }, // Tank & Area Control
-  { cards: ["samuray", "kopek-baligi", "kus-ordusu", "kardan-adam"] }, // Fast Push
-  { cards: ["dev-sinek", "ejder", "cehennem-ejderi", "mercan"] }, // Air Supremacy
-  { cards: ["lav-kopegi", "volkan", "topcu", "zirhli"] }, // Heavy Burn
-  { cards: ["golem", "buz-dolabi", "kurbaga", "madenci"] }, // Freeze & Strike
-  { cards: ["bira-varili", "samuray", "tufekci", "dev"] }, // Pure Damage
-  { cards: ["hayalet", "madenci", "balik", "cig"] }, // Annoying Tactics
-  { cards: ["zirhli", "bira-varili", "mercan", "kilicli"] }, // High Sustain
-  { cards: ["lav-kopegi", "buz-dolabi", "cehennem-ejderi", "kardan-adam"] }, // Fire & Ice
-  { cards: ["samuray", "bombalama-ucagi", "dev", "golem"] } // Meta Meta
+  { cards: ["golem", "bombalama-ucagi", "tufekci", "mercan"] }, // Titan Beatdown & Air Siege
+  { cards: ["dev", "samuray", "madenci", "okcu"] }, // Assassin Diver & Frontline Breaker
+  { cards: ["lav-kopegi", "cehennem-ejderi", "volkan", "zirhli"] }, // Inferno Skies & Molten Ground
+  { cards: ["golem", "buz-dolabi", "samuray", "topcu"] }, // Glacial Freeze & Heavy Artillery
+  { cards: ["bira-varili", "karinca-ordusu", "kus-ordusu", "dev"] }, // Frenzied Swarm Vanguard
+  { cards: ["zirhli", "mercan", "tufekci", "madenci"] }, // Iron Aegis & Precision Sniper
+  { cards: ["cig", "golem", "bombalama-ucagi", "vampir"] }, // Avalanche Lockdown & Night Stalker
+  { cards: ["dev", "cehennem-ejderi", "buz-dolabi", "samuray"] }, // Dragon Freeze & Melee Sunder
+  { cards: ["kopek-baligi", "tufekci", "mercan", "golem"] }, // Abyssal Leviathan & Backline Support
+  { cards: ["samuray", "bombalama-ucagi", "zirhli", "madenci"] } // Surgical Blitzkrieg
 ];
 
 export function BattleScreen({ 
   deck, 
   playerCardLevels = {}, 
   botDeckOverride, 
-  playerEmojis = ["", "", "", ""], 
+  playerEmojis = ["", "", "", ""],
+  selectedCharms = ["kuvvet", ""], 
   trophies, 
   playerRankedStars = 0,
   playerAvatar,
@@ -336,8 +353,17 @@ export function BattleScreen({
   mode = "standard", 
   onFinish, 
   onExit, 
-  username 
+  username
 }: Props) {
+  const [floatingCheers, setFloatingCheers] = useState<Array<{ id: number; emoji: string; left: number }>>([]);
+
+  const triggerCheer = (emoji: string) => {
+    const newCheer = { id: Date.now() + Math.random(), emoji, left: 15 + Math.random() * 70 };
+    setFloatingCheers((prev) => [...prev.slice(-12), newCheer]);
+    setTimeout(() => {
+      setFloatingCheers((prev) => prev.filter((c) => c.id !== newCheer.id));
+    }, 2200);
+  };
   const arena = arenaForTrophies(trophies);
   const oppWinsMax = Math.max(opponentWins ?? 0, opponentTournamentWins ?? 0);
   const resolvedPlayerAvatar = playerAvatar || getAvatarForName(username);
@@ -356,25 +382,36 @@ export function BattleScreen({
     return null;
   });
   const [botTrophies] = useState(() => makeOpponentTrophies(trophies));
-  const [opponentCardLevels, setOpponentCardLevels] = useState<Record<string, number>>({});
+  const [opponentCardLevels] = useState<Record<string, number>>(() => {
+    const levels: Record<string, number> = {};
+    const t = opponentTrophies;
+    
+    // Calculate player's average deck card level
+    const playerLvls = deck.map(id => playerCardLevels[id] ?? 1);
+    const avgPlayerLvl = playerLvls.length > 0 
+      ? Math.round(playerLvls.reduce((a, b) => a + b, 0) / playerLvls.length) 
+      : 1;
+
+    CARDS.forEach((c) => {
+      if (mode === "ranked") {
+        // In ranked mode, bots use top competitive level cards
+        levels[c.id] = Math.max(3, Math.min(5, Math.max(avgPlayerLvl, 3)));
+      } else {
+        const pLvl = playerCardLevels[c.id] ?? 1;
+        const trophyBonus = Math.floor(t / 1000);
+        const targetLvl = Math.max(1, Math.min(10, Math.max(avgPlayerLvl, trophyBonus + 1)));
+        levels[c.id] = Math.max(targetLvl, pLvl);
+      }
+    });
+    return levels;
+  });
   const [botDeck, setBotDeck] = useState<CardDef[]>(() => {
     let cards: CardDef[] = [];
     if (botDeckOverride) {
       cards = botDeckOverride.map(id => typeof id === "string" ? CARDS.find(c => c.id === id)! : id).filter(Boolean) as CardDef[];
     } else if (mode === "ranked" && selectedPredefinedDeck) {
       cards = selectedPredefinedDeck.cards.map(id => CARDS.find(c => c.id === id)!).filter(Boolean);
-      const rand = Math.random();
-      if (rand < 0.4) {
-        // 40% chance to swap cards
-        const swaps = rand < 0.1 ? 2 : 1; // 10% chance for 2 swaps, 30% chance for 1 swap
-        const availableCards = CARDS.filter(c => !cards.some(hc => hc.id === c.id));
-        for (let i = 0; i < swaps && availableCards.length > 0; i++) {
-          const swapIdx = Math.floor(Math.random() * cards.length);
-          const newCardIdx = Math.floor(Math.random() * availableCards.length);
-          cards[swapIdx] = availableCards[newCardIdx];
-          availableCards.splice(newCardIdx, 1);
-        }
-      }
+      // In ranked mode, keep the meticulously crafted meta decks intact with full synergy
     } else {
       cards = battleId ? [] : makeBotDeck(arena);
     }
@@ -401,6 +438,8 @@ export function BattleScreen({
   }, [battleId]);
 
   const [phase, setPhase] = useState<Phase>("placing");
+  const [usedCharms, setUsedCharms] = useState<string[]>([]);
+  const [targetingCharm, setTargetingCharm] = useState<string | null>(null);
   const [selected, setSelected] = useState(0);
   const [placedIds, setPlacedIds] = useState<Set<string>>(new Set());
   const stateRef = useRef<BattleState>(makeInitialState());
@@ -465,12 +504,96 @@ export function BattleScreen({
   }, [displayedOpponentEmoji]);
 
   useEffect(() => {
+    stateRef.current = makeInitialState();
     stateRef.current.battleId = battleId || undefined;
     stateRef.current.isPlayer1 = isPlayer1;
-  }, [battleId, isPlayer1]);
+    stateRef.current.arenaId = arena.id;
+    startedRef.current = false;
+    myPlacementsRef.current = [];
+    opponentPlacementsRef.current = [];
+    placedBotRef.current = 0;
+    triggeredOpponentAbilitiesRef.current.clear();
+    triggeredOpponentEmojisRef.current.clear();
+    setWinner(null);
+    winnerRef.current = null;
+    setPhase("placing");
+  }, [battleId, isPlayer1, arena.id]);
 
   const [placeTimer, setPlaceTimer] = useState(PLACE_SECONDS);
   const placedBotRef = useRef(0);
+
+  const handleUseCharm = (charmId: string) => {
+    if (usedCharms.includes(charmId)) return;
+
+    if (charmId === "kutsanmislik" || charmId === "bomba") {
+      setTargetingCharm(charmId === targetingCharm ? null : charmId);
+      return;
+    }
+
+    setUsedCharms(prev => [...prev, charmId]);
+    const s = stateRef.current;
+    if (charmId === "kuvvet") {
+      s.charmKuvvetTimeLeft = 5.0; // 5 seconds 2x power
+    } else if (charmId === "hiz") {
+      s.charmHizTimeLeft = 4.0; // 4 seconds 2x speed
+    } else if (charmId === "kan-banyosu") {
+      s.charmKanBanyosuTimeLeft = 7.0; // 7 seconds lifesteal
+    } else if (charmId === "saglik") {
+      s.units.forEach(u => {
+        if (u.side === "player" && u.hp > 0) {
+          u.hp = Math.min(u.maxHp, u.hp + (u.maxHp * 0.5));
+        }
+      });
+    } else if (charmId === "mutlak-guc") {
+      s.charmSafKuvvetTimeLeft = 5.0;
+      s.units.forEach(u => {
+        if (u.side === "player" && u.hp > 0) {
+          u.hp = Math.max(1, Math.round(u.hp * 0.75));
+        }
+      });
+    }
+    rerender();
+  };
+
+  const handleTargetCharmUnit = (targetUid: number) => {
+    if (targetingCharm === "kutsanmislik") {
+      const s = stateRef.current;
+      const target = s.units.find(u => u.uid === targetUid && u.side === "player" && u.hp > 0);
+      if (target) {
+        target.maxHp = Math.round(target.maxHp * 2.5);
+        target.hp = Math.round(target.hp * 2.5);
+        target.kutsanmis = true;
+        setUsedCharms(prev => [...prev, "kutsanmislik"]);
+        setTargetingCharm(null);
+        rerender();
+      }
+    }
+  };
+
+  const handleTargetCharmTile = (col: number, row: number) => {
+    if (targetingCharm === "bomba") {
+      const s = stateRef.current;
+      if (!s.bombExplosions) s.bombExplosions = [];
+      s.bombExplosions.push({
+        uid: Date.now() + Math.random(),
+        col,
+        row,
+        timeLeft: 1.2,
+      });
+
+      // 4x4 area: within 2 tiles col and row (centered or covering 4x4 area)
+      // "o bombanın 4x4 alanındaki herşey 100 hasar alır."
+      s.units.forEach(u => {
+        if (u.hp > 0 && Math.abs(u.col - col) <= 2 && Math.abs(u.row - row) <= 2) {
+          applyCombatDamage(s, u, 100, undefined, undefined, true);
+        }
+      });
+
+      setUsedCharms(prev => [...prev, "bomba"]);
+      setTargetingCharm(null);
+      rerender();
+    }
+  };
 
   const handleReadyUp = async () => {
     if (isReady) return;
@@ -721,12 +844,13 @@ export function BattleScreen({
         }
         setOpponentReady(!!oppReady);
 
-        if (myReady && oppReady) {
-          // both ready, start
+        if ((myReady && oppReady) || data.status === "fighting") {
+          // both ready or spectating active battle, start
           if (!startedRef.current) {
             startedRef.current = true;
+            stateRef.current.units = []; // clear old units
             // safeguard: make sure our own units are loaded if this was a fresh load
-            if (myPlacements && !stateRef.current.units.some(u => u.side === "player")) {
+            if (myPlacements) {
               myPlacements.forEach((p: any) => {
                 const card = CARDS.find(c => c.id === p.cardId);
                 if (card) {
@@ -855,6 +979,15 @@ export function BattleScreen({
 
   return (
     <div className="fixed inset-y-0 left-1/2 -translate-x-1/2 z-40 flex flex-col bg-black w-full max-w-md shadow-2xl border-x border-slate-900">
+      {/* Top Bar */}
+      <div className="flex items-center justify-between bg-slate-950 px-3 py-1.5 border-b border-slate-800 text-[11px] shrink-0 font-sans">
+        <div className="flex items-center gap-1.5">
+          <span className="text-slate-400 text-[10px] font-bold">
+            {mode === "ranked" ? "🏆 Dereceli Maç" : mode === "tournament" ? "⚔️ Turnuva Maçı" : "🎯 Standart Arena"}
+          </span>
+        </div>
+      </div>
+
       {/* header */}
       <div className="flex items-center justify-between gap-2 bg-slate-950/90 border-b border-slate-800 px-3 py-2 text-white shrink-0 shadow-md">
         {/* Player Profile (Left - Blue Side) */}
@@ -924,28 +1057,83 @@ export function BattleScreen({
           onPlace={phase === "placing" ? placeAt : undefined}
           selectedCardId={playerCards[selected]?.id}
           mode={mode}
+          targetingCharm={phase === "fighting" ? targetingCharm : null}
+          onTargetCharmTile={handleTargetCharmTile}
+          onTargetCharmUnit={handleTargetCharmUnit}
         />
+
+        {/* Floating Spectator Cheer Animations */}
+        {floatingCheers.map((cheer) => (
+          <div
+            key={cheer.id}
+            style={{ left: `${cheer.left}%` }}
+            className="absolute bottom-6 z-50 pointer-events-none text-3xl animate-float-cheer"
+          >
+            {cheer.emoji}
+          </div>
+        ))}
+
+        {/* Floating guidance banners for targeting charms */}
+        {targetingCharm === "bomba" && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-red-950/95 border-2 border-red-500 text-white px-4 py-2 rounded-2xl shadow-[0_0_25px_rgba(239,68,68,0.85)] animate-pulse">
+            <span className="text-3xl">💣</span>
+            <div className="text-left">
+              <div className="text-xs font-black uppercase text-red-200">Bomba Bırakılıyor</div>
+              <div className="text-[11px] text-red-300">Sahada istediğin kareye tıkla (4x4 alan, 100 hasar)</div>
+            </div>
+            <button
+              onClick={() => setTargetingCharm(null)}
+              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-lg border border-slate-600 transition-colors ml-1"
+            >
+              İptal
+            </button>
+          </div>
+        )}
+
+        {targetingCharm === "kutsanmislik" && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-amber-950/95 border-2 border-amber-400 text-white px-4 py-2 rounded-2xl shadow-[0_0_25px_rgba(245,158,11,0.85)] animate-pulse">
+            <span className="text-3xl">✨</span>
+            <div className="text-left">
+              <div className="text-xs font-black uppercase text-amber-200">Kutsanmışlık</div>
+              <div className="text-[11px] text-amber-300">Sahadaki dost kartına tıkla (2.5x Can)</div>
+            </div>
+            <button
+              onClick={() => setTargetingCharm(null)}
+              className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-lg border border-slate-600 transition-colors ml-1"
+            >
+              İptal
+            </button>
+          </div>
+        )}
 
         {/* Display Opponent Emoji */}
         {displayedOpponentEmoji && (
-          <div key={`opp_${displayedOpponentEmoji.timestamp}`} className="absolute top-12 right-6 bg-slate-900 border-2 border-slate-700 shadow-xl rounded-2xl px-4 py-2 text-4xl animate-bounce z-50 transform origin-bottom-right">
-            {displayedOpponentEmoji.emoji}
-            <div className="absolute -bottom-2 -left-2 w-4 h-4 bg-slate-900 border-l-2 border-b-2 border-slate-700 transform rotate-45"></div>
+          <div key={`opp_${displayedOpponentEmoji.timestamp}`} className="absolute top-12 right-6 z-50">
+            <AnimatedEmoji
+              emoji={displayedOpponentEmoji.emoji}
+              bubble={true}
+              side="opponent"
+              size="xl"
+            />
           </div>
         )}
 
         {/* Display Player Emoji */}
         {displayedPlayerEmoji && (
-          <div key={`player_${displayedPlayerEmoji.timestamp}`} className="absolute bottom-12 left-6 bg-slate-900 border-2 border-slate-700 shadow-xl rounded-2xl px-4 py-2 text-4xl animate-bounce z-50 transform origin-top-left">
-            {displayedPlayerEmoji.emoji}
-            <div className="absolute -bottom-2 right-4 w-4 h-4 bg-slate-900 border-r-2 border-b-2 border-slate-700 transform rotate-45"></div>
+          <div key={`player_${displayedPlayerEmoji.timestamp}`} className="absolute bottom-12 left-6 z-50">
+            <AnimatedEmoji
+              emoji={displayedPlayerEmoji.emoji}
+              bubble={true}
+              side="player"
+              size="xl"
+            />
           </div>
         )}
       </div>
 
       {/* bottom: cards & abilities */}
       {phase === "placing" && (
-        <div className="bg-black/80 p-2">
+        <div className="bg-slate-950/95 border-t border-slate-850 p-2.5">
           {battleId && isReady ? (
             <div className="flex flex-col items-center justify-center p-4">
               <div className="text-amber-300 font-bold mb-2 animate-pulse">
@@ -985,200 +1173,301 @@ export function BattleScreen({
         </div>
       )}
 
-      {phase === "fighting" && (
-        <div className="bg-slate-950/95 border-t border-slate-900 p-2">
-          <div className="text-center text-[10px] font-display text-amber-300 mb-1.5 tracking-wide font-medium flex items-center justify-center gap-2">
-            <span>⚡ ACTIVE SPECIAL ABILITIES (CLICK) ⚡</span>
-            <span className="bg-amber-500/20 text-amber-300 border border-amber-500/35 px-2 py-0.5 rounded-full text-[9px] font-mono">
-              💎 Stone: {stateRef.current.playerAbilityStones ?? 0}
-            </span>
+
+      {targetingCharm === "kutsanmislik" && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="text-center max-w-sm mb-3">
+            <span className="text-4xl">✨</span>
+            <h2 className="text-2xl font-black text-amber-300 mt-1">Kutsanacak Kartını Seç</h2>
+            <p className="text-xs text-slate-300 mt-1">
+              Seçtiğin kart 2.5x dayanıklılık (can) kazanır ve etrafında sarı halkalar çıkar.
+            </p>
           </div>
-          {(() => {
-            const playerAbilityUnits = stateRef.current.units.filter((u) => {
-              if (u.side !== "player" || u.hp <= 0) return false;
-              return ["hayalet", "doktor", "bira-varili", "bombalama-ucagi", "zirhli", "kurbaga", "lav-kopegi", "samuray", "cig", "vampir", "lanet"].includes(u.card.id);
-            });
-
-            return (
-              <div className="flex gap-2 items-stretch" style={{ minHeight: "60px" }}>
-                {playerAbilityUnits.length === 0 ? (
-                  <div className="flex-1 text-center text-[10px] text-slate-500 py-3 font-sans italic flex items-center justify-center bg-slate-900/50 rounded-xl border border-slate-800">
-                    No live unit with active ability on the battlefield.
-                  </div>
-                ) : (
-                  <div className="flex-1 flex flex-wrap justify-center items-center gap-4 py-1.5 max-h-[100px] overflow-y-auto">
-                    {playerAbilityUnits.map((u) => {
-                      let statusText: string | null = null;
-                      let isDisabled = false;
-
-                      if (u.card.id === "doktor") {
-                        const uses = u.doktorUsesLeft ?? 3;
-                        if (uses <= 0) {
-                          statusText = "0/3";
-                          isDisabled = true;
-                        } else {
-                          statusText = `${uses}/3`;
-                        }
-                      } else if (u.card.id === "hayalet") {
-                        const isImmune = (u.immuneTimeLeft ?? 0) > 0;
-                        if (isImmune) {
-                          statusText = `${u.immuneTimeLeft!.toFixed(1)}s`;
-                          isDisabled = true;
-                        } else if (u.immuneTimeLeft !== undefined) {
-                          statusText = "✓";
-                          isDisabled = true;
-                        }
-                      } else if (u.card.id === "zirhli") {
-                        const isDefending = (u.zirhliDefendingTimeLeft ?? 0) > 0;
-                        if (isDefending) {
-                          statusText = `${u.zirhliDefendingTimeLeft!.toFixed(1)}s`;
-                          isDisabled = true;
-                        } else if (u.zirhliDefendingTimeLeft !== undefined) {
-                          statusText = "✓";
-                          isDisabled = true;
-                        }
-                      } else if (u.card.id === "bira-varili") {
-                        const isBoosted = (u.barrelAuraBoostTimeLeft ?? 0) > 0;
-                        if (isBoosted) {
-                          statusText = `${u.barrelAuraBoostTimeLeft!.toFixed(1)}s`;
-                          isDisabled = true;
-                        } else if (u.barrelAuraBoostTimeLeft !== undefined) {
-                          statusText = "✓";
-                          isDisabled = true;
-                        }
-                      } else if (u.card.id === "bombalama-ucagi") {
-                        const uses = u.bomberUsesLeft ?? 0;
-                        if (uses <= 0) {
-                          statusText = "✓";
-                          isDisabled = true;
-                        }
-                      } else if (u.card.id === "kurbaga") {
-                        const isSwallowed = (u.swallowedTimeLeft ?? 0) > 0;
-                        if (isSwallowed) {
-                          statusText = `${u.swallowedTimeLeft!.toFixed(1)}s`;
-                          isDisabled = true;
-                        } else if (u.swallowedTimeLeft !== undefined) {
-                          statusText = "✓";
-                          isDisabled = true;
-                        }
-                      } else if (u.card.id === "lav-kopegi") {
-                        const isBurningActive = (u.lavKopegiAbilityTimeLeft ?? 0) > 0;
-                        if (isBurningActive) {
-                          statusText = `${u.lavKopegiAbilityTimeLeft!.toFixed(1)}s`;
-                          isDisabled = true;
-                        } else if (u.lavKopegiAbilityUsed) {
-                          statusText = "✓";
-                          isDisabled = true;
-                        }
-                      } else if (u.card.id === "samuray") {
-                        if (u.samurayAbilityActive) {
-                          statusText = "2x Damage";
-                          isDisabled = true;
-                        }
-                      } else if (u.card.id === "vampir") {
-                        const isInvis = (u.vampirInvisTimeLeft ?? 0) > 0;
-                        if (isInvis) {
-                          statusText = `${u.vampirInvisTimeLeft!.toFixed(1)}s`;
-                          isDisabled = true;
-                        }
-                      } else if (u.card.id === "cig") {
-                        if (u.cigTriggered) {
-                          statusText = "✓";
-                          isDisabled = true;
-                        } else {
-                          statusText = "🏔️";
-                        }
-                      } else if (u.card.id === "lanet") {
-                        const isCurseActive = (stateRef.current.lanetTimeLeft ?? 0) > 0;
-                        if (isCurseActive) {
-                          statusText = `${stateRef.current.lanetTimeLeft!.toFixed(1)}s`;
-                          isDisabled = true;
-                        }
-                      }
-
-                      const stoneCost = getAbilityStoneCost(u.card.id);
-                      const hasEnoughStones = (stateRef.current.playerAbilityStones ?? 0) >= stoneCost;
-                      const buttonDisabled = isDisabled || !hasEnoughStones;
-
-                      return (
-                        <div key={u.uid} className="relative flex items-center gap-1.5 bg-slate-900/40 p-1 rounded-full border border-slate-800/40">
-                          <button
-                            disabled={buttonDisabled}
-                            onClick={() => {
-                              triggerUnitAbility(u, stateRef.current);
-                              rerender();
-                              if (battleId) {
-                                submitAbilityTrigger(battleId, !!isPlayer1, u.card.id, stateRef.current.time)
-                                  .catch(console.error);
-                              }
-                            }}
-                            className={cn(
-                              "w-12 h-12 rounded-full flex items-center justify-center text-2xl border-2 transition-all relative",
-                              buttonDisabled
-                                ? "bg-slate-950 border-slate-800 opacity-65 text-slate-500 scale-95"
-                                : "bg-gradient-to-b from-amber-500/10 to-amber-600/30 border-amber-500/80 hover:scale-105 active:scale-95 cursor-pointer shadow-[0_0_12px_rgba(245,158,11,0.25)] animate-pulse"
-                            )}
-                          >
-                            <span>{u.card.emoji}</span>
-                            <div className="absolute -top-1 -left-1 bg-sky-500 text-slate-950 font-mono font-extrabold text-[8px] rounded-full w-4 h-4 flex items-center justify-center border border-slate-950 shadow" title={`Required Stone: ${stoneCost}`}>
-                              {stoneCost}
-                            </div>
-                            {isDisabled && statusText === "✓" && (
-                              <div className="absolute -bottom-1 -right-1 bg-green-600 text-white rounded-full w-4.5 h-4.5 flex items-center justify-center text-[9px] font-bold border border-slate-950 shadow">
-                                ✓
-                              </div>
-                            )}
-                          </button>
-                          
-                          {statusText && statusText !== "✓" && (
-                            <div className="bg-slate-950/90 border border-amber-500/55 rounded-full px-2 py-0.5 text-[9px] font-bold font-mono text-amber-300 shadow shadow-amber-500/20 animate-pulse whitespace-nowrap mr-1">
-                              ⏱️ {statusText}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                {playerEmojis.some(e => !!e) && (
-                  <div className="relative shrink-0 flex">
-                    <button 
-                      onClick={() => setShowEmojiMenu(!showEmojiMenu)} 
-                      className="px-3 rounded-xl border-2 border-slate-700 bg-slate-800 shadow shadow-black flex items-center justify-center text-3xl hover:bg-slate-700 active:scale-95 transition-transform"
-                    >
-                      💬
-                    </button>
-                    {showEmojiMenu && (
-                      <div className="absolute bottom-full right-8 mb-3 bg-slate-900 border-2 border-slate-700 rounded-2xl py-3 pr-20 pl-8 grid grid-cols-4 gap-16 shadow-[0_10px_25px_rgba(0,0,0,0.8)]">
-                        {playerEmojis.map((emoji, i) => (
-                          <button 
-                            key={i} 
-                            onClick={emoji ? () => {
-                              setDisplayedPlayerEmoji({ emoji, timestamp: Date.now() });
-                              setShowEmojiMenu(false);
-                              if (battleId) submitEmoji(battleId, !!isPlayer1, emoji, Date.now()).catch(console.error);
-                            } : undefined}
-                            className={cn(
-                              "w-16 h-16 flex items-center justify-center text-3xl rounded-xl border-2 transition-all shadow-inner",
-                              emoji 
-                                ? "bg-slate-800 border-slate-600 hover:bg-slate-700 hover:scale-105" 
-                                : "bg-slate-950/50 border-slate-800 opacity-50 cursor-not-allowed"
-                            )}
-                          >
-                            {emoji || "?"}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+          <div className="flex flex-wrap gap-3 justify-center max-w-md max-h-[50vh] overflow-y-auto p-1">
+            {(() => {
+              const targets = stateRef.current.units.filter(u => u.side === "player" && u.hp > 0);
+              if (targets.length === 0) return <div className="text-slate-400 text-sm">Yaşayan dost kart yok.</div>;
+              return targets.map(u => (
+                <button 
+                  key={u.uid} 
+                  onClick={() => handleTargetCharmUnit(u.uid)} 
+                  className="panel-3d flex flex-col items-center p-3 rounded-2xl bg-slate-800 hover:bg-amber-950/70 border border-slate-700 hover:border-amber-400 transition-all shadow-md group"
+                >
+                  <span className="text-4xl group-hover:scale-110 transition-transform">{u.card.emoji}</span>
+                  <span className="text-xs text-white font-bold mt-1.5">{u.card.name}</span>
+                  <span className="text-[10px] text-emerald-400 font-mono mt-0.5">{Math.round(u.hp)} / {u.maxHp} HP</span>
+                  <span className="text-[10px] text-amber-300 font-bold mt-1 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/40">
+                    ➔ {Math.round(u.maxHp * 2.5)} HP
+                  </span>
+                </button>
+              ));
+            })()}
+          </div>
+          <button 
+            onClick={() => setTargetingCharm(null)} 
+            className="mt-5 px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-600 shadow transition-colors"
+          >
+            İptal Et
+          </button>
         </div>
       )}
 
-      {phase === "done" && rewards && (
+      {phase === "fighting" && (
+        <div className="bg-slate-950/95 border-t border-slate-900 p-2">
+          <div className="text-center text-[10px] font-display text-amber-300 mb-1.5 tracking-wide font-medium flex items-center justify-center gap-2">
+                <span>CHARMLAR & YETENEKLER</span>
+                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/35 px-2 py-0.5 rounded-full text-[9px] font-mono">
+                  💎 Stone: {stateRef.current.playerAbilityStones ?? 0}
+                </span>
+              </div>
+              
+              {selectedCharms.filter(c => c).length > 0 && (
+                <div className="flex justify-center gap-2 mb-2 flex-wrap">
+                  {selectedCharms.filter(c => c).map((charmId) => {
+                    const charm = CHARMS.find(c => c.id === charmId);
+                    if (!charm) return null;
+                    const isUsed = usedCharms.includes(charm.id);
+                    const isTargeting = targetingCharm === charm.id;
+
+                    let activeText = "";
+                    let isActive = false;
+                    const s = stateRef.current;
+                    if (charm.id === "kuvvet" && s.charmKuvvetTimeLeft && s.charmKuvvetTimeLeft > 0) {
+                      isActive = true;
+                      activeText = `${s.charmKuvvetTimeLeft.toFixed(1)}s (2x Güç)`;
+                    } else if (charm.id === "hiz" && s.charmHizTimeLeft && s.charmHizTimeLeft > 0) {
+                      isActive = true;
+                      activeText = `${s.charmHizTimeLeft.toFixed(1)}s (2x Hız)`;
+                    } else if (charm.id === "kan-banyosu" && s.charmKanBanyosuTimeLeft && s.charmKanBanyosuTimeLeft > 0) {
+                      isActive = true;
+                      activeText = `${s.charmKanBanyosuTimeLeft.toFixed(1)}s (Can Çalma)`;
+                    } else if (charm.id === "mutlak-guc" && s.charmSafKuvvetTimeLeft && s.charmSafKuvvetTimeLeft > 0) {
+                      isActive = true;
+                      activeText = `${s.charmSafKuvvetTimeLeft.toFixed(1)}s (2.5x Güç)`;
+                    }
+
+                    return (
+                      <button
+                        key={charm.id}
+                        disabled={isUsed && !isActive}
+                        onClick={() => handleUseCharm(charm.id)}
+                        className={cn(
+                          "panel-3d flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-md",
+                          isActive
+                            ? "bg-amber-500/30 border-2 border-amber-400 text-amber-200 animate-pulse ring-2 ring-amber-400/50"
+                            : isUsed
+                              ? "opacity-35 grayscale border-slate-700 bg-slate-900/60 cursor-not-allowed"
+                              : isTargeting
+                                ? "ring-2 ring-amber-400 bg-amber-900/60 border border-amber-300 text-amber-100 scale-105"
+                                : "bg-indigo-950/80 hover:bg-indigo-900/80 border border-indigo-500/50 text-white"
+                        )}
+                      >
+                        <span className="text-xl drop-shadow">{charm.emoji}</span>
+                        <div className="flex flex-col text-left">
+                          <span className="leading-tight">{charm.name}</span>
+                          {isActive ? (
+                            <span className="text-[9px] font-mono text-amber-300 leading-none mt-0.5">{activeText}</span>
+                          ) : isUsed ? (
+                            <span className="text-[9px] text-slate-400 leading-none mt-0.5">Kullanıldı</span>
+                          ) : (
+                            <span className="text-[9px] text-cyan-300/80 leading-none mt-0.5">Kullanmak için bas</span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {(() => {
+                const playerAbilityUnits = stateRef.current.units.filter((u) => {
+                  if (u.side !== "player" || u.hp <= 0) return false;
+                  return ["hayalet", "doktor", "bira-varili", "bombalama-ucagi", "zirhli", "kurbaga", "lav-kopegi", "samuray", "cig", "vampir", "lanet"].includes(u.card.id);
+                });
+
+                return (
+                  <div className="flex gap-2 items-stretch" style={{ minHeight: "60px" }}>
+                    {playerAbilityUnits.length === 0 ? (
+                      <div className="flex-1 text-center text-[10px] text-slate-500 py-3 font-sans italic flex items-center justify-center bg-slate-900/50 rounded-xl border border-slate-800">
+                        Sahada aktif yeteneği olan canlı dost birlik yok.
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex flex-wrap justify-center items-center gap-4 py-1.5 max-h-[100px] overflow-y-auto">
+                        {playerAbilityUnits.map((u) => {
+                          let statusText: string | null = null;
+                          let isDisabled = false;
+
+                          if (u.card.id === "doktor") {
+                            const uses = u.doktorUsesLeft ?? 3;
+                            if (uses <= 0) {
+                              statusText = "0/3";
+                              isDisabled = true;
+                            } else {
+                              statusText = `${uses}/3`;
+                            }
+                          } else if (u.card.id === "hayalet") {
+                            const isImmune = (u.immuneTimeLeft ?? 0) > 0;
+                            if (isImmune) {
+                              statusText = `${u.immuneTimeLeft!.toFixed(1)}s`;
+                              isDisabled = true;
+                            } else if (u.immuneTimeLeft !== undefined) {
+                              statusText = "✓";
+                              isDisabled = true;
+                            }
+                          } else if (u.card.id === "zirhli") {
+                            const isDefending = (u.zirhliDefendingTimeLeft ?? 0) > 0;
+                            if (isDefending) {
+                              statusText = `${u.zirhliDefendingTimeLeft!.toFixed(1)}s`;
+                              isDisabled = true;
+                            } else if (u.zirhliDefendingTimeLeft !== undefined) {
+                              statusText = "✓";
+                              isDisabled = true;
+                            }
+                          } else if (u.card.id === "bira-varili") {
+                            const isBoosted = (u.barrelAuraBoostTimeLeft ?? 0) > 0;
+                            if (isBoosted) {
+                              statusText = `${u.barrelAuraBoostTimeLeft!.toFixed(1)}s`;
+                              isDisabled = true;
+                            } else if (u.barrelAuraBoostTimeLeft !== undefined) {
+                              statusText = "✓";
+                              isDisabled = true;
+                            }
+                          } else if (u.card.id === "bombalama-ucagi") {
+                            const uses = u.bomberUsesLeft ?? 0;
+                            if (uses <= 0) {
+                              statusText = "✓";
+                              isDisabled = true;
+                            }
+                          } else if (u.card.id === "kurbaga") {
+                            const isSwallowed = (u.swallowedTimeLeft ?? 0) > 0;
+                            if (isSwallowed) {
+                              statusText = `${u.swallowedTimeLeft!.toFixed(1)}s`;
+                              isDisabled = true;
+                            } else if (u.swallowedTimeLeft !== undefined) {
+                              statusText = "✓";
+                              isDisabled = true;
+                            }
+                          } else if (u.card.id === "lav-kopegi") {
+                            const isBurningActive = (u.lavKopegiAbilityTimeLeft ?? 0) > 0;
+                            if (isBurningActive) {
+                              statusText = `${u.lavKopegiAbilityTimeLeft!.toFixed(1)}s`;
+                              isDisabled = true;
+                            } else if (u.lavKopegiAbilityUsed) {
+                              statusText = "✓";
+                              isDisabled = true;
+                            }
+                          } else if (u.card.id === "samuray") {
+                            if (u.samurayAbilityActive) {
+                              statusText = "2x Damage";
+                              isDisabled = true;
+                            }
+                          } else if (u.card.id === "vampir") {
+                            const isInvis = (u.vampirInvisTimeLeft ?? 0) > 0;
+                            if (isInvis) {
+                              statusText = `${u.vampirInvisTimeLeft!.toFixed(1)}s`;
+                              isDisabled = true;
+                            }
+                          } else if (u.card.id === "cig") {
+                            if (u.cigTriggered) {
+                              statusText = "✓";
+                              isDisabled = true;
+                            } else {
+                              statusText = "🏔️";
+                            }
+                          } else if (u.card.id === "lanet") {
+                            const isCurseActive = (stateRef.current.lanetTimeLeft ?? 0) > 0;
+                            if (isCurseActive) {
+                              statusText = `${stateRef.current.lanetTimeLeft!.toFixed(1)}s`;
+                              isDisabled = true;
+                            }
+                          }
+
+                          const stoneCost = getAbilityStoneCost(u.card.id);
+                          const hasEnoughStones = (stateRef.current.playerAbilityStones ?? 0) >= stoneCost;
+                          const buttonDisabled = isDisabled || !hasEnoughStones;
+
+                          return (
+                            <div key={u.uid} className="relative flex items-center gap-1.5 bg-slate-900/40 p-1 rounded-full border border-slate-800/40">
+                              <button
+                                disabled={buttonDisabled}
+                                onClick={() => {
+                                  triggerUnitAbility(u, stateRef.current);
+                                  rerender();
+                                  if (battleId) {
+                                    submitAbilityTrigger(battleId, !!isPlayer1, u.card.id, stateRef.current.time)
+                                      .catch(console.error);
+                                  }
+                                }}
+                                className={cn(
+                                  "w-12 h-12 rounded-full flex items-center justify-center text-2xl border-2 transition-all relative",
+                                  buttonDisabled
+                                    ? "bg-slate-950 border-slate-800 opacity-65 text-slate-500 scale-95"
+                                    : "bg-gradient-to-b from-amber-500/10 to-amber-600/30 border-amber-500/80 hover:scale-105 active:scale-95 cursor-pointer shadow-[0_0_12px_rgba(245,158,11,0.25)] animate-pulse"
+                                )}
+                              >
+                                <span>{u.card.emoji}</span>
+                                <div className="absolute -top-1 -left-1 bg-sky-500 text-slate-950 font-mono font-extrabold text-[8px] rounded-full w-4 h-4 flex items-center justify-center border border-slate-950 shadow" title={`Required Stone: ${stoneCost}`}>
+                                  {stoneCost}
+                                </div>
+                                {isDisabled && statusText === "✓" && (
+                                  <div className="absolute -bottom-1 -right-1 bg-green-600 text-white rounded-full w-4.5 h-4.5 flex items-center justify-center text-[9px] font-bold border border-slate-950 shadow">
+                                    ✓
+                                  </div>
+                                )}
+                              </button>
+                              
+                              {statusText && statusText !== "✓" && (
+                                <div className="bg-slate-950/90 border border-amber-500/55 rounded-full px-2 py-0.5 text-[9px] font-bold font-mono text-amber-300 shadow shadow-amber-500/20 animate-pulse whitespace-nowrap mr-1">
+                                  ⏱️ {statusText}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {playerEmojis.some(e => !!e) && (
+                      <div className="relative shrink-0 flex">
+                        <button 
+                          onClick={() => setShowEmojiMenu(!showEmojiMenu)} 
+                          className="px-3 rounded-xl border-2 border-slate-700 bg-slate-800 shadow shadow-black flex items-center justify-center text-3xl hover:bg-slate-700 active:scale-95 transition-transform"
+                        >
+                          💬
+                        </button>
+                        {showEmojiMenu && (
+                          <div className="absolute bottom-full right-4 mb-3 bg-slate-900/95 backdrop-blur-md border-2 border-slate-700 rounded-2xl p-2.5 flex items-center gap-2.5 shadow-[0_10px_30px_rgba(0,0,0,0.85)] z-50 animate-emoji-bubble-pop">
+                            {playerEmojis.map((emoji, i) => (
+                              <button 
+                                key={i} 
+                                onClick={emoji ? () => {
+                                  setDisplayedPlayerEmoji({ emoji, timestamp: Date.now() });
+                                  setShowEmojiMenu(false);
+                                  if (battleId) submitEmoji(battleId, !!isPlayer1, emoji, Date.now()).catch(console.error);
+                                } : undefined}
+                                className={cn(
+                                  "w-14 h-14 flex items-center justify-center rounded-xl border-2 transition-all shadow-inner relative group",
+                                  emoji 
+                                    ? "bg-slate-800 border-slate-600 hover:bg-slate-700 hover:border-amber-400 hover:scale-110 active:scale-95" 
+                                    : "bg-slate-950/50 border-slate-800 opacity-40 cursor-not-allowed"
+                                )}
+                              >
+                                {emoji ? (
+                                  <AnimatedEmoji emoji={emoji} size="xl" interactive={true} />
+                                ) : (
+                                  <span className="text-slate-600 font-mono text-sm">?</span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+        </div>
+      )}
+
+      {phase === "done" && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-md panel-3d rounded-2xl p-4 text-center text-white">
             <div className="text-stroke font-display text-3xl">
@@ -1201,42 +1490,55 @@ export function BattleScreen({
                 <span className="text-[11px] font-bold text-slate-200 mt-1 max-w-[85px] truncate font-display">{opponentName}</span>
               </div>
             </div>
-            {mode === "tournament" ? (
-              <div className="mt-2 flex flex-col items-center justify-center gap-1 font-display">
-                <div className="text-xl text-emerald-300">
-                  {winner === "player" ? "+1 Galibiyet" : "1 Mağlubiyet"}
-                </div>
-                <div className={cn("text-sm font-sans font-bold px-3 py-0.5 rounded-full border", winner === "player" ? "text-yellow-300 bg-yellow-500/20 border-yellow-400/30" : "text-cyan-300 bg-cyan-500/20 border-cyan-400/30")}>
-                  {winner === "player" ? "+10 XP 🌟 (Destedeki Kartlar)" : "+5 XP 🌟 (Destedeki Kartlar)"}
-                </div>
-              </div>
-            ) : mode === "ranked" ? (
-              <div className="mt-2 flex flex-col items-center justify-center gap-1 font-display">
-                <div className="flex items-center justify-center gap-3 text-lg">
-                  <span className={cn(rewards.trophy >= 0 ? "text-cyan-300" : "text-red-400")}>
-                    {rewards.trophy >= 0 ? "+" : ""}{rewards.trophy > 0 ? 1 : -1} ⭐
-                  </span>
-                  <span className="text-yellow-200">+{rewards.gold} 🪙</span>
-                </div>
-                <div className={cn("text-sm font-sans font-bold px-3 py-0.5 rounded-full border", winner === "player" ? "text-yellow-300 bg-yellow-500/20 border-yellow-400/30" : "text-cyan-300 bg-cyan-500/20 border-cyan-400/30")}>
-                  {winner === "player" ? "+10 XP 🌟 (Destedeki Kartlar)" : "+5 XP 🌟 (Destedeki Kartlar)"}
-                </div>
-              </div>
-            ) : (
-              <div className="mt-2 flex flex-col items-center justify-center gap-1 font-display">
-                <div className="flex items-center justify-center gap-3 text-lg">
-                  <span className={cn(rewards.trophy >= 0 ? "text-amber-300" : "text-red-400")}>
-                    {rewards.trophy >= 0 ? "+" : ""}{rewards.trophy} 🏆
-                  </span>
-                  <span className="text-yellow-200">+{rewards.gold} 🪙</span>
-                </div>
-                <div className={cn("text-sm font-sans font-bold px-3 py-0.5 rounded-full border", winner === "player" ? "text-yellow-300 bg-yellow-500/20 border-yellow-400/30" : "text-cyan-300 bg-cyan-500/20 border-cyan-400/30")}>
-                  {winner === "player" ? "+10 XP 🌟 (Destedeki Kartlar)" : "+5 XP 🌟 (Destedeki Kartlar)"}
-                </div>
-              </div>
+
+            {rewards && (
+              <>
+                {mode === "tournament" ? (
+                  <div className="mt-2 flex flex-col items-center justify-center gap-1 font-display">
+                    <div className="text-xl text-emerald-300">
+                      {winner === "player" ? "+1 Galibiyet" : "1 Mağlubiyet"}
+                    </div>
+                    <div className={cn("text-sm font-sans font-bold px-3 py-0.5 rounded-full border", winner === "player" ? "text-yellow-300 bg-yellow-500/20 border-yellow-400/30" : "text-cyan-300 bg-cyan-500/20 border-cyan-400/30")}>
+                      {winner === "player" ? "+10 XP 🌟 (Destedeki Kartlar)" : "+5 XP 🌟 (Destedeki Kartlar)"}
+                    </div>
+                  </div>
+                ) : mode === "ranked" ? (
+                  <div className="mt-2 flex flex-col items-center justify-center gap-1 font-display">
+                    <div className="flex items-center justify-center gap-3 text-lg">
+                      <span className={cn(rewards.trophy >= 0 ? "text-cyan-300" : "text-red-400")}>
+                        {rewards.trophy >= 0 ? "+" : ""}{rewards.trophy > 0 ? 1 : -1} ⭐
+                      </span>
+                      <span className="text-yellow-200">+{rewards.gold} 🪙</span>
+                    </div>
+                    <div className={cn("text-sm font-sans font-bold px-3 py-0.5 rounded-full border", winner === "player" ? "text-yellow-300 bg-yellow-500/20 border-yellow-400/30" : "text-cyan-300 bg-cyan-500/20 border-cyan-400/30")}>
+                      {winner === "player" ? "+10 XP 🌟 (Destedeki Kartlar)" : "+5 XP 🌟 (Destedeki Kartlar)"}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-2 flex flex-col items-center justify-center gap-1 font-display">
+                    <div className="flex items-center justify-center gap-3 text-lg">
+                      <span className={cn(rewards.trophy >= 0 ? "text-amber-300" : "text-red-400")}>
+                        {rewards.trophy >= 0 ? "+" : ""}{rewards.trophy} 🏆
+                      </span>
+                      <span className="text-yellow-200">+{rewards.gold} 🪙</span>
+                    </div>
+                    <div className={cn("text-sm font-sans font-bold px-3 py-0.5 rounded-full border", winner === "player" ? "text-yellow-300 bg-yellow-500/20 border-yellow-400/30" : "text-cyan-300 bg-cyan-500/20 border-cyan-400/30")}>
+                      {winner === "player" ? "+10 XP 🌟 (Destedeki Kartlar)" : "+5 XP 🌟 (Destedeki Kartlar)"}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
+
             <button
-              onClick={() => { onFinish(rewards.gold, rewards.trophy, winner === "player"); onExit(); }}
+              onClick={() => {
+                if (rewards) {
+                  onFinish(rewards.gold, rewards.trophy, winner === "player");
+                  onExit();
+                } else {
+                  onExit();
+                }
+              }}
               className="mt-3 w-full rounded-2xl py-3 font-display text-xl text-stroke text-primary-foreground btn-pop active:btn-pop-active"
             >
               Devam

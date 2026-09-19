@@ -4,12 +4,14 @@ import { collection, query, orderBy, limit, getDocs, where, getCountFromServer, 
 import { UserData } from "@/types";
 import { GameCard } from "@/components/game-card";
 import { CARDS } from "@/lib/cards";
+import { CHARMS } from "@/lib/charms";
 import { getRankForRankProgress } from "@/lib/arenas";
 import { motion, AnimatePresence } from "motion/react";
 import { cn, getAvatarForName } from "@/lib/utils";
+import { AnimatedEmoji } from "@/components/animated-emoji";
 import { getPlayerStyle } from "@/lib/profile-customization";
 
-export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: UserData; currentTrophies: number }) {
+export function LeaderboardTab({ currentUser, currentTrophies, onInviteDuel }: { currentUser: UserData; currentTrophies: number; onInviteDuel: (targetUsername: string) => void; }) {
   const [topPlayers, setTopPlayers] = useState<UserData[]>([]);
   const [userRank, setUserRank] = useState<number | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<UserData | null>(null);
@@ -33,11 +35,12 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
             trophies: isMe ? currentTrophies : (data.trophies ?? 0),
             collection: data.collection ?? {},
             deck: data.deck ?? ["mizrakli", "kilicli", "okcu", "dev"],
+            selectedCharms: data.selectedCharms ?? ["kuvvet", ""],
             cardLevels: data.cardLevels ?? {},
             wins: data.wins ?? 0,
             losses: data.losses ?? 0,
-            rankProgressTrophies: data.rankProgressTrophies ?? 0,
-            rankedStars: isMe ? (currentUser.rankedStars ?? 0) : (data.rankedStars ?? 0),
+            rankProgressTrophies: (data.rankSeason ?? 1) < 3 ? 0 : (data.rankProgressTrophies ?? 0),
+            rankedStars: isMe ? (currentUser.rankedStars ?? 0) : ((data.rankSeason ?? 1) < 3 ? 0 : (data.rankedStars ?? 0)),
             avatar: isMe ? (currentUser.avatar || data.avatar || "") : (data.avatar || ""),
             profileColor: isMe ? (currentUser.profileColor || data.profileColor || "white") : (data.profileColor || "white"),
             profileFont: isMe ? (currentUser.profileFont || data.profileFont || "font-display") : (data.profileFont || "font-display"),
@@ -99,7 +102,13 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
                 className={`panel-3d flex items-center justify-between rounded-2xl p-4 bg-gradient-to-br ${podiumColors[i] || "from-slate-800 to-slate-900 border-slate-700"} border relative overflow-hidden`}
               >
                 <div className="flex items-center gap-3.5 z-10">
-                   <div className="text-4xl filter drop-shadow">{podiumEmojis[i] || ` #${i + 1}`}</div>
+                   <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                     {podiumEmojis[i] ? (
+                       <AnimatedEmoji emoji={podiumEmojis[i]} size="2xl" mode="ambient" />
+                     ) : (
+                       <span className="text-xl font-black text-slate-400">#{i + 1}</span>
+                     )}
+                   </div>
                    <div className="w-11 h-11 rounded-xl bg-slate-900 border border-amber-500/30 flex items-center justify-center text-2xl shadow-inner shrink-0">
                      {player.avatar || getAvatarForName(player.username)}
                    </div>
@@ -211,6 +220,12 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
                 <span className="text-slate-400 font-medium">Altın:</span>
                 <span className="text-yellow-400 font-black">{selectedPlayer.gold} 🪙</span>
               </div>
+
+              <div className="flex gap-2 mt-2">
+                <button onClick={() => onInviteDuel(selectedPlayer.username)} className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition shadow-lg shadow-emerald-950/30">
+                  ⚔️ 1v1 Davet Et
+                </button>
+              </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-400 font-medium">Galibiyet / Mağlubiyet:</span>
                 <span className="text-white font-black">{selectedPlayer.wins} G / {selectedPlayer.losses} M</span>
@@ -223,7 +238,7 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
               </div>
             </div>
             
-            <div className="mb-5 shrink-0">
+            <div className="mb-4 shrink-0">
               <h3 className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2.5 text-center">Aktif Deste</h3>
               <div className="grid grid-cols-4 gap-2">
                  {selectedPlayer.deck.map((cardId, index) => {
@@ -231,6 +246,35 @@ export function LeaderboardTab({ currentUser, currentTrophies }: { currentUser: 
                    const lvl = selectedPlayer.cardLevels?.[cardId] ?? 1;
                    return card ? <GameCard key={`${cardId}_${index}`} card={card} size="sm" level={lvl} /> : null
                  })}
+              </div>
+            </div>
+
+            {/* Kuşanılan Charmlar */}
+            <div className="mb-5 shrink-0 bg-slate-950/80 border border-slate-800/90 rounded-2xl p-2.5 shadow-inner">
+              <h3 className="text-[11px] text-amber-400 font-black uppercase tracking-wider mb-2 text-center flex items-center justify-center gap-1">
+                <span>✨</span>
+                <span>Kuşanılan Charmlar</span>
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                {[0, 1].map((slot) => {
+                  const charmId = selectedPlayer.selectedCharms?.[slot];
+                  const charm = CHARMS.find((c) => c.id === charmId);
+                  return (
+                    <div key={slot} className="flex items-center gap-2 bg-slate-900 border border-slate-750 p-2 rounded-xl">
+                      <span className="text-xl p-1.5 rounded-lg bg-slate-950 border border-slate-800 shrink-0 shadow-inner">
+                        {charm ? charm.emoji : "❓"}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-bold text-white truncate leading-tight">
+                          {charm ? charm.name : "Boş Slot"}
+                        </div>
+                        <div className="text-[9.5px] text-amber-200/70 truncate mt-0.5">
+                          {charm ? charm.description : `Slot ${slot + 1}`}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -289,11 +333,12 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
             trophies: isMe ? currentTrophies : (data.trophies ?? 0),
             collection: data.collection ?? {},
             deck: data.deck ?? ["mizrakli", "kilicli", "okcu", "dev"],
+            selectedCharms: data.selectedCharms ?? ["kuvvet", ""],
             cardLevels: data.cardLevels ?? {},
             wins: data.wins ?? 0,
             losses: data.losses ?? 0,
-            rankProgressTrophies: data.rankProgressTrophies ?? 0,
-            rankedStars: isMe ? (currentUser.rankedStars ?? 0) : (data.rankedStars ?? 0),
+            rankProgressTrophies: (data.rankSeason ?? 1) < 3 ? 0 : (data.rankProgressTrophies ?? 0),
+            rankedStars: isMe ? (currentUser.rankedStars ?? 0) : ((data.rankSeason ?? 1) < 3 ? 0 : (data.rankedStars ?? 0)),
             avatar: isMe ? (currentUser.avatar || data.avatar || "") : (data.avatar || ""),
             profileColor: isMe ? (currentUser.profileColor || data.profileColor || "white") : (data.profileColor || "white"),
             profileFont: isMe ? (currentUser.profileFont || data.profileFont || "font-display") : (data.profileFont || "font-display"),
@@ -396,12 +441,20 @@ function Top100Modal({ currentUser, currentTrophies, onClose, onSelectPlayer }: 
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={cn(
                       "w-8 h-8 rounded-lg flex items-center justify-center font-sans font-black text-xs shrink-0",
-                      rank === 1 ? "bg-amber-400 text-slate-950 text-sm" :
-                      rank === 2 ? "bg-slate-300 text-slate-950 text-sm" :
-                      rank === 3 ? "bg-amber-700 text-white text-sm" :
+                      rank === 1 ? "bg-amber-400/20 border border-amber-400/50" :
+                      rank === 2 ? "bg-slate-300/20 border border-slate-300/50" :
+                      rank === 3 ? "bg-amber-700/20 border border-amber-600/50" :
                       "bg-slate-900 border border-slate-800 text-slate-400"
                     )}>
-                      {rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : `#${rank}`}
+                      {rank === 1 ? (
+                        <AnimatedEmoji emoji="🥇" size="md" mode="ambient" />
+                      ) : rank === 2 ? (
+                        <AnimatedEmoji emoji="🥈" size="md" mode="ambient" />
+                      ) : rank === 3 ? (
+                        <AnimatedEmoji emoji="🥉" size="md" mode="ambient" />
+                      ) : (
+                        `#${rank}`
+                      )}
                     </div>
                     <div className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-base shrink-0">
                       {player.avatar || getAvatarForName(player.username)}

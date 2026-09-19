@@ -9,6 +9,9 @@ interface Props {
   onPlace?: (col: number, row: number) => void;
   selectedCardId?: string;
   mode?: "standard" | "tournament" | "ranked";
+  targetingCharm?: string | null;
+  onTargetCharmTile?: (col: number, row: number) => void;
+  onTargetCharmUnit?: (unitUid: number) => void;
 }
 
 function useProps(biome: Arena["biome"]) {
@@ -70,7 +73,10 @@ function projectileEmoji(p: Projectile): ReactNode {
   switch (p.kind) {
     case "arrow": return "➶";
     case "stone": return "🪨";
-    case "bullet": return "•";
+    case "bullet":
+      return (
+        <span className="inline-block w-2.5 h-2.5 rounded-full bg-gradient-to-r from-amber-300 to-yellow-400 border border-yellow-100 shadow-[0_0_8px_rgba(250,204,21,1)]" />
+      );
     case "bomb": return "💣";
     case "fire": return "🔥";
     case "snowball": return "❄️";
@@ -98,7 +104,16 @@ function projectileEmoji(p: Projectile): ReactNode {
   }
 }
 
-export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props) {
+export function ArenaView({ 
+  arena, 
+  state, 
+  onPlace, 
+  selectedCardId, 
+  mode,
+  targetingCharm,
+  onTargetCharmTile,
+  onTargetCharmUnit,
+}: Props) {
   const [hoveredTile, setHoveredTile] = useState<{col: number, row: number} | null>(null);
   const props = useProps(arena.biome);
   const cx = (col: number) => ((col + 0.5) / COLS) * 100;
@@ -259,6 +274,87 @@ export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props
         </div>
       )}
 
+      {/* Bomba Charm: 4x4 Bomb targeting grid overlay */}
+      {targetingCharm === "bomba" && onTargetCharmTile && (
+        <div className="absolute inset-0 z-40">
+          {Array.from({ length: ROWS }).map((_, r) =>
+            Array.from({ length: COLS }).map((_, c) => (
+              <button
+                key={`bomb_tile_${c}_${r}`}
+                onClick={() => onTargetCharmTile(c, r)}
+                onMouseEnter={() => setHoveredTile({ col: c, row: r })}
+                onMouseLeave={() => setHoveredTile(null)}
+                className="absolute border border-red-500/20 bg-red-950/10 hover:bg-red-500/30 cursor-crosshair transition-colors"
+                style={{
+                  left: `${(c / COLS) * 100}%`,
+                  top: `${(r / ROWS) * 100}%`,
+                  width: `${(1 / COLS) * 100}%`,
+                  height: `${(1 / ROWS) * 100}%`,
+                }}
+              />
+            ))
+          )}
+          {hoveredTile && (
+            <div
+              className="absolute border-2 border-dashed border-red-500 bg-red-500/25 pointer-events-none z-40 rounded-2xl flex items-center justify-center shadow-[0_0_25px_rgba(239,68,68,0.8)] animate-pulse"
+              style={{
+                left: `${((hoveredTile.col - 1.5) / COLS) * 100}%`,
+                top: `${((hoveredTile.row - 1.5) / ROWS) * 100}%`,
+                width: `${(4 / COLS) * 100}%`,
+                height: `${(4 / ROWS) * 100}%`,
+              }}
+            >
+              <div className="text-white font-mono font-bold text-[10px] bg-red-950/95 border border-red-500 px-2 py-0.5 rounded-full shadow flex items-center gap-1">
+                <span>💣</span> 4x4 (100 Hasar)
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Bomb active explosions on the arena */}
+      {state.bombExplosions?.map((exp) => (
+        <div
+          key={exp.uid}
+          className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 z-50 flex items-center justify-center"
+          style={{
+            left: `${cx(exp.col)}%`,
+            top: `${cy(exp.row)}%`,
+            width: `${(4 / COLS) * 100}%`,
+            height: `${(4 / ROWS) * 100}%`,
+          }}
+        >
+          <div className="w-full h-full rounded-full bg-orange-500/40 border-4 border-red-500 animate-ping" />
+          <div className="absolute text-5xl drop-shadow-[0_0_20px_rgba(239,68,68,1)] animate-bounce">💥</div>
+        </div>
+      ))}
+
+      {/* Floating combat damage numbers (Hasar Göstergesi - Kompakt & Şık) */}
+      {state.damagePopups?.map((pop) => {
+        const prog = Math.min(1, Math.max(0, (state.time - pop.createdAt) / pop.duration));
+        const fade = prog > 0.65 ? (1 - prog) / 0.35 : 1;
+        const scale = 0.85 + 0.2 * Math.sin(prog * Math.PI);
+        return (
+          <div
+            key={pop.id}
+            className="pointer-events-none absolute z-50 -translate-x-1/2 -translate-y-1/2 flex items-center font-display font-black leading-none select-none"
+            style={{
+              left: `${cx(pop.col + pop.xOffset)}%`,
+              top: `${cy(pop.row + pop.yOffset - prog * 0.8)}%`,
+              opacity: fade,
+              transform: `translate(-50%, -50%) scale(${scale})`,
+            }}
+          >
+            <div className="flex items-center gap-0.5 bg-slate-950/80 border border-red-500/50 px-1 py-0.5 rounded shadow-sm">
+              <span className="text-[9px] font-black text-red-400 leading-none">-</span>
+              <span className="text-[9px] font-mono font-black text-rose-200 drop-shadow-[0_1px_2px_rgba(0,0,0,1)] leading-none">
+                {pop.damage}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+
       {/* Active placed avalanches 5x5 indicators */}
       {state.units.map((u) => {
         if (u.hp <= 0) return null;
@@ -359,6 +455,13 @@ export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props
           (o) => o.side === u.side && o.hp > 0 && o.card.id === "bira-varili" && o.barrelAuraBoostTimeLeft !== undefined && o.barrelAuraBoostTimeLeft > 0
         );
 
+        const hasKanMantariShield = state.units.some(
+          (o) => o.side === u.side && o.hp > 0 && o.card.id === "kan-mantari"
+        );
+        const isWebbed = u.webbedByUid !== undefined;
+        const isTarantulaAttached = u.card.id === "tarantula" && u.webbedTargetUid !== undefined;
+        const isPoisoned = u.poisonTicksLeft !== undefined && u.poisonTicksLeft > 0;
+
         let isInvisibleHayalet = false;
         if (u.card.id === "hayalet") {
           const aliveUnits = state.units.filter(e => e.hp > 0);
@@ -378,12 +481,15 @@ export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props
         const isBuyucuInvis = u.card.id === "buyucu" && u.buyucuInvisTimeLeft !== undefined && u.buyucuInvisTimeLeft > 0;
         const isVampirInvis = u.card.id === "vampir" && u.vampirInvisTimeLeft !== undefined && u.vampirInvisTimeLeft > 0;
         const isInvisibleUnit = isInvisibleHayalet || isBuyucuInvis || isVampirInvis;
+        const isKutsanmisSelectable = targetingCharm === "kutsanmislik" && u.side === "player" && u.hp > 0;
 
         return (
           <div
             key={u.uid}
+            onClick={isKutsanmisSelectable ? () => onTargetCharmUnit?.(u.uid) : undefined}
             className={cn(
-              "pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 select-none transition-opacity duration-150",
+              "absolute -translate-x-1/2 -translate-y-1/2 select-none transition-opacity duration-150",
+              isKutsanmisSelectable ? "pointer-events-auto cursor-pointer z-50 hover:scale-110" : "pointer-events-none",
               isEmerging && "opacity-40 scale-110 animate-pulse", // transparently visible and pulsing when emerging!
               isInvisibleUnit && u.side !== "player" && "opacity-0 pointer-events-none",
               isInvisibleUnit && u.side === "player" && "opacity-30 grayscale blur-[0.3px]"
@@ -395,6 +501,22 @@ export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props
             }}
           >
             <div className="relative">
+              {/* Kutsanmışlık: Sarı halkalar çıkar */}
+              {u.kutsanmis && (
+                <>
+                  <div className="absolute inset-0 -m-3 rounded-full border-2 border-yellow-300 shadow-[0_0_16px_rgba(250,204,21,0.9)] animate-pulse pointer-events-none z-20" />
+                  <div className="absolute inset-0 -m-1.5 rounded-full border-2 border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.8)] animate-spin pointer-events-none border-dashed z-20" style={{ animationDuration: "5s" }} />
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[8px] font-black text-amber-300 bg-slate-950/95 border border-amber-400/90 px-1 py-0.2 rounded shadow whitespace-nowrap z-20">
+                    ✨ Kutsanmış (2.5x)
+                  </div>
+                </>
+              )}
+
+              {/* Kutsanmışlık targeting selector indicator */}
+              {isKutsanmisSelectable && !u.kutsanmis && (
+                <div className="absolute inset-0 -m-2.5 rounded-full border-2 border-yellow-400 bg-yellow-400/30 animate-bounce pointer-events-none z-30" />
+              )}
+
               {/* Status visual rings / badges */}
               {isVampirInvis && u.side === "player" && (
                 <div className="absolute inset-0 -m-1.5 rounded-full border-2 border-purple-500 bg-purple-950/40 animate-pulse shadow-[0_0_12px_rgba(168,85,247,0.7)] flex items-center justify-center pointer-events-none z-20">
@@ -447,6 +569,57 @@ export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props
                 <div className="absolute inset-0 -m-1.5 rounded-full border-4 border-black bg-black/15 shadow-[0_0_12px_4px_rgba(0,0,0,0.95)] animate-pulse z-10" />
               )}
 
+              {/* Kan Mantarı timer on mushroom itself */}
+              {u.card.id === "kan-mantari" && (
+                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none z-20">
+                  <div className="text-rose-200 font-mono font-black text-[9px] bg-rose-950/90 border border-rose-500/70 px-1.5 py-0.2 rounded shadow whitespace-nowrap animate-pulse">
+                    🍄 {u.kanMantariLifeLeft?.toFixed(1) ?? "15.0"}s
+                  </div>
+                </div>
+              )}
+
+              {/* Bira Varili remaining duration timer */}
+              {u.card.id === "bira-varili" && (
+                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none z-20">
+                  <div className="text-amber-200 font-mono font-black text-[9px] bg-amber-950/90 border border-amber-500/70 px-1.5 py-0.2 rounded shadow whitespace-nowrap animate-pulse">
+                    🍺 {Math.max(0, 30 - (u.barrelAge || 0)).toFixed(1)}s
+                  </div>
+                </div>
+              )}
+
+              {/* Kan Mantarı 50% damage reduction aura on friendly team */}
+              {hasKanMantariShield && u.card.id !== "kan-mantari" && (
+                <div className="absolute inset-0 -m-1 rounded-full border-2 border-rose-400 bg-rose-500/10 shadow-[0_0_10px_2px_rgba(244,63,94,0.5)] animate-pulse" />
+              )}
+
+              {/* Tarantula stuck to target effect */}
+              {isTarantulaAttached && (
+                <div className="absolute inset-0 -m-1.5 rounded-full border-2 border-emerald-400 bg-emerald-500/20 shadow-[0_0_10px_rgba(52,211,153,0.8)] animate-pulse">
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[8px] font-black text-emerald-300 bg-slate-950/90 border border-emerald-500/60 px-1 py-0.2 rounded shadow whitespace-nowrap">
+                    🕷️ %70 Zırh
+                  </div>
+                </div>
+              )}
+
+              {/* Unit Webbed by Tarantula */}
+              {isWebbed && (
+                <div className="absolute inset-0 -m-2 rounded-full border-2 border-dashed border-white bg-slate-100/25 flex items-center justify-center pointer-events-none z-20 animate-spin-slow">
+                  <span className="text-xl animate-pulse">🕸️</span>
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 text-[8px] font-black text-white bg-slate-950/90 border border-white/60 px-1 py-0.2 rounded shadow whitespace-nowrap">
+                    🕸️ AĞDA (+50%)
+                  </div>
+                </div>
+              )}
+
+              {/* Poison effect with top label */}
+              {isPoisoned && (
+                <div className="absolute inset-0 -m-1 rounded-full border-2 border-lime-400 bg-lime-500/15 shadow-[0_0_8px_rgba(163,230,53,0.7)] animate-pulse pointer-events-none z-20">
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[8px] font-black text-lime-300 bg-slate-950/95 border border-lime-500/80 px-1.5 py-0.2 rounded shadow whitespace-nowrap">
+                    🧪 Zehir
+                  </div>
+                </div>
+              )}
+
 
               <span className={cn(
                 "grid place-items-center rounded-full drop-shadow-[0_2px_3px_rgba(0,0,0,0.8)]",
@@ -460,14 +633,55 @@ export function ArenaView({ arena, state, onPlace, selectedCardId, mode }: Props
               )}
             </div>
             
-            {/* HP bar */}
+            {/* HP bar with live remaining HP number clearly visible (Kompakt ve Dengeli) */}
             {!isEmerging && (
-              <div className={cn("mx-auto mt-0.5 h-1 rounded-full bg-black/60", isSmall ? "w-6.5" : "w-9")}>
+              <div className={cn(
+                "relative mx-auto mt-0.5 rounded-xs border border-black/80 bg-slate-950/90 overflow-hidden shadow-xs flex items-center justify-center",
+                isSmall ? "w-5.5 h-1.5" : "w-7 h-2"
+              )}>
                 <div
-                  className={cn("h-full rounded-full", u.side === "player" ? "bg-emerald-400" : "bg-red-400")}
-                  style={{ width: `${(u.hp / u.maxHp) * 100}%` }}
+                  className={cn(
+                    "absolute left-0 top-0 bottom-0 rounded-xs transition-all duration-75",
+                    u.side === "player" ? "bg-gradient-to-r from-emerald-500 to-green-400" : "bg-gradient-to-r from-red-600 to-rose-400"
+                  )}
+                  style={{ width: `${Math.max(0, Math.min(100, (u.hp / u.maxHp) * 100))}%` }}
                 />
+                <span className="relative z-10 font-mono text-[6px] sm:text-[6.5px] font-black text-white leading-none drop-shadow-[0_1px_1px_rgba(0,0,0,1)] tracking-tighter whitespace-nowrap pointer-events-none">
+                  {Math.round(u.hp)}
+                </span>
               </div>
+            )}
+
+            {/* Attack cooldown / Slingshot Setup timer (Kurulma Süresi Rozeti ve Çubuğu) */}
+            {!isEmerging && u.setupTimeLeft !== undefined && u.setupTimeLeft > 0 ? (
+              <div className="absolute -bottom-3.5 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center pointer-events-none z-30 whitespace-nowrap">
+                <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[6.5px] font-mono font-black leading-none shadow-md border bg-amber-950/95 text-amber-300 border-amber-400 animate-pulse">
+                  <span className="text-[7px]">🔧</span>
+                  <span>KURULUYOR: {u.setupTimeLeft.toFixed(1)}s</span>
+                </div>
+                <div className="w-9 h-1 bg-slate-950 rounded-full border border-amber-400/80 overflow-hidden mt-0.5">
+                  <div
+                    className="h-full bg-gradient-to-r from-amber-500 to-yellow-300 transition-all duration-75"
+                    style={{
+                      width: `${Math.max(0, Math.min(100, (1 - u.setupTimeLeft / (u.setupDuration || 4)) * 100))}%`
+                    }}
+                  />
+                </div>
+              </div>
+            ) : (
+              !isEmerging && u.card.cd > 0 && (
+                <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none z-20 whitespace-nowrap">
+                  <div className={cn(
+                    "flex items-center gap-0.5 px-1 py-0.1 rounded-full text-[6.5px] font-mono font-bold leading-none shadow-xs border",
+                    u.cdLeft > 0.05 
+                      ? "bg-slate-950/85 text-amber-300 border-amber-500/40" 
+                      : "bg-emerald-950/85 text-emerald-300 border-emerald-500/50 animate-pulse"
+                  )}>
+                    <span className="text-[6px]">⚔️</span>
+                    <span>{u.cdLeft > 0.05 ? `${u.cdLeft.toFixed(1)}s` : "OK"}</span>
+                  </div>
+                </div>
+              )
             )}
           </div>
         );

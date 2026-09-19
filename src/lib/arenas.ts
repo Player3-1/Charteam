@@ -153,10 +153,50 @@ export const ARENAS: Arena[] = [
     unlocks: ["buyucu", "lanet"],
     bg: "linear-gradient(180deg, #8b5cf6 0%, #4c1d95 100%)",
     ground: "#5b21b6",
+  },
+  {
+    id: 15,
+    name: "Çürümüş Diyarlar",
+    min: 5000,
+    max: 5500,
+    biome: "desert",
+    unlocks: [],
+    bg: "linear-gradient(180deg, #44403c 0%, #1c1917 100%)",
+    ground: "#57534e",
+  },
+  {
+    id: 16,
+    name: "Radyoaktif Arena",
+    min: 5500,
+    max: 6000,
+    biome: "hell",
+    unlocks: [],
+    bg: "linear-gradient(180deg, #15803d 0%, #052e16 100%)",
+    ground: "#16a34a",
+  },
+  {
+    id: 17,
+    name: "Egzotik Arena",
+    min: 6000,
+    max: 7000,
+    biome: "legendary",
+    unlocks: [],
+    bg: "linear-gradient(180deg, #831843 0%, #4c0519 100%)",
+    ground: "#be185d",
+  },
+  {
+    id: 18,
+    name: "Mistik Arena",
+    min: 7000,
+    max: 8000,
+    biome: "legendary",
+    unlocks: [],
+    bg: "linear-gradient(180deg, #3b0764 0%, #1e1b4b 100%)",
+    ground: "#581c87",
   }
 ];
 
-export const MAX_TROPHIES = 5000;
+export const MAX_TROPHIES = 8000;
 
 export function arenaForTrophies(trophies: number): Arena {
   const t = Math.max(0, Math.min(MAX_TROPHIES, trophies));
@@ -192,6 +232,7 @@ export function makeOpponentTrophies(playerTrophies: number): number {
 }
 
 export interface RankInfo {
+  id: string;
   name: string;
   emoji: string;
   style: string;
@@ -199,24 +240,179 @@ export interface RankInfo {
   next: number;
 }
 
-export function getRankForRankProgress(progressTrophies: number) {
+export interface RankRewardDef {
+  targetRankId: string;
+  targetRankName: string;
+  fromRankName: string;
+  reqTrophies: number;
+  reqStars?: number;
+  gold: number;
+  levelCoins: number;
+  epicChests: number;
+  legendaryChests: number;
+  description: string;
+}
+
+export const RANK_TIERS: RankInfo[] = [
+  { id: "bronz_1", name: "Bronz 1", emoji: "🥉", style: "from-amber-700 to-amber-900 border-amber-600 text-amber-400 shadow-amber-900/40", min: 0, next: 100 },
+  { id: "bronz_2", name: "Bronz 2", emoji: "🥉", style: "from-amber-700 to-amber-900 border-amber-500 text-amber-200 shadow-amber-900/50", min: 100, next: 250 },
+  { id: "bronz_3", name: "Bronz 3", emoji: "🥉", style: "from-amber-700 to-amber-900 border-amber-400 text-amber-100 shadow-amber-900/60 font-semibold", min: 350, next: 300 },
+  { id: "gumus_1", name: "Gümüş 1", emoji: "🥈", style: "from-slate-400 to-slate-600 border-slate-350 text-slate-100 shadow-slate-700/40", min: 650, next: 400 },
+  { id: "gumus_2", name: "Gümüş 2", emoji: "🥈", style: "from-slate-400 to-slate-600 border-slate-300 text-slate-50 shadow-slate-700/50", min: 1050, next: 400 },
+  { id: "gumus_3", name: "Gümüş 3", emoji: "🥈", style: "from-slate-400 to-slate-600 border-slate-200 text-white shadow-slate-700/60 font-semibold", min: 1450, next: 400 },
+  { id: "altin_1", name: "Altın 1", emoji: "🥇", style: "from-yellow-500 to-yellow-700 border-yellow-400 text-yellow-100 shadow-yellow-600/40 font-semibold", min: 1850, next: 500 },
+  { id: "altin_2", name: "Altın 2", emoji: "🥇", style: "from-yellow-400 to-yellow-600 border-yellow-300 text-yellow-50 shadow-yellow-500/50 font-bold", min: 2350, next: 700 },
+  { id: "altin_3", name: "Altın 3", emoji: "🥇", style: "from-yellow-300 to-yellow-500 border-yellow-200 text-white shadow-yellow-400/60 font-extrabold", min: 3050, next: 700 },
+  { id: "elmas_1", name: "Elmas 1", emoji: "💎", style: "from-cyan-500 to-blue-600 border-cyan-400 text-cyan-50 shadow-cyan-500/50 font-bold", min: 3750, next: 800 },
+  { id: "elmas_2", name: "Elmas 2", emoji: "💎", style: "from-cyan-400 to-blue-500 border-cyan-300 text-white shadow-cyan-400/60 font-extrabold", min: 4550, next: 1500 },
+  { id: "elmas_3", name: "Elmas 3", emoji: "💎", style: "from-cyan-300 to-blue-400 border-cyan-200 text-white shadow-cyan-300/70 font-black", min: 6050, next: 950 },
+  { id: "platin", name: "Platin", emoji: "👑", style: "from-purple-500 via-pink-500 to-red-500 border-pink-400 text-white shadow-pink-500/50 font-black animate-pulse", min: 7000, next: 1000 }
+];
+
+export const RANK_REWARDS: RankRewardDef[] = [
+  {
+    targetRankId: "bronz_2",
+    targetRankName: "Bronz 2",
+    fromRankName: "Bronz 1",
+    reqTrophies: 100,
+    gold: 10000,
+    levelCoins: 1,
+    epicChests: 0,
+    legendaryChests: 0,
+    description: "10.000 Para + 1 Level Coin",
+  },
+  {
+    targetRankId: "bronz_3",
+    targetRankName: "Bronz 3",
+    fromRankName: "Bronz 2",
+    reqTrophies: 350,
+    gold: 15000,
+    levelCoins: 0,
+    epicChests: 3,
+    legendaryChests: 0,
+    description: "15.000 Para + 3 Epik Sandık",
+  },
+  {
+    targetRankId: "gumus_1",
+    targetRankName: "Gümüş 1",
+    fromRankName: "Bronz 3",
+    reqTrophies: 650,
+    gold: 0,
+    levelCoins: 0,
+    epicChests: 0,
+    legendaryChests: 3,
+    description: "3 Efsanevi Sandık",
+  },
+  {
+    targetRankId: "gumus_2",
+    targetRankName: "Gümüş 2",
+    fromRankName: "Gümüş 1",
+    reqTrophies: 1050,
+    gold: 30000,
+    levelCoins: 2,
+    epicChests: 0,
+    legendaryChests: 2,
+    description: "30.000 Para + 2 Efsanevi Sandık + 2 Level Coin",
+  },
+  {
+    targetRankId: "gumus_3",
+    targetRankName: "Gümüş 3",
+    fromRankName: "Gümüş 2",
+    reqTrophies: 1450,
+    gold: 0,
+    levelCoins: 0,
+    epicChests: 0,
+    legendaryChests: 5,
+    description: "5 Efsanevi Sandık",
+  },
+  {
+    targetRankId: "altin_1",
+    targetRankName: "Altın 1",
+    fromRankName: "Gümüş 3",
+    reqTrophies: 1850,
+    gold: 75000,
+    levelCoins: 0,
+    epicChests: 0,
+    legendaryChests: 0,
+    description: "75.000 Para",
+  },
+  {
+    targetRankId: "altin_2",
+    targetRankName: "Altın 2",
+    fromRankName: "Altın 1",
+    reqTrophies: 2350,
+    gold: 25000,
+    levelCoins: 5,
+    epicChests: 0,
+    legendaryChests: 0,
+    description: "5 Level Coin + 25.000 Para",
+  },
+  {
+    targetRankId: "altin_3",
+    targetRankName: "Altın 3",
+    fromRankName: "Altın 2",
+    reqTrophies: 3050,
+    gold: 33333,
+    levelCoins: 3,
+    epicChests: 0,
+    legendaryChests: 3,
+    description: "3 Level Coin + 3 Efsanevi Sandık + 33.333 Para",
+  },
+  {
+    targetRankId: "elmas_1",
+    targetRankName: "Elmas 1",
+    fromRankName: "Altın 3",
+    reqTrophies: 3750,
+    gold: 40000,
+    levelCoins: 5,
+    epicChests: 0,
+    legendaryChests: 0,
+    description: "5 Level Coin + 40.000 Para",
+  },
+  {
+    targetRankId: "elmas_2",
+    targetRankName: "Elmas 2",
+    fromRankName: "Elmas 1",
+    reqTrophies: 4550,
+    gold: 100000,
+    levelCoins: 0,
+    epicChests: 0,
+    legendaryChests: 0,
+    description: "100.000 Para",
+  },
+  {
+    targetRankId: "elmas_3",
+    targetRankName: "Elmas 3",
+    fromRankName: "Elmas 2",
+    reqTrophies: 6050,
+    gold: 50000,
+    levelCoins: 5,
+    epicChests: 0,
+    legendaryChests: 5,
+    description: "50.000 Para + 5 Efsanevi Sandık + 5 Level Coin",
+  },
+  {
+    targetRankId: "platin",
+    targetRankName: "Platin",
+    fromRankName: "Elmas 3",
+    reqTrophies: 7000,
+    reqStars: 140,
+    gold: 140000,
+    levelCoins: 14,
+    epicChests: 14,
+    legendaryChests: 5,
+    description: "140.000 Para + 14 Epik Sandık + 5 Efsanevi Sandık + 14 Level Coin",
+  },
+];
+
+export function getRankForRankProgress(progressTrophies: number, rankedStars: number = 0) {
   const p = Math.max(0, progressTrophies);
-  const ranks: RankInfo[] = [
-    { name: "Bronz 1", emoji: "🥉", style: "from-amber-700 to-amber-900 border-amber-600 text-amber-400 shadow-amber-900/40", min: 0, next: 100 },
-    { name: "Bronz 2", emoji: "🥉", style: "from-amber-700 to-amber-900 border-amber-500 text-amber-200 shadow-amber-900/50", min: 100, next: 200 },
-    { name: "Bronz 3", emoji: "🥉", style: "from-amber-700 to-amber-900 border-amber-400 text-amber-100 shadow-amber-900/60 font-semibold", min: 300, next: 300 },
-    { name: "Gümüş 1", emoji: "🥈", style: "from-slate-400 to-slate-600 border-slate-350 text-slate-100 shadow-slate-700/40", min: 600, next: 350 },
-    { name: "Gümüş 2", emoji: "🥈", style: "from-slate-400 to-slate-600 border-slate-300 text-slate-50 shadow-slate-700/50", min: 950, next: 400 },
-    { name: "Gümüş 3", emoji: "🥈", style: "from-slate-400 to-slate-600 border-slate-200 text-white shadow-slate-700/60 font-semibold", min: 1350, next: 500 },
-    { name: "Altın I", emoji: "🥇", style: "from-amber-400 to-yellow-600 border-amber-300 text-yellow-105 shadow-yellow-600/40 font-semibold", min: 1850, next: 400 },
-    { name: "Altın II", emoji: "🥇", style: "from-amber-400 to-yellow-600 border-amber-200 text-yellow-50 shadow-yellow-600/50 font-bold", min: 2250, next: 400 },
-    { name: "Altın III", emoji: "🥇", style: "from-amber-400 to-yellow-600 border-amber-100 text-amber-100 shadow-yellow-600/60 font-extrabold", min: 2650, next: 500 },
-    { name: "Altın IV", emoji: "👑", style: "from-purple-500 via-pink-500 to-red-500 border-pink-400 text-white shadow-pink-500/50 font-black animate-pulse", min: 3150, next: 999999 }
-  ];
+  const ranks: RankInfo[] = RANK_TIERS;
 
   let rank = ranks[0];
   for (let i = ranks.length - 1; i >= 0; i--) {
-    if (p >= ranks[i].min) {
+    const isPlatinByStars = ranks[i].id === "platin" && rankedStars >= 140;
+    if (p >= ranks[i].min || isPlatinByStars) {
       rank = ranks[i];
       break;
     }
@@ -224,16 +420,32 @@ export function getRankForRankProgress(progressTrophies: number) {
 
   const rankIdx = ranks.indexOf(rank);
   const nextRank = rankIdx < ranks.length - 1 ? ranks[rankIdx + 1] : null;
-  const progress = nextRank 
-    ? Math.min(100, ((p - rank.min) / rank.next) * 100)
-    : 100;
+  
+  let progress = 100;
+  let currentProgressVal = p - rank.min;
+  let reqForNext = rank.next;
+
+  if (nextRank) {
+    if (nextRank.id === "platin" && rank.id === "elmas_3") {
+      // Transition from Elmas 3 to Platin: 140 stars or 7000 kupa
+      if (rankedStars > 0) {
+        progress = Math.min(100, (rankedStars / 140) * 100);
+        currentProgressVal = rankedStars;
+        reqForNext = 140;
+      } else {
+        progress = Math.min(100, ((p - rank.min) / rank.next) * 100);
+      }
+    } else {
+      progress = Math.min(100, ((p - rank.min) / rank.next) * 100);
+    }
+  }
 
   return {
     current: rank,
     next: nextRank,
     progress: Math.max(0, Math.min(100, progress)),
-    currentProgressValue: p - rank.min,
-    requiredForNext: rank.next,
+    currentProgressValue: currentProgressVal,
+    requiredForNext: reqForNext,
   };
 }
 

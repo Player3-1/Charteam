@@ -13,6 +13,9 @@ export interface UserData {
   tournamentLosses?: number;
   unlockedEmojis?: string[];
   selectedEmojis?: string[]; // Max 4
+  unlockedCharms?: string[]; // Array of charm IDs unlocked by user
+  selectedCharms?: string[]; // Up to 2 charms selected
+  levelCoins?: number; // Currency used to level up cards
   rankProgressTrophies?: number; // Cumulative rank progression kupa
   claimedMilestones?: string[]; // Track claimed milestone emojis (🥇, 🥈, 🥉)
   maxTrophies?: number; // Lifetime highest trophy record achieved
@@ -27,4 +30,6 @@ export interface UserData {
   profileFont?: string;
   rankedMatchesPlayed?: number;
   claimedRankedRewards?: number[];
+  claimedRankTiers?: string[];
+  rankSeason?: number;
 }

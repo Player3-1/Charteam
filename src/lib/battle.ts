@@ -19,6 +19,8 @@ export interface Unit {
   cdLeft: number;
   flying: boolean;
   level: number; // The level of the unit (1 to 10)
+  setupTimeLeft?: number; // Slingshot setup timer (cannot move/shoot during setup, dies in 1 hit)
+  setupDuration?: number;
   // --- Custom ability tracking fields ---
   isCharging?: boolean;
   chargeTime?: number;
@@ -34,6 +36,8 @@ export interface Unit {
   bomberUsesLeft?: number;
   frozenTimeLeft?: number;
   poisonTicksLeft?: number;
+  hasTotem?: boolean;
+  poisonDmgPerTick?: number;
   poisonCdLeft?: number;
   burningTicksLeft?: number;
   burningDmgPerTick?: number;
@@ -57,6 +61,11 @@ export interface Unit {
   drag1CdLeft?: number;
   drag2CdLeft?: number;
   drag3CdLeft?: number;
+  webbedTargetUid?: number;
+  webbedByUid?: number;
+  snakeRetreatCd?: number;
+  kanMantariLifeLeft?: number;
+  kutsanmis?: boolean;
 }
 
 export interface Projectile {
@@ -77,6 +86,17 @@ export interface Projectile {
   buyucuEffect?: "normal" | "burn" | "slow";
 }
 
+export interface DamagePopup {
+  id: number;
+  col: number;
+  row: number;
+  damage: number;
+  createdAt: number;
+  duration: number;
+  xOffset: number;
+  yOffset: number;
+}
+
 export interface BattleState {
   units: Unit[];
   projectiles: Projectile[];
@@ -86,10 +106,21 @@ export interface BattleState {
   battleId?: string;
   pendingOpponentAbilities?: Map<string, number>;
   arenaId?: number;
+  botTrophies?: number;
   playerAbilityStones?: number;
   botAbilityStones?: number;
   lanetTimeLeft?: number;
   lanetSide?: Side;
+  hasTotem?: boolean;
+  charmKuvvetTimeLeft?: number;
+  charmHizTimeLeft?: number;
+  charmKanBanyosuTimeLeft?: number;
+  charmMutlakGucActive?: boolean;
+  charmMutlakGucTimer?: number;
+  charmMutlakGucMult?: number;
+  charmSafKuvvetTimeLeft?: number;
+  bombExplosions?: { uid: number; col: number; row: number; timeLeft: number }[];
+  damagePopups?: DamagePopup[];
 }
 
 let _uid = 1;
@@ -115,6 +146,7 @@ export function isUnitTargetable(u: Unit): boolean {
   if (u.hp <= 0) return false;
   if (u.card.id === "cig") return false;
   if (u.card.id === "lanet") return false;
+  if (u.card.id === "") return false;
   if (u.underground) return false;
   if (u.emergingTimeLeft !== undefined && u.emergingTimeLeft > 0) return false;
   if (u.vampirInvisTimeLeft !== undefined && u.vampirInvisTimeLeft > 0) return false;
@@ -162,18 +194,18 @@ export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: nu
     return;
   }
 
-  // Kabile spawns 2 squad members arranged with 1 slot gap between them on the same row
+  // Kabile spawns 5 squad members in formation
   if (card.id === "kabile") {
-    let leftCol = col - 1;
-    let rightCol = col + 1;
-    if (leftCol < 0) { leftCol = 0; rightCol = 2; }
-    if (rightCol >= COLS) { rightCol = COLS - 1; leftCol = COLS - 3; }
-    const positions = [
-      { col: leftCol, row },
-      { col: rightCol, row }
+    const offsets = [
+      [0, 0],
+      [-0.45, -0.35],
+      [0.45, -0.35],
+      [-0.4, 0.35],
+      [0.4, 0.35]
     ];
-    positions.forEach((pos, index) => {
-      const scaledHp = 150;
+    const mult = side === "bot" ? -1 : 1;
+    offsets.forEach(([dc, dr], index) => {
+      const scaledHp = card.hp;
       state.units.push({
         uid: nextUid(),
         card: {
@@ -185,8 +217,8 @@ export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: nu
           cd: card.cd,
         },
         side,
-        col: pos.col,
-        row: pos.row,
+        col: Math.max(0, Math.min(COLS - 1, col + dc)),
+        row: Math.max(0, Math.min(ROWS - 1, row + dr * mult)),
         hp: scaledHp,
         maxHp: scaledHp,
         cdLeft: card.cd,
@@ -214,10 +246,41 @@ export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: nu
     return;
   }
 
+  // Kan Mantarı spawns a totem/mushroom that lasts 15 seconds
+  if (card.id === "") {
+    state.units.push({
+      uid: nextUid(),
+      card,
+      side,
+      col,
+      row,
+      hp: 1,
+      maxHp: 1,
+      cdLeft: 999,
+      flying: false,
+      kanMantariLifeLeft: 15.0,
+      level,
+    });
+    return;
+  }
+
   const hp = Math.max(1, Math.round(card.hp));
   
   // Custom setups for specific cards
   const isDoktor = card.id === "doktor";
+
+  let setupTimeLeft: number | undefined = undefined;
+  let setupDuration: number | undefined = undefined;
+  if (card.id === "sapanci") {
+    setupTimeLeft = 4.0;
+    setupDuration = 4.0;
+  } else if (card.id === "buz-dolabi") { // Buz Sapanı
+    setupTimeLeft = 3.0;
+    setupDuration = 3.0;
+  } else if (card.id === "volkan") {
+    setupTimeLeft = 0;
+    setupDuration = 0;
+  }
 
   state.units.push({
     uid: nextUid(),
@@ -234,6 +297,8 @@ export function spawnUnit(state: BattleState, card: CardDef, side: Side, col: nu
     chargeTime: card.id === "atli" ? 0 : undefined,
     isCharging: card.id === "atli" ? true : undefined,
     bomberUsesLeft: card.id === "bombalama-ucagi" ? 1 : undefined,
+    setupTimeLeft,
+    setupDuration,
     level,
   });
 }
@@ -243,6 +308,10 @@ function attackRange(card: CardDef): number {
   if (card.id === "volkan") return 20.0; // exactly 5 blocks less than sapanci (25.0 - 5.0)
   if (card.id === "samuray") return 4.0; // Hybrid warrior: shuriken at range (up to 4.0), sword slash at melee
   if (card.id === "vampir") return 4.0; // Ranged vampire
+  if (card.id === "") return 7.0; // Long-range venom shooter
+  if (card.id === "") return 1.2;
+  if (card.id === "" || card.id === "kucuk-fare") return 1.1;
+  if (card.id === "") return 0;
   if (card.range === "yakın") return 1.1;
   if (card.range === "hava") return 5.0;
   if (card.range === "uzak") return 4.0;
@@ -250,8 +319,12 @@ function attackRange(card: CardDef): number {
 }
 
 function speed(card: CardDef): number {
-  if (card.id === "mercan" || card.id === "volkan" || card.id === "lanet" || card.id === "zombi") return 0; // Static building/graveyard
+  if (card.id === "mercan" || card.id === "volkan" || card.id === "lanet" || card.id === "zombi" || card.id === "") return 0; // Static building/graveyard
   if (card.id === "kopek-baligi") return 2.0; // Fast shark (speed fast)
+  if (card.id === "kucuk-fare") return 2.6; // Çok hızlı fareler
+  if (card.id === "") return 0.9;
+  if (card.id === "") return 1.0;
+  if (card.id === "") return 1.2;
   if (card.id === "balik") return 1.3; // Fast fish
   if (card.id === "atli") return 2.4; // Fast cavalry
   if (card.id === "mizrakli") return 1.4; // Fast melee
@@ -270,7 +343,7 @@ function projectileKind(card: CardDef): Projectile["kind"] | null {
   if (card.id === "okcu") return "arrow";
   if (card.id === "tufekci") return "bullet";
   if (card.id === "topcu" || card.id === "bombalama-ucagi") return "bomb";
-  if (card.id === "ejder" || card.id === "volkan" || card.id === "cehennem-ejderi") return "fire";
+  if (card.id === "ejder" || card.id === "volkan" || card.id === "cehennem-ejderi" || card.id === "") return "fire";
   if (card.id === "buz-dolabi" || card.id === "buz-ejderi") return "ice";
   if (card.id === "kardan-adam") return "snowball";
   if (card.id === "kurbaga") return "tongue";
@@ -278,13 +351,21 @@ function projectileKind(card: CardDef): Projectile["kind"] | null {
   if (card.id === "buyucu") return "bullet";
   if (card.id === "vampir") return "blood";
   if (card.id === "samuray") return "shuriken";
-  if (card.id === "lanet") return null;
+  if (card.id === "lanet" || card.id === "" || card.id === "" || card.id === "" || card.id === "kucuk-fare") return null;
   if (card.range === "yakın") return null;
   return "arrow";
 }
 
 function dist(a: { col: number; row: number }, b: { col: number; row: number }) {
   return Math.hypot(a.col - b.col, a.row - b.row);
+}
+
+function distToSegment(pCol: number, pRow: number, aCol: number, aRow: number, bCol: number, bRow: number) {
+  const l2 = (bCol - aCol) ** 2 + (bRow - aRow) ** 2;
+  if (l2 === 0) return dist({ col: pCol, row: pRow }, { col: aCol, row: aRow });
+  let t = ((pCol - aCol) * (bCol - aCol) + (pRow - aRow) * (bRow - aRow)) / l2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(pCol - (aCol + t * (bCol - aCol)), pRow - (aRow + t * (bRow - aRow)));
 }
 
 export function emergeMiner(u: Unit) {
@@ -307,7 +388,8 @@ function handleProjectileImpact(p: Projectile, state: BattleState) {
     } else if (p.kind === "ice" && (!attacker || attacker.card.id !== "buz-ejderi") && (!attacker || attacker.card.id !== "uc-basli-ejder")) {
       target.frozenTimeLeft = Math.max(target.frozenTimeLeft || 0, 1.5);
     } else if (p.kind === "tongue" && attacker) {
-      target.poisonTicksLeft = 10;
+      target.poisonTicksLeft = 5;
+      target.poisonDmgPerTick = 4;
       target.poisonCdLeft = 1.0;
     }
 
@@ -326,6 +408,10 @@ function handleProjectileImpact(p: Projectile, state: BattleState) {
         target.burningCdLeft = 1.0;
       } else if (attacker.card.id === "buz-ejderi") {
         target.frozenTimeLeft = Math.max(target.frozenTimeLeft || 0, 0.9);
+      } else if (attacker.card.id === "") {
+        target.poisonTicksLeft = 5;
+        target.poisonDmgPerTick = 5;
+        target.poisonCdLeft = 1.0;
       } else if (attacker.card.id === "uc-basli-ejder") {
         if (p.kind === "ice") {
           target.frozenTimeLeft = Math.max(target.frozenTimeLeft || 0, 0.6);
@@ -349,21 +435,42 @@ function handleProjectileImpact(p: Projectile, state: BattleState) {
   };
 
   if (p.aoeRange) {
+    const TANK_IDS = ["dev-sinek", "balik", "dev", "zirhli", "lav-kopegi", "golem", "fil"];
+    // Find primary target (or closest enemy unit directly hit)
+    const primaryTarget = state.units.find(u => u.uid === p.targetUid) ||
+      state.units.find(u => u.side !== p.side && Math.abs(u.col - p.toCol) <= 0.8 && Math.abs(u.row - p.toRow) <= 0.8);
+    const isPrimaryTank = primaryTarget && TANK_IDS.includes(primaryTarget.card.id);
+
     state.units.forEach((targetUnit) => {
       if (targetUnit.side !== p.side && isUnitTargetable(targetUnit)) {
-        if (targetUnit.card.id === "doktor") return; // Doktor does not take AOE damage
         if (Math.abs(targetUnit.col - p.toCol) <= p.aoeRange! && Math.abs(targetUnit.row - p.toRow) <= p.aoeRange!) {
+          // Tank Splash Nerf: If the hit target is a tank, allied units behind the tank take no splash damage!
+          if (isPrimaryTank && targetUnit.uid !== primaryTarget.uid) {
+            const tankRow = primaryTarget.row;
+            const fromRow = p.fromRow;
+            const isBehind = 
+              (fromRow < tankRow && targetUnit.row > tankRow - 0.2) ||
+              (fromRow > tankRow && targetUnit.row < tankRow + 0.2) ||
+              (primaryTarget.side === "player" && targetUnit.row > tankRow - 0.2) ||
+              (primaryTarget.side === "bot" && targetUnit.row < tankRow + 0.2);
+
+            if (isBehind) {
+              return; // Protected by the front tank! Takes 0 splash damage
+            }
+          }
           applyEffects(targetUnit, true);
         }
       }
     });
   } else {
-    // Single target: find closest to p.toCol, p.toRow
+    // Single target: find closest to p.toCol, p.toRow (or line trajectory for bullet)
     let best = null;
-    let bestDist = 1.0; 
+    let bestDist = p.kind === "bullet" ? 1.2 : 1.0; 
     for(const u of state.units) {
       if (u.side !== p.side && isUnitTargetable(u)) {
-        const d = dist(u, {col: p.toCol, row: p.toRow});
+        const d = p.kind === "bullet" 
+          ? distToSegment(u.col, u.row, p.fromCol, p.fromRow, p.toCol, p.toRow)
+          : dist(u, {col: p.toCol, row: p.toRow});
         if (d <= bestDist) {
            bestDist = d;
            best = u;
@@ -403,6 +510,41 @@ export function tickBattle(state: BattleState, dt: number) {
     state.lanetTimeLeft = Math.max(0, state.lanetTimeLeft - dt);
   }
 
+  // Charm active timers
+  if (state.charmKuvvetTimeLeft !== undefined && state.charmKuvvetTimeLeft > 0) {
+    state.charmKuvvetTimeLeft = Math.max(0, state.charmKuvvetTimeLeft - dt);
+  }
+  if (state.charmHizTimeLeft !== undefined && state.charmHizTimeLeft > 0) {
+    state.charmHizTimeLeft = Math.max(0, state.charmHizTimeLeft - dt);
+  }
+  if (state.charmKanBanyosuTimeLeft !== undefined && state.charmKanBanyosuTimeLeft > 0) {
+    state.charmKanBanyosuTimeLeft = Math.max(0, state.charmKanBanyosuTimeLeft - dt);
+  }
+  if (state.charmSafKuvvetTimeLeft !== undefined && state.charmSafKuvvetTimeLeft > 0) {
+    state.charmSafKuvvetTimeLeft = Math.max(0, state.charmSafKuvvetTimeLeft - dt);
+  }
+  // Mutlak Güç: Her 3 saniyede bir karakterlerin hasarı 1.1x artar (maks 3x)
+  if (state.charmMutlakGucActive) {
+    state.charmMutlakGucTimer = (state.charmMutlakGucTimer || 0) + dt;
+    if (state.charmMutlakGucTimer >= 3.0) {
+      state.charmMutlakGucTimer -= 3.0;
+      const cur = state.charmMutlakGucMult || 1.0;
+      if (cur < 3.0) {
+        state.charmMutlakGucMult = Math.min(3.0, Number((cur * 1.1).toFixed(3)));
+      }
+    }
+  }
+  // Bomb explosion animations timer
+  if (state.bombExplosions && state.bombExplosions.length > 0) {
+    state.bombExplosions.forEach(b => { b.timeLeft -= dt; });
+    state.bombExplosions = state.bombExplosions.filter(b => b.timeLeft > 0);
+  }
+
+  // Floating combat damage popups timer
+  if (state.damagePopups && state.damagePopups.length > 0) {
+    state.damagePopups = state.damagePopups.filter(p => state.time - p.createdAt < p.duration);
+  }
+
   // projectiles
   state.projectiles.forEach((p) => {
     if (p.targetUid !== undefined) {
@@ -437,6 +579,13 @@ export function tickBattle(state: BattleState, dt: number) {
   // Active buff and aging updates
   for (const u of state.units) {
     if (u.hp <= 0) continue;
+
+    // Slingshot setup timer: cannot move or shoot during setup period, cd countdown waits until setup finishes
+    if (u.setupTimeLeft !== undefined && u.setupTimeLeft > 0) {
+      u.setupTimeLeft = Math.max(0, u.setupTimeLeft - dt);
+      u.cdLeft = u.card.cd; // Cooldown timer countdown begins ONLY after setup is complete!
+      continue; // Completely immobilized and cannot attack during setup
+    }
 
     // Tick down attack/strike cooldown globally
     if (u.cdLeft > 0) {
@@ -474,7 +623,8 @@ export function tickBattle(state: BattleState, dt: number) {
         if (u.poisonCdLeft <= 0) {
           u.poisonCdLeft = 1.0;
           u.poisonTicksLeft -= 1;
-          applyCombatDamage(state, u, 3); // 3 damage per tick
+          const tickDmg = u.poisonDmgPerTick ?? 5;
+          applyCombatDamage(state, u, tickDmg);
         }
       }
     }
@@ -550,6 +700,20 @@ export function tickBattle(state: BattleState, dt: number) {
       u.vampirInvisTimeLeft = Math.max(0, u.vampirInvisTimeLeft - dt);
     }
 
+    // Toksik Yılan retreat cooldown
+    if (u.snakeRetreatCd !== undefined && u.snakeRetreatCd > 0) {
+      u.snakeRetreatCd = Math.max(0, u.snakeRetreatCd - dt);
+    }
+
+    // Kan Mantarı lifespan (15 seconds)
+    if (u.card.id === "") {
+      u.kanMantariLifeLeft = (u.kanMantariLifeLeft ?? 15.0) - dt;
+      if (u.kanMantariLifeLeft <= 0) {
+        u.hp = 0;
+        continue;
+      }
+    }
+
     // Lav Köpeği ability duration timer
     if (u.lavKopegiAbilityTimeLeft !== undefined && u.lavKopegiAbilityTimeLeft > 0) {
       u.lavKopegiAbilityTimeLeft = Math.max(0, u.lavKopegiAbilityTimeLeft - dt);
@@ -596,15 +760,20 @@ export function tickBattle(state: BattleState, dt: number) {
   for (const u of state.units) {
   }
 
-  // BOT AI trigger of active abilities on opportunity
+  // BOT AI trigger of active abilities on opportunity based on Bot Difficulty / Trophies
   for (const u of state.units) {
     if (u.side === "bot" && u.hp > 0) {
       if (state.battleId) {
         continue; // Multiplayer uses direct human click-synchronization! Skip AI.
       }
-      if (state.arenaId === 1) {
-        continue; // In Arena 1 (first arena), bots play very poorly and do not use their active abilities
+      const bTrophies = state.botTrophies ?? (state.arenaId ? state.arenaId * 1000 : 0);
+
+      // BOT AI active ability execution
+      // Bots use abilities tactically when advantageous:
+      if (bTrophies < 500 && Math.random() > 0.85) {
+        continue;
       }
+
       // Ghost auto invul on low health or when first targeted
       if (u.card.id === "hayalet" && u.hp < u.maxHp * 0.7 && u.immuneTimeLeft === undefined) {
         triggerUnitAbility(u, state);
@@ -673,6 +842,20 @@ export function tickBattle(state: BattleState, dt: number) {
           triggerUnitAbility(u, state);
         }
       }
+      // Mercan heal if team is wounded
+      if (u.card.id === "mercan") {
+        const woundedAllies = state.units.filter((o) => o.side === u.side && o.hp > 0 && o.hp < o.maxHp - 50);
+        if (woundedAllies.length >= 2 || (woundedAllies.length >= 1 && woundedAllies[0].hp < woundedAllies[0].maxHp * 0.5)) {
+          triggerUnitAbility(u, state);
+        }
+      }
+      // Madenci emerge if enemy is adjacent
+      if (u.card.id === "madenci" && u.underground) {
+        const enemiesNearby = state.units.filter((o) => o.side !== u.side && o.hp > 0 && dist(o, u) <= 2.2);
+        if (enemiesNearby.length >= 1) {
+          triggerUnitAbility(u, state);
+        }
+      }
     }
   }
 
@@ -690,7 +873,7 @@ export function tickBattle(state: BattleState, dt: number) {
           u.cdLeft = u.card.cd; 
         }
       }
-      // Mezarlik (zombi) spawns 150 HP / 30 DMG zombie every 4s
+      // Mezarlik (zombi) spawns 150 HP / 30 DMG zombie every 5s
       if (u.card.id === "zombi" && u.cdLeft <= 0) {
         const spawnRow = u.side === "player" ? Math.max(0, u.row - 0.7) : Math.min(ROWS - 1, u.row + 0.7);
         state.units.push({
@@ -716,7 +899,7 @@ export function tickBattle(state: BattleState, dt: number) {
           flying: false,
           level: u.level || 1,
         });
-        u.cdLeft = 4.0;
+        u.cdLeft = 5.0;
       }
       // Mercan passive heal (+50 HP every 2s)
       if (u.card.id === "mercan" && u.cdLeft <= 0) {
@@ -813,9 +996,21 @@ export function tickBattle(state: BattleState, dt: number) {
       continue;
     }
 
-    // Bira Varili, Cig, and Mezarlik (zombi) do not move or attack
-    if (u.card.id === "bira-varili" || u.card.id === "cig" || u.card.id === "zombi") {
+    // Bira Varili, Cig, Mezarlik (zombi), and Kan Mantarı do not move or attack
+    if (u.card.id === "bira-varili" || u.card.id === "cig" || u.card.id === "zombi" || u.card.id === "") {
       continue;
+    }
+
+    // If Tarantula is currently webbing someone, stay stuck on them
+    if (u.card.id === "" && u.webbedTargetUid !== undefined) {
+      const webbedTarget = state.units.find((o) => o.uid === u.webbedTargetUid && o.hp > 0);
+      if (webbedTarget) {
+        u.col = webbedTarget.col;
+        u.row = webbedTarget.row;
+        continue;
+      } else {
+        u.webbedTargetUid = undefined;
+      }
     }
 
     // Filter targetable enemies
@@ -832,8 +1027,8 @@ export function tickBattle(state: BattleState, dt: number) {
         if (e.immuneTimeLeft && e.immuneTimeLeft > 0) return false;
         if (e.hayaletRevealedByUid === undefined) return false;
       }
-      // Melee ground units cannot attack flying/aerial units
-      if (e.flying && !u.flying && u.card.range === "yakın") return false;
+      // Melee ground units cannot attack flying/aerial units (except Tarantula which can web flying units)
+      if (e.flying && !u.flying && u.card.range === "yakın" && u.card.id !== "") return false;
       return true;
     });
 
@@ -866,9 +1061,9 @@ export function tickBattle(state: BattleState, dt: number) {
       u.chargeTime = 0;
 
       if (u.card.id === "uc-basli-ejder") {
-        let dmg1 = 62;
-        let dmg2 = 62;
-        let dmg3 = 62;
+        let dmg1 = 37;
+        let dmg2 = 37;
+        let dmg3 = 37;
 
         // Apply Bira Varili damage aura boosts
         const activeAuraBarrels = state.units.filter(
@@ -945,7 +1140,7 @@ export function tickBattle(state: BattleState, dt: number) {
         }
         
         if (fired) {
-          u.cdLeft = u.card.cd;
+          u.cdLeft = (u.side === "player" && state.charmSafKuvvetTimeLeft && state.charmSafKuvvetTimeLeft > 0) ? u.card.cd * 0.75 : u.card.cd;
         }
       } else if (u.cdLeft <= 0 && u.card.cd > 0) {
         // Compute base damage
@@ -983,9 +1178,69 @@ export function tickBattle(state: BattleState, dt: number) {
           u.samurayAbilityActive = false; // consume the active ability
         }
 
+        if (u.card.id === "tufekci") {
+          // Tüfekçi 4 mermi öne doğru yuvarlağımsı bir kavisle yayılır (4-bullet fan arc spread)
+          const spreadAngles = [-0.42, -0.14, 0.14, 0.42];
+          const baseAngle = Math.atan2(best.row - u.row, best.col - u.col);
+          const spreadDistBase = Math.max(3.2, bestD + 0.6);
 
+          spreadAngles.forEach((offAngle) => {
+            const angle = baseAngle + offAngle;
+            // Cosine factor creates a rounded wave front
+            const finalDist = spreadDistBase * Math.cos(offAngle * 0.75);
+            const toCol = Math.max(0, Math.min(COLS - 1, u.col + Math.cos(angle) * finalDist));
+            const toRow = Math.max(0, Math.min(ROWS - 1, u.row + Math.sin(angle) * finalDist));
 
-        if (u.card.id === "samuray" && bestD <= 1.2) {
+            state.projectiles.push({
+              uid: nextUid(),
+              side: u.side,
+              fromCol: u.col,
+              fromRow: u.row,
+              toCol,
+              toRow,
+              t: 0,
+              duration: Math.max(0.22, finalDist * 0.08),
+              kind: "bullet",
+              attackerUid: u.uid,
+              damage: dmgValueResult,
+            });
+          });
+        } else if (u.card.id === "") {
+          // Tarantula hasar vermez, hedefe yapışır / ağ sarar
+          u.webbedTargetUid = best.uid;
+          best.webbedByUid = u.uid;
+          u.col = best.col;
+          u.row = best.row;
+        } else if (u.card.id === "") {
+          // Dev fare vuruşu: 20 hasar + 3 saniye görünmez yavru fare çağırır
+          applyCombatDamage(state, best, dmgValueResult, u);
+          const babyRatCard: CardDef = {
+            id: "kucuk-fare",
+            name: "Yavru Fare",
+            emoji: "🐀",
+            rarity: "rare",
+            hp: 70,
+            dmg: 30,
+            cd: 1.0,
+            range: "yakın",
+            description: "Hızlı fare",
+            stoneCost: 0,
+          };
+          const sideOffset = u.side === "player" ? -0.6 : 0.6;
+          state.units.push({
+            uid: nextUid(),
+            card: babyRatCard,
+            side: u.side,
+            col: Math.max(0, Math.min(COLS - 1, u.col + (Math.random() - 0.5) * 0.6)),
+            row: Math.max(0, Math.min(ROWS - 1, u.row + sideOffset)),
+            hp: 70,
+            maxHp: 70,
+            cdLeft: 0.5,
+            flying: false,
+            level: u.level || 1,
+            vampirInvisTimeLeft: 3.0,
+          });
+        } else if (u.card.id === "samuray" && bestD <= 1.2) {
           // Samuray: Yakından kılıçla vurur
           applyCombatDamage(state, best, dmgValueResult, u);
         } else {
@@ -1033,11 +1288,12 @@ export function tickBattle(state: BattleState, dt: number) {
           }
         }
 
-        u.cdLeft = u.card.cd;
+        u.cdLeft = (u.side === "player" && state.charmSafKuvvetTimeLeft && state.charmSafKuvvetTimeLeft > 0) ? u.card.cd * 0.75 : u.card.cd;
       }
     } else {
       // Movement sequence
       let speedFactor = speed(u.card);
+      if (u.side === "player" && state.charmHizTimeLeft !== undefined && state.charmHizTimeLeft > 0) speedFactor *= 2;
 
       // Frozen ability slowing effect
       if (u.frozenTimeLeft !== undefined && u.frozenTimeLeft > 0) {
@@ -1051,6 +1307,11 @@ export function tickBattle(state: BattleState, dt: number) {
       
       // Buz dolabı static behavior
       if (u.card.id === "buz-dolabi") {
+        speedFactor = 0;
+      }
+
+      // Unit immobilized by spider web
+      if (u.webbedByUid !== undefined) {
         speedFactor = 0;
       }
 
@@ -1099,12 +1360,12 @@ export function tickBattle(state: BattleState, dt: number) {
   for (let pass = 0; pass < 2; pass++) {
     for (let i = 0; i < state.units.length; i++) {
       const u1 = state.units[i];
-      if (u1.hp <= 0 || u1.flying || u1.card.id === "hayalet" || u1.card.id === "madenci" || u1.card.id === "cig" || u1.underground) {
+      if (u1.hp <= 0 || u1.flying || u1.card.id === "hayalet" || u1.card.id === "madenci" || u1.card.id === "cig" || u1.card.id === "" || u1.card.id === "" || u1.webbedByUid !== undefined || u1.webbedTargetUid !== undefined || u1.underground) {
         continue;
       }
       for (let j = i + 1; j < state.units.length; j++) {
         const u2 = state.units[j];
-        if (u2.hp <= 0 || u2.flying || u2.card.id === "hayalet" || u2.card.id === "madenci" || u2.card.id === "cig" || u2.underground) {
+        if (u2.hp <= 0 || u2.flying || u2.card.id === "hayalet" || u2.card.id === "madenci" || u2.card.id === "cig" || u2.card.id === "" || u2.card.id === "" || u2.webbedByUid !== undefined || u2.webbedTargetUid !== undefined || u2.underground) {
           continue;
         }
         
@@ -1127,8 +1388,8 @@ export function tickBattle(state: BattleState, dt: number) {
     }
   }
 
-  const playerAlive = state.units.some((u) => u.side === "player" && u.hp > 0 && u.card.id !== "cig" && u.card.id !== "bira-varili" && u.card.id !== "lanet");
-  const botAlive = state.units.some((u) => u.side === "bot" && u.hp > 0 && u.card.id !== "cig" && u.card.id !== "bira-varili" && u.card.id !== "lanet");
+  const playerAlive = state.units.some((u) => u.side === "player" && u.hp > 0 && u.card.id !== "cig" && u.card.id !== "bira-varili" && u.card.id !== "lanet" && u.card.id !== "");
+  const botAlive = state.units.some((u) => u.side === "bot" && u.hp > 0 && u.card.id !== "cig" && u.card.id !== "bira-varili" && u.card.id !== "lanet" && u.card.id !== "");
   if (state.time > 0.5) {
       if (!playerAlive && botAlive) state.winner = "bot";
       else if (!botAlive && playerAlive) state.winner = "player";
@@ -1137,10 +1398,40 @@ export function tickBattle(state: BattleState, dt: number) {
 }
 
 /** Handles applying damage, considering invulnerabilities and defensive stances */
-function applyCombatDamage(state: BattleState, defender: Unit, dmg: number, attacker?: Unit, isProjectile?: boolean, isAoe: boolean = false) {
+export function applyCombatDamage(state: BattleState, defender: Unit, dmg: number, attacker?: Unit, isProjectile?: boolean, isAoe: boolean = false) {
   // Check if targetable (cannot take damage if underground or emerging)
   if (!isUnitTargetable(defender)) {
     return; // takes 0 damage
+  }
+
+  // Slingshot balance: If hit while setting up, dies in one hit ("tek yer")!
+  if (defender.setupTimeLeft !== undefined && defender.setupTimeLeft > 0) {
+    defender.hp = 0;
+    return;
+  }
+
+  // Tank AoE shielding: If damage is AoE/splash, check if defender is behind a friendly tank
+  if (isAoe && attacker) {
+    const TANK_IDS = ["dev-sinek", "balik", "dev", "zirhli", "lav-kopegi", "golem", "fil"];
+    const alliedTanks = state.units.filter(u => u.side === defender.side && u.hp > 0 && TANK_IDS.includes(u.card.id) && u.uid !== defender.uid);
+    for (const tank of alliedTanks) {
+      const distTankDef = Math.hypot(tank.col - defender.col, tank.row - defender.row);
+      const isBehindTank = (
+        (attacker.row <= tank.row && defender.row > tank.row - 0.2) ||
+        (attacker.row >= tank.row && defender.row < tank.row + 0.2) ||
+        (defender.side === "player" && defender.row > tank.row - 0.2) ||
+        (defender.side === "bot" && defender.row < tank.row + 0.2)
+      ) && distTankDef <= 2.2;
+
+      if (isBehindTank) {
+        return; // Shielded from AoE damage by the allied front tank!
+      }
+    }
+  }
+
+  // Kan Mantarı is immune to combat damage; its duration is purely time-based (15 seconds)
+  if (defender.card.id === "") {
+    return;
   }
 
   // Ghost invulnerability 2.5 seconds
@@ -1161,9 +1452,41 @@ function applyCombatDamage(state: BattleState, defender: Unit, dmg: number, atta
     ? dmg * 0.75
     : dmg;
 
+  // Passive: Kan Mantarı reduces damage taken by entire team by 50%
+  const hasKanMantari = state.units.some(
+    (o) => o.side === defender.side && o.hp > 0 && o.card.id === "");
+  if (hasKanMantari) {
+    finalDmg *= 0.5;
+  }
+
+  // Tarantula takes 70% less damage while webbing a target
+  if (defender.card.id === "" && defender.webbedTargetUid !== undefined) {
+    finalDmg *= 0.3;
+  }
+
+  // Target held by Tarantula takes 50% more damage
+  if (defender.webbedByUid !== undefined) {
+    finalDmg *= 1.5;
+  }
+
   // Lanet double damage active:
   if (state.lanetTimeLeft !== undefined && state.lanetTimeLeft > 0 && attacker && attacker.side === state.lanetSide) {
     finalDmg *= 2.0;
+  }
+
+  // Charm: Kuvvet - basıldığı an tüm kartların gücü 5 saniyeliğine 2 katına çıkar
+  if (state.charmKuvvetTimeLeft !== undefined && state.charmKuvvetTimeLeft > 0 && attacker && attacker.side === "player") {
+    finalDmg *= 2.0;
+  }
+
+  // Charm: Saf Kuvvet - 5 saniyeliğine 2.5x güç
+  if (state.charmSafKuvvetTimeLeft !== undefined && state.charmSafKuvvetTimeLeft > 0 && attacker && attacker.side === "player") {
+    finalDmg *= 2.5;
+  }
+
+  // Charm: Mutlak Güç - Her 3 saniyede bir karakterlerin hasarı 1.1x artar (maks 3x)
+  if (state.charmMutlakGucMult !== undefined && state.charmMutlakGucMult > 1.0 && attacker && attacker.side === "player") {
+    finalDmg *= state.charmMutlakGucMult;
   }
 
   // Custom balance: AoE cards take 6 hits to kill Tribe and 3 hits for Bird Army
@@ -1176,7 +1499,39 @@ function applyCombatDamage(state: BattleState, defender: Unit, dmg: number, atta
   }
 
   const wasAlive = defender.hp > 0;
+  const actualDamageDealt = Math.min(defender.hp, finalDmg);
   defender.hp = Math.max(0, defender.hp - finalDmg);
+
+  if (wasAlive && finalDmg > 0) {
+    if (!state.damagePopups) state.damagePopups = [];
+    const rounded = Math.round(finalDmg);
+    if (rounded > 0) {
+      state.damagePopups.push({
+        id: nextUid(),
+        col: defender.col,
+        row: defender.row,
+        damage: rounded,
+        createdAt: state.time,
+        duration: 0.85,
+        xOffset: (Math.random() - 0.5) * 0.45,
+        yOffset: -0.2 + (Math.random() - 0.5) * 0.2,
+      });
+    }
+  }
+
+  // Toksik Yılan retreats 6 tiles back upon taking damage
+  if (defender.card.id === "" && wasAlive && defender.hp > 0) {
+    if ((defender.snakeRetreatCd || 0) <= 0) {
+      defender.snakeRetreatCd = 3.0;
+      if (defender.side === "player") {
+        // Player units move backward towards player's baseline (ROWS - 2)
+        defender.row = Math.min(ROWS - 2, defender.row + 6);
+      } else {
+        // Bot units move backward towards bot's baseline (row 1)
+        defender.row = Math.max(1, defender.row - 6);
+      }
+    }
+  }
 
   if (wasAlive && defender.hp > 0 && defender.card.id === "buyucu" && !defender.buyucuInvisTriggered) {
     defender.buyucuInvisTriggered = true;
@@ -1184,6 +1539,11 @@ function applyCombatDamage(state: BattleState, defender: Unit, dmg: number, atta
   }
 
   if (attacker && wasAlive) {
+    // Charm: Kan Banyosu - vurduğu hasar kadar can çalar (%100 lifesteal)
+    if (attacker.side === "player" && state.charmKanBanyosuTimeLeft !== undefined && state.charmKanBanyosuTimeLeft > 0) {
+      attacker.hp = Math.min(attacker.maxHp, attacker.hp + actualDamageDealt);
+    }
+
     if (attacker.card.id === "zombi") {
       attacker.hp = Math.min(attacker.maxHp, attacker.hp + 44);
     } else if (attacker.card.id === "vampir") {
@@ -1197,6 +1557,24 @@ function applyCombatDamage(state: BattleState, defender: Unit, dmg: number, atta
   }
 
   if (wasAlive && defender.hp <= 0) {
+    // If Tarantula dies, release whatever target it was webbing
+    if (defender.card.id === "") {
+      state.units.forEach((u) => {
+        if (u.webbedByUid === defender.uid) {
+          u.webbedByUid = undefined;
+        }
+      });
+    }
+
+    // If target was webbed by a Tarantula and dies, restore Tarantula to 100% HP!
+    const latchingTarantula = state.units.find(
+      (t) => t.card.id === "" && t.hp > 0 && t.webbedTargetUid === defender.uid
+    );
+    if (latchingTarantula) {
+      latchingTarantula.hp = latchingTarantula.maxHp;
+      latchingTarantula.webbedTargetUid = undefined;
+    }
+
     // Defender died! Heal opposing Dev Balık units by 50 HP.
     // DOES NOT work on Kuş Ordusu birds.
     if (!defender.card.id.startsWith("kus-ordusu")) {
@@ -1228,7 +1606,7 @@ export function getAbilityStoneCost(cardId: string): number {
     case "lav-kopegi": return 1;
     case "samuray": return 1;
     case "vampir": return 1;
-    case "lanet": return 0;
+    case "lanet": return 5;
     default: return 0;
   }
 }
@@ -1334,7 +1712,6 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
 
     state.units.forEach((targetUnit) => {
       if (targetUnit.side !== unit.side && isUnitTargetable(targetUnit)) {
-        if (targetUnit.card.id === "doktor") return; // Doktor does not take AOE damage
         // Check 6x6 bounding box (within 3 blocks)
         if (Math.abs(targetUnit.col - explodeCol) <= 3 && Math.abs(targetUnit.row - explodeRow) <= 3) {
           applyCombatDamage(state, targetUnit, 50, unit, false, true);
@@ -1404,7 +1781,6 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
 
     state.units.forEach((target) => {
       if (target.side !== unit.side && isUnitTargetable(target)) {
-        if (target.card.id === "doktor") return; // Doktor does not take AOE damage
         const colDiff = Math.abs(target.col - unit.col);
         const rowDiff = Math.abs(target.row - unit.row);
         // 3x3 area is within 1.5 distance in columns and rows
@@ -1484,7 +1860,6 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
     // Deal 60 damage to all enemies within 4x4 area of (u.col, u.row)
     state.units.forEach((targetUnit) => {
       if (targetUnit.side !== unit.side && isUnitTargetable(targetUnit)) {
-        if (targetUnit.card.id === "doktor") return; // Doktor does not take AOE damage
         const colDiff = Math.abs(targetUnit.col - unit.col);
         const rowDiff = Math.abs(targetUnit.row - unit.row);
         if (colDiff <= 2.5 && rowDiff <= 2.5) {
@@ -1506,37 +1881,94 @@ export function makeBotDeck(arena: Arena): CardDef[] {
     allowed = allowed.filter((c) => c.id !== "sapanci");
   }
 
-  // Define roles
-  const tanks = ["dev", "zirhli", "dev-sinek", "lav-kopegi", "kilicli", "kopek-baligi"];
-  const ranged = ["okcu", "tufekci", "sapanci", "topcu", "buz-dolabi", "kardan-adam", "kurbaga", "volkan"];
-  const airOrSpecial = ["ejder", "kus-ordusu", "bombalama-ucagi", "cehennem-ejderi", "balik", "mercan", "bira-varili"];
-  const meleeFast = ["mizrakli", "atli", "madenci", "hayalet"];
+  // Pre-designed tactical synergy archetypes
+  const SYNERGY_TEMPLATES: string[][] = [
+    // 1. Classic Beatdown: Tank + Ranged DPS + Melee Finisher + Support
+    ["dev", "okcu", "mizrakli", "kilicli"],
+    ["golem", "topcu", "samuray", "mercan"],
+    ["zirhli", "tufekci", "atli", "bira-varili"],
+    ["lav-kopegi", "volkan", "hayalet", "mercan"],
+    ["kopek-baligi", "bombalama-ucagi", "madenci", "buz-dolabi"],
+    // 2. Air Supremacy & Swarm
+    ["ejder", "kus-ordusu", "cehennem-ejderi", "kilicli"],
+    ["dev-sinek", "ejder", "mercan", "topcu"],
+    ["uc-basli-ejder", "buz-ejderi", "zirhli", "okcu"],
+    // 3. Fast Assassin & Control Disruptor
+    ["madenci", "samuray", "vampir", "topcu"],
+    ["cig", "atli", "okcu", "dev"],
+    ["karinca-ordusu", "kabile", "sapanci", "golem"],
+    ["hayalet", "madenci", "balik", "bombalama-ucagi"],
+    // 4. Heavy Siege & Control
+    ["buz-dolabi", "kardan-adam", "bombalama-ucagi", "golem"],
+    ["volkan", "mercan", "dev", "tufekci"],
+    ["zirhli", "bira-varili", "okcu", "samuray"],
+    ["dev", "bombalama-ucagi", "buz-dolabi", "atli"],
+  ];
 
-  const deck: CardDef[] = [];
-  
-  // Try to pick one from each category
+  // Filter templates to those where at least 3 cards are unlocked
+  const validTemplates = SYNERGY_TEMPLATES.map((tmpl) =>
+    tmpl.filter((id) => allowed.some((c) => c.id === id))
+  ).filter((tmpl) => tmpl.length >= 2);
+
+  let chosenCardIds: string[] = [];
+
+  if (validTemplates.length > 0 && Math.random() < 0.75) {
+    const chosenTemplate = validTemplates[Math.floor(Math.random() * validTemplates.length)];
+    chosenCardIds = [...chosenTemplate];
+  }
+
+  // Role buckets for filling the rest
+  const tanks = ["golem", "dev", "zirhli", "dev-sinek", "lav-kopegi", "kilicli", "kopek-baligi"];
+  const ranged = ["okcu", "tufekci", "sapanci", "topcu", "buz-dolabi", "kardan-adam", "kurbaga", "volkan", "buyucu", "vampir"];
+  const airOrSpecial = ["ejder", "kus-ordusu", "bombalama-ucagi", "cehennem-ejderi", "balik", "mercan", "bira-varili", "buz-ejderi", "uc-basli-ejder", "lanet", "cig"];
+  const meleeFast = ["mizrakli", "atli", "madenci", "hayalet", "samuray", "kabile", "karinca-ordusu"];
+
   const categories = [tanks, ranged, meleeFast, airOrSpecial];
+
+  // Fill up to 4 cards ensuring balanced roles
   for (const cat of categories) {
-    const available = allowed.filter(c => cat.includes(c.id) && !deck.includes(c));
-    if (available.length > 0) {
-      deck.push(available[Math.floor(Math.random() * available.length)]);
+    if (chosenCardIds.length >= 4) break;
+    const hasCategory = chosenCardIds.some((id) => cat.includes(id));
+    if (!hasCategory) {
+      const candidates = allowed.filter((c) => cat.includes(c.id) && !chosenCardIds.includes(c.id));
+      if (candidates.length > 0) {
+        const pick = candidates[Math.floor(Math.random() * candidates.length)];
+        chosenCardIds.push(pick.id);
+      }
     }
   }
 
-  // Fill remaining slots randomly if needed
-  while (deck.length < 4 && allowed.length > 0) {
-    const available = allowed.filter(c => !deck.includes(c));
-    if (available.length === 0) break;
-    deck.push(available[Math.floor(Math.random() * available.length)]);
+  // Fill remaining slots if still under 4
+  while (chosenCardIds.length < 4 && allowed.length > 0) {
+    const remaining = allowed.filter((c) => !chosenCardIds.includes(c.id));
+    if (remaining.length === 0) break;
+    chosenCardIds.push(remaining[Math.floor(Math.random() * remaining.length)].id);
   }
 
-  // Shuffle final deck
+  // Map to CardDef
+  let deck = chosenCardIds
+    .map((id) => CARDS.find((c) => c.id === id)!)
+    .filter(Boolean);
+
+  // Validate total cost <= 20
+  let totalCost = deck.reduce((sum, c) => sum + (c.stoneCost || 0), 0);
+  if (totalCost > 20) {
+    // Replace most expensive with a cheaper unlocked alternative
+    deck.sort((a, b) => (b.stoneCost || 0) - (a.stoneCost || 0));
+    const cheapAllowed = allowed.filter((c) => (c.stoneCost || 0) <= 3 && !deck.some((d) => d.id === c.id));
+    if (cheapAllowed.length > 0) {
+      deck[0] = cheapAllowed[Math.floor(Math.random() * cheapAllowed.length)];
+    }
+  }
+
+  // Shuffle deck
   for (let i = deck.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     const temp = deck[i];
     deck[i] = deck[j];
     deck[j] = temp;
   }
+
   return deck;
 }
 
@@ -1550,21 +1982,24 @@ export function computeRewards(
   deck?: string[],
   playerCardLevels: Record<string, number> = {}
 ): { gold: number; trophy: number } {
-  if (!win) {
-    return { gold: 0, trophy: -10 };
-  }
-
-  let bonus = 0;
+  // Normalde taban kupa 10'dur. Kart levelleriyle 30'a kadar çıkabilir.
+  let levelSum = 0;
   if (deck && Array.isArray(deck)) {
     deck.forEach((cardId) => {
       const lvl = playerCardLevels[cardId] ?? 1;
-      if (lvl === 2) bonus += 1;
-      else if (lvl === 3) bonus += 2;
-      else if (lvl === 4) bonus += 3;
-      else if (lvl >= 5) bonus += 5;
+      levelSum += Math.max(0, lvl - 1); // Seviye 1: 0, Seviye 2: 1, Seviye 3: 2, Seviye 4: 3, Seviye 5: 4
     });
   }
 
-  const trophy = 10 + bonus;
-  return { gold: 1000, trophy };
+  // 4 kart * maks 4 seviye farkı = maks 16 ekstra puan
+  // 16 ekstra puan 20 bonus kupaya denk gelir (10 + 20 = maks 30 kupa)
+  const bonus = Math.min(20, Math.round((levelSum / 16) * 20));
+  const trophyAmount = 10 + bonus;
+
+  if (!win) {
+    // Kaybedildiğinde kazanılacak kadar kupa kaybedilir (kart levelleri dahil)
+    return { gold: 0, trophy: -trophyAmount };
+  }
+
+  return { gold: 500, trophy: trophyAmount };
 }
