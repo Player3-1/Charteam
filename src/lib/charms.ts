@@ -53,7 +53,7 @@ export const CHARMS: CharmDef[] = [
     id: "bomba",
     name: "Bomba",
     emoji: "💣",
-    description: "İstediğin yere bomba bırakırsın ve o bombanın 4x4 alanındaki herşey 100 hasar alır.",
+    description: "İstediğin yere bomba bırakırsın ve o bombanın 4x4 alanındaki herşey 150 hasar alır.",
     cost: 50000,
   }
 ];

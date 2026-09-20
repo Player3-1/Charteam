@@ -751,8 +751,8 @@ export function tickBattle(state: BattleState, dt: number) {
     // Barrel lifespan & burst timer
     if (u.card.id === "bira-varili") {
       u.barrelAge = (u.barrelAge || 0) + dt;
-      if (u.barrelAge >= 30) {
-        u.hp = 0; // expires after 30 seconds
+      if (u.barrelAge >= 25) {
+        u.hp = 0; // expires after 25 seconds
         continue;
       }
       if (u.barrelAuraBoostTimeLeft !== undefined && u.barrelAuraBoostTimeLeft > 0) {
@@ -902,7 +902,7 @@ export function tickBattle(state: BattleState, dt: number) {
           u.cdLeft = u.card.cd; 
         }
       }
-      // Mezarlik (zombi) spawns 150 HP / 30 DMG zombie every 5s
+      // Mezarlik (zombi) spawns 300 HP / 30 DMG zombie every 5s
       if (u.card.id === "zombi" && u.cdLeft <= 0) {
         const spawnRow = u.side === "player" ? Math.max(0, u.row - 0.7) : Math.min(ROWS - 1, u.row + 0.7);
         state.units.push({
@@ -912,7 +912,7 @@ export function tickBattle(state: BattleState, dt: number) {
             name: "Zombi",
             emoji: "🧟",
             rarity: "common",
-            hp: 150,
+            hp: 300,
             dmg: 30,
             cd: 1.4,
             range: "yakın",
@@ -922,8 +922,8 @@ export function tickBattle(state: BattleState, dt: number) {
           side: u.side,
           col: u.col,
           row: spawnRow,
-          hp: 150,
-          maxHp: 150,
+          hp: 300,
+          maxHp: 300,
           cdLeft: 0.5,
           flying: false,
           level: u.level || 1,
@@ -1654,7 +1654,7 @@ export function getAbilityStoneCost(cardId: string): number {
     case "lav-kopegi": return 1;
     case "samuray": return 1;
     case "vampir": return 1;
-    case "lanet": return 5;
+    case "lanet": return 4;
     default: return 0;
   }
 }
@@ -1877,7 +1877,7 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
     unit.vampirInvisTimeLeft = 4.0;
   }
   else if (unit.card.id === "lanet") {
-    state.lanetTimeLeft = 3.0;
+    state.lanetTimeLeft = 4.0;
     state.lanetSide = unit.side;
     unit.hp = 0;
   }
@@ -1905,13 +1905,13 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
       });
     }
 
-    // Deal 60 damage to all enemies within 4x4 area of (u.col, u.row)
+    // Deal 145 damage to all enemies within 4x4 area of (u.col, u.row)
     state.units.forEach((targetUnit) => {
       if (targetUnit.side !== unit.side && isUnitTargetable(targetUnit)) {
         const colDiff = Math.abs(targetUnit.col - unit.col);
         const rowDiff = Math.abs(targetUnit.row - unit.row);
         if (colDiff <= 2.5 && rowDiff <= 2.5) {
-          applyCombatDamage(state, targetUnit, 60, unit, false, true);
+          applyCombatDamage(state, targetUnit, 145, unit, false, true);
         }
       }
     });

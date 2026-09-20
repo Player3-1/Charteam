@@ -478,6 +478,10 @@ export function BattleScreen({
   const [isReady, setIsReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
 
+  const BOT_CHARM_POOL = ["kuvvet", "hiz", "saglik", "kan-banyosu", "mutlak-guc", "kutsanmislik", "bomba"];
+  const botCharmsRef = useRef<string[]>([]);
+  const botUsedCharmsRef = useRef<Set<string>>(new Set());
+
   const opponentDeckRef = useRef<string[]>([]);
   const isBotFallbackRef = useRef(false);
   const opponentPlacementsRef = useRef<any[]>([]);
@@ -524,6 +528,11 @@ export function BattleScreen({
     triggeredOpponentAbilitiesRef.current.clear();
     triggeredOpponentCharmsRef.current.clear();
     triggeredOpponentEmojisRef.current.clear();
+
+    const shuffledCharms = [...BOT_CHARM_POOL].sort(() => Math.random() - 0.5);
+    botCharmsRef.current = shuffledCharms.slice(0, 2);
+    botUsedCharmsRef.current.clear();
+
     setWinner(null);
     winnerRef.current = null;
     setPhase("placing");
@@ -560,19 +569,35 @@ export function BattleScreen({
       });
     } else if (charmId === "kutsanmislik") {
       const targetCardId = extra?.targetCardId;
-      const target = s.units.find(u =>
+      const target = (targetCardId ? s.units.find(u =>
         u.side === "bot" &&
         u.hp > 0 &&
         (u.card.id === targetCardId || (targetCardId?.startsWith("kus-ordusu") && u.card.id.startsWith("kus-ordusu")))
-      );
+      ) : null) || [...s.units.filter(u => u.side === "bot" && u.hp > 0)].sort((a, b) => b.maxHp - a.maxHp)[0];
       if (target) {
         target.maxHp = Math.round(target.maxHp * 2.5);
         target.hp = Math.round(target.hp * 2.5);
         target.kutsanmis = true;
       }
     } else if (charmId === "bomba") {
-      const oppCol = COLS - 1 - (extra?.tileCol ?? 0);
-      const oppRow = ROWS - 1 - (extra?.tileRow ?? 0);
+      let oppCol = extra !== undefined ? COLS - 1 - (extra?.tileCol ?? 0) : Math.floor(COLS / 2);
+      let oppRow = extra !== undefined ? ROWS - 1 - (extra?.tileRow ?? 0) : 3;
+
+      if (extra === undefined) {
+        const playerUnits = s.units.filter(u => u.side === "player" && u.hp > 0);
+        if (playerUnits.length > 0) {
+          let maxCount = 0;
+          playerUnits.forEach(p => {
+            const count = playerUnits.filter(u => Math.abs(u.col - p.col) <= 2 && Math.abs(u.row - p.row) <= 2).length;
+            if (count > maxCount) {
+              maxCount = count;
+              oppCol = Math.round(p.col);
+              oppRow = Math.round(p.row);
+            }
+          });
+        }
+      }
+
       if (!s.bombExplosions) s.bombExplosions = [];
       s.bombExplosions.push({
         uid: Date.now() + Math.random(),
@@ -584,11 +609,58 @@ export function BattleScreen({
       // 4x4 area: within 2 tiles col and row
       s.units.forEach(u => {
         if (u.hp > 0 && Math.abs(u.col - oppCol) <= 2 && Math.abs(u.row - oppRow) <= 2) {
-          applyCombatDamage(s, u, 100, undefined, undefined, true);
+          applyCombatDamage(s, u, 150, undefined, undefined, true);
         }
       });
     }
     rerender();
+  };
+
+  const checkBotCharmAI = () => {
+    const isBotMatch = !battleId || isBotFallbackRef.current;
+    if (!isBotMatch) return;
+
+    const s = stateRef.current;
+    if (!s || s.winner) return;
+
+    const botCharms = botCharmsRef.current;
+    const used = botUsedCharmsRef.current;
+
+    const botUnits = s.units.filter(u => u.side === "bot" && u.hp > 0);
+    const playerUnits = s.units.filter(u => u.side === "player" && u.hp > 0);
+
+    if (botUnits.length === 0) return;
+
+    for (const charmId of botCharms) {
+      if (used.has(charmId)) continue;
+
+      let shouldTrigger = false;
+
+      if (charmId === "hiz") {
+        if (s.time >= 1.5) shouldTrigger = true;
+      } else if (charmId === "kutsanmislik") {
+        if (s.time >= 2.0 && botUnits.length > 0) shouldTrigger = true;
+      } else if (charmId === "bomba") {
+        if (s.time >= 3.0 && playerUnits.length >= 1) shouldTrigger = true;
+      } else if (charmId === "kuvvet") {
+        const inCombat = botUnits.some(b => playerUnits.some(p => Math.hypot(b.col - p.col, b.row - p.row) <= 4.0));
+        if (inCombat || s.time >= 4.0) shouldTrigger = true;
+      } else if (charmId === "kan-banyosu") {
+        const inCombat = botUnits.some(b => playerUnits.some(p => Math.hypot(b.col - p.col, b.row - p.row) <= 4.0));
+        if (inCombat || s.time >= 5.0) shouldTrigger = true;
+      } else if (charmId === "saglik") {
+        const injured = botUnits.some(u => u.hp < u.maxHp * 0.65);
+        if (injured || s.time >= 8.0) shouldTrigger = true;
+      } else if (charmId === "mutlak-guc") {
+        if (s.time >= 4.0) shouldTrigger = true;
+      }
+
+      if (shouldTrigger) {
+        used.add(charmId);
+        applyOpponentCharm(charmId);
+        break;
+      }
+    }
   };
 
   const handleUseCharm = (charmId: string) => {
@@ -657,10 +729,10 @@ export function BattleScreen({
       });
 
       // 4x4 area: within 2 tiles col and row (centered or covering 4x4 area)
-      // "o bombanın 4x4 alanındaki herşey 100 hasar alır."
+      // "o bombanın 4x4 alanındaki herşey 150 hasar alır."
       s.units.forEach(u => {
         if (u.hp > 0 && Math.abs(u.col - col) <= 2 && Math.abs(u.row - row) <= 2) {
-          applyCombatDamage(s, u, 100, undefined, undefined, true);
+          applyCombatDamage(s, u, 150, undefined, undefined, true);
         }
       });
 
@@ -1019,6 +1091,7 @@ export function BattleScreen({
 
       while (accumulator >= FIXED_DT) {
         tickBattle(stateRef.current, FIXED_DT);
+        checkBotCharmAI();
         accumulator -= FIXED_DT;
       }
 
@@ -1168,7 +1241,7 @@ export function BattleScreen({
             <span className="text-3xl">💣</span>
             <div className="text-left">
               <div className="text-xs font-black uppercase text-red-200">Bomba Bırakılıyor</div>
-              <div className="text-[11px] text-red-300">Sahada istediğin kareye tıkla (4x4 alan, 100 hasar)</div>
+              <div className="text-[11px] text-red-300">Sahada istediğin kareye tıkla (4x4 alan, 150 hasar)</div>
             </div>
             <button
               onClick={() => setTargetingCharm(null)}
