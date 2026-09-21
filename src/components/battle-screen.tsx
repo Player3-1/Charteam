@@ -518,6 +518,8 @@ export function BattleScreen({
 
   useEffect(() => {
     stateRef.current = makeInitialState();
+    stateRef.current.playerAbilityStones = Math.max(0, 20 - playerDeckCost);
+    stateRef.current.botAbilityStones = Math.max(0, 20 - botDeckCost);
     stateRef.current.battleId = battleId || undefined;
     stateRef.current.isPlayer1 = isPlayer1;
     stateRef.current.arenaId = arena.id;
@@ -536,7 +538,7 @@ export function BattleScreen({
     setWinner(null);
     winnerRef.current = null;
     setPhase("placing");
-  }, [battleId, isPlayer1, arena.id]);
+  }, [battleId, isPlayer1, arena.id, playerDeckCost, botDeckCost]);
 
   const [placeTimer, setPlaceTimer] = useState(PLACE_SECONDS);
   const placedBotRef = useRef(0);
@@ -551,17 +553,17 @@ export function BattleScreen({
     if (charmId === "kuvvet") {
       s.botCharmKuvvetTimeLeft = 5.0; // 5 seconds 2x power for opponent
     } else if (charmId === "hiz") {
-      s.botCharmHizTimeLeft = 4.0; // 4 seconds 2x speed for opponent
+      s.botCharmHizTimeLeft = 7.0; // 7 seconds 2x speed for opponent
     } else if (charmId === "kan-banyosu") {
       s.botCharmKanBanyosuTimeLeft = 7.0; // 7 seconds lifesteal for opponent
     } else if (charmId === "saglik") {
       s.units.forEach(u => {
         if (u.side === "bot" && u.hp > 0) {
-          u.hp = Math.min(u.maxHp, u.hp + (u.maxHp * 0.5));
+          u.hp = Math.min(u.maxHp, u.hp + (u.maxHp * 0.3));
         }
       });
     } else if (charmId === "mutlak-guc") {
-      s.botCharmSafKuvvetTimeLeft = 5.0;
+      s.botCharmSafKuvvetTimeLeft = 4.0;
       s.units.forEach(u => {
         if (u.side === "bot" && u.hp > 0) {
           u.hp = Math.max(1, Math.round(u.hp * 0.75));
@@ -575,8 +577,8 @@ export function BattleScreen({
         (u.card.id === targetCardId || (targetCardId?.startsWith("kus-ordusu") && u.card.id.startsWith("kus-ordusu")))
       ) : null) || [...s.units.filter(u => u.side === "bot" && u.hp > 0)].sort((a, b) => b.maxHp - a.maxHp)[0];
       if (target) {
-        target.maxHp = Math.round(target.maxHp * 2.5);
-        target.hp = Math.round(target.hp * 2.5);
+        target.maxHp = Math.round(target.maxHp * 1.5);
+        target.hp = Math.round(target.hp * 1.5);
         target.kutsanmis = true;
       }
     } else if (charmId === "bomba") {
@@ -676,17 +678,17 @@ export function BattleScreen({
     if (charmId === "kuvvet") {
       s.charmKuvvetTimeLeft = 5.0; // 5 seconds 2x power
     } else if (charmId === "hiz") {
-      s.charmHizTimeLeft = 4.0; // 4 seconds 2x speed
+      s.charmHizTimeLeft = 7.0; // 7 seconds 2x speed
     } else if (charmId === "kan-banyosu") {
       s.charmKanBanyosuTimeLeft = 7.0; // 7 seconds lifesteal
     } else if (charmId === "saglik") {
       s.units.forEach(u => {
         if (u.side === "player" && u.hp > 0) {
-          u.hp = Math.min(u.maxHp, u.hp + (u.maxHp * 0.5));
+          u.hp = Math.min(u.maxHp, u.hp + (u.maxHp * 0.3));
         }
       });
     } else if (charmId === "mutlak-guc") {
-      s.charmSafKuvvetTimeLeft = 5.0;
+      s.charmSafKuvvetTimeLeft = 4.0;
       s.units.forEach(u => {
         if (u.side === "player" && u.hp > 0) {
           u.hp = Math.max(1, Math.round(u.hp * 0.75));
@@ -704,8 +706,8 @@ export function BattleScreen({
       const s = stateRef.current;
       const target = s.units.find(u => u.uid === targetUid && u.side === "player" && u.hp > 0);
       if (target) {
-        target.maxHp = Math.round(target.maxHp * 2.5);
-        target.hp = Math.round(target.hp * 2.5);
+        target.maxHp = Math.round(target.maxHp * 1.5);
+        target.hp = Math.round(target.hp * 1.5);
         target.kutsanmis = true;
         setUsedCharms(prev => [...prev, "kutsanmislik"]);
         setTargetingCharm(null);
@@ -1388,8 +1390,8 @@ export function BattleScreen({
         <div className="bg-slate-950/95 border-t border-slate-900 p-2">
           <div className="text-center text-[10px] font-display text-amber-300 mb-1.5 tracking-wide font-medium flex items-center justify-center gap-2">
                 <span>CHARMLAR & YETENEKLER</span>
-                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/35 px-2 py-0.5 rounded-full text-[9px] font-mono">
-                  💎 Stone: {stateRef.current.playerAbilityStones ?? 0}
+                <span className="bg-amber-500/20 text-cyan-300 border border-cyan-500/35 px-2 py-0.5 rounded-full text-[9px] font-mono font-bold">
+                  💎 Yetenek Taşları: {stateRef.current.playerAbilityStones ?? Math.max(0, 20 - playerDeckCost)}
                 </span>
               </div>
               
@@ -1415,7 +1417,7 @@ export function BattleScreen({
                       activeText = `${s.charmKanBanyosuTimeLeft.toFixed(1)}s (Can Çalma)`;
                     } else if (charm.id === "mutlak-guc" && s.charmSafKuvvetTimeLeft && s.charmSafKuvvetTimeLeft > 0) {
                       isActive = true;
-                      activeText = `${s.charmSafKuvvetTimeLeft.toFixed(1)}s (2.5x Güç)`;
+                      activeText = `${s.charmSafKuvvetTimeLeft.toFixed(1)}s (4x Güç)`;
                     }
 
                     return (
@@ -1554,7 +1556,8 @@ export function BattleScreen({
                           }
 
                           const stoneCost = getAbilityStoneCost(u.card.id);
-                          const hasEnoughStones = (stateRef.current.playerAbilityStones ?? 0) >= stoneCost;
+                          const currentStones = stateRef.current.playerAbilityStones ?? Math.max(0, 20 - playerDeckCost);
+                          const hasEnoughStones = currentStones >= stoneCost;
                           const buttonDisabled = isDisabled || !hasEnoughStones;
 
                           return (

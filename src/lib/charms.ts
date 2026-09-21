@@ -18,14 +18,14 @@ export const CHARMS: CharmDef[] = [
     id: "saglik",
     name: "Sağlık",
     emoji: "❤️",
-    description: "Basıldığı an tüm kartların canı %50 dolar.",
+    description: "Basıldığı an tüm kartların canı %30 dolar.",
     cost: 0,
   },
   {
     id: "hiz",
     name: "Hız",
     emoji: "⚡",
-    description: "Basıldığı an tüm kartlar 4 saniyeliğine 2x hızlanır.",
+    description: "Basıldığı an tüm kartlar 7 saniyeliğine 2x hızlanır.",
     cost: 35000,
   },
   {
@@ -39,14 +39,14 @@ export const CHARMS: CharmDef[] = [
     id: "mutlak-guc",
     name: "Saf Kuvvet",
     emoji: "⚡",
-    description: "Basıldığında tüm kartların gücü 5 saniyeliğine 2.5x artar, vurma süreleri %25 kısalır, ancak canlarının da %25'ini kaybederler.",
+    description: "Basıldığında tüm kartların gücü 4 saniyeliğine 4x artar, vurma süreleri %25 kısalır, ancak canlarının da %25'ini kaybederler.",
     cost: 88000,
   },
   {
     id: "kutsanmislik",
     name: "Kutsanmışlık",
     emoji: "✨",
-    description: "İstediğin bir karta 2.5x dayanıklılık (can) basarsın. Onun etrafında sarı halkalar çıkar.",
+    description: "İstediğin bir karta 1.5x dayanıklılık (can) basarsın. Onun etrafında sarı halkalar çıkar.",
     cost: 125000,
   },
   {

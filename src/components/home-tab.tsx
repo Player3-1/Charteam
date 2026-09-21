@@ -1101,7 +1101,7 @@ function CardsTab({
                       ? "bg-emerald-950/80 text-emerald-400 border-emerald-500/40" 
                       : "bg-indigo-950/80 text-cyan-300 border-indigo-400/30"
                 )}>
-                  💎 {deckStoneCost}/20
+                  💎 {deckStoneCost}/20 {deckStoneCost < 20 ? `(${20 - deckStoneCost} Yetenek Taşı)` : ""}
                 </span>
               </div>
 
@@ -1921,7 +1921,7 @@ function BattleTab({
               ? "bg-indigo-950/80 text-cyan-300 border-indigo-400/30" 
               : "bg-red-950/80 text-red-300 border-red-500/50 animate-pulse"
           )}>
-            💎 {deckStoneCost}/20 Elmas
+            💎 {deckStoneCost}/20 Elmas {isCostValid && deckStoneCost < 20 ? `(${20 - deckStoneCost} Yetenek Taşı)` : ""}
           </span>
         </div>
         <div className="rounded-2xl panel-3d p-3 space-y-3">

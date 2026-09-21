@@ -1177,15 +1177,9 @@ export function tickBattle(state: BattleState, dt: number) {
         // Compute base damage
         let dmgValueResult = dmgValue(u.card.dmg);
         
-        if (u.card.id === "buyucu") {
-          // Mage hits for a random value between 33 and 66
-          const randDmg = 33 + Math.random() * 33;
-          dmgValueResult = randDmg;
-        }
-
         // Custom combat stats logic:
         if (u.card.id === "atli") {
-          dmgValueResult = u.isCharging ? 120 : 50;
+          dmgValueResult = u.isCharging ? 300 : 130;
           u.isCharging = false; // discharge charging stamp
         }
 
@@ -1518,13 +1512,13 @@ export function applyCombatDamage(state: BattleState, defender: Unit, dmg: numbe
     finalDmg *= 2.0;
   }
 
-  // Charm: Saf Kuvvet - 5 saniyeliğine 2.5x güç
+  // Charm: Saf Kuvvet - 4 saniyeliğine 4x güç
   const hasSafKuvvDmg = attacker && (
     (attacker.side === "player" && state.charmSafKuvvetTimeLeft !== undefined && state.charmSafKuvvetTimeLeft > 0) ||
     (attacker.side === "bot" && state.botCharmSafKuvvetTimeLeft !== undefined && state.botCharmSafKuvvetTimeLeft > 0)
   );
   if (hasSafKuvvDmg) {
-    finalDmg *= 2.5;
+    finalDmg *= 4.0;
   }
 
   // Charm: Mutlak Güç - Her 3 saniyede bir karakterlerin hasarı 1.1x artar (maks 3x)
@@ -1666,13 +1660,13 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
   const cost = getAbilityStoneCost(unit.card.id);
   if (unit.side === "player") {
     if (state.playerAbilityStones === undefined) {
-      state.playerAbilityStones = 20; // Fallback
+      state.playerAbilityStones = 0;
     }
     if (state.playerAbilityStones < cost) return;
     state.playerAbilityStones -= cost;
   } else {
     if (state.botAbilityStones === undefined) {
-      state.botAbilityStones = 20; // Fallback
+      state.botAbilityStones = 0;
     }
     if (state.botAbilityStones < cost) return;
     state.botAbilityStones -= cost;
@@ -1692,7 +1686,7 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
     }
   }
 
-  // 13. Doktor: hp healing 5x5 alanda +250, bedava, maks 3 kullanım, bekleme süresi yok
+  // 13. Doktor: hp healing 5x5 alanda +600, bedava, maks 3 kullanım, bekleme süresi yok
   else if (unit.card.id === "doktor") {
     const uses = unit.doktorUsesLeft ?? 3;
     if (uses <= 0) return;
@@ -1702,7 +1696,7 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
       if (targetUnit.side === unit.side && isUnitTargetable(targetUnit)) {
         // Surrounding blocks (within 5.0 range / 5x5 area)
         if (dist(targetUnit, unit) <= 5.0) {
-          targetUnit.hp = Math.min(targetUnit.maxHp, targetUnit.hp + 250); // heal 250 health
+          targetUnit.hp = Math.min(targetUnit.maxHp, targetUnit.hp + 600); // heal 600 health
         }
       }
     });
