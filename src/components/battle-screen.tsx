@@ -551,7 +551,7 @@ export function BattleScreen({
     }
 
     if (charmId === "kuvvet") {
-      s.botCharmKuvvetTimeLeft = 5.0; // 5 seconds 2x power for opponent
+      s.botCharmKuvvetTimeLeft = 8.0; // 8 seconds 2x power for opponent
     } else if (charmId === "hiz") {
       s.botCharmHizTimeLeft = 7.0; // 7 seconds 2x speed for opponent
     } else if (charmId === "kan-banyosu") {
@@ -676,7 +676,7 @@ export function BattleScreen({
     setUsedCharms(prev => [...prev, charmId]);
     const s = stateRef.current;
     if (charmId === "kuvvet") {
-      s.charmKuvvetTimeLeft = 5.0; // 5 seconds 2x power
+      s.charmKuvvetTimeLeft = 8.0; // 8 seconds 2x power
     } else if (charmId === "hiz") {
       s.charmHizTimeLeft = 7.0; // 7 seconds 2x speed
     } else if (charmId === "kan-banyosu") {

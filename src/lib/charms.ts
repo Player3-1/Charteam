@@ -11,7 +11,7 @@ export const CHARMS: CharmDef[] = [
     id: "kuvvet",
     name: "Kuvvet",
     emoji: "💪",
-    description: "Basıldığı an tüm kartların gücü 5 saniyeliğine 2 katına çıkar.",
+    description: "Basıldığı an tüm kartların gücü 8 saniyeliğine 2 katına çıkar.",
     cost: 0,
   },
   {
