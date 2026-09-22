@@ -444,28 +444,29 @@ function handleProjectileImpact(p: Projectile, state: BattleState) {
   if (p.aoeRange) {
     const TANK_IDS = ["dev-sinek", "balik", "dev", "zirhli", "lav-kopegi", "golem", "fil"];
     // Find primary target (or closest enemy unit directly hit)
-    const primaryTarget = state.units.find(u => u.uid === p.targetUid) ||
-      state.units.find(u => u.side !== p.side && Math.abs(u.col - p.toCol) <= 0.8 && Math.abs(u.row - p.toRow) <= 0.8);
+    const primaryTarget = state.units.find(u => u.uid === p.targetUid && u.hp > 0) ||
+      state.units.find(u => u.side !== p.side && isUnitTargetable(u) && Math.abs(u.col - p.toCol) <= 1.0 && Math.abs(u.row - p.toRow) <= 1.0);
     const isPrimaryTank = primaryTarget && TANK_IDS.includes(primaryTarget.card.id);
 
     state.units.forEach((targetUnit) => {
       if (targetUnit.side !== p.side && isUnitTargetable(targetUnit)) {
-        if (Math.abs(targetUnit.col - p.toCol) <= p.aoeRange! && Math.abs(targetUnit.row - p.toRow) <= p.aoeRange!) {
+        const isDirectTarget = Boolean(primaryTarget && targetUnit.uid === primaryTarget.uid);
+        const isWithinAoe = Math.abs(targetUnit.col - p.toCol) <= p.aoeRange! && Math.abs(targetUnit.row - p.toRow) <= p.aoeRange!;
+
+        if (isDirectTarget || isWithinAoe) {
           // Tank Splash Nerf: If the hit target is a tank, allied units behind the tank take no splash damage!
-          if (isPrimaryTank && targetUnit.uid !== primaryTarget.uid) {
+          if (!isDirectTarget && isPrimaryTank && primaryTarget && targetUnit.uid !== primaryTarget.uid) {
             const tankRow = primaryTarget.row;
             const fromRow = p.fromRow;
             const isBehind = 
-              (fromRow < tankRow && targetUnit.row > tankRow - 0.2) ||
-              (fromRow > tankRow && targetUnit.row < tankRow + 0.2) ||
-              (primaryTarget.side === "player" && targetUnit.row > tankRow - 0.2) ||
-              (primaryTarget.side === "bot" && targetUnit.row < tankRow + 0.2);
+              (fromRow < tankRow && targetUnit.row > tankRow + 0.2) ||
+              (fromRow > tankRow && targetUnit.row < tankRow - 0.2);
 
             if (isBehind) {
               return; // Protected by the front tank! Takes 0 splash damage
             }
           }
-          applyEffects(targetUnit, true);
+          applyEffects(targetUnit, !isDirectTarget);
         }
       }
     });
@@ -1090,26 +1091,24 @@ export function tickBattle(state: BattleState, dt: number) {
       u.chargeTime = 0;
 
       if (u.card.id === "uc-basli-ejder") {
-        let dmg1 = 37;
-        let dmg2 = 37;
-        let dmg3 = 37;
+        if (u.cdLeft <= 0) {
+          let dmg1 = 37;
+          let dmg2 = 37;
+          let dmg3 = 37;
 
-        // Apply Bira Varili damage aura boosts
-        const activeAuraBarrels = state.units.filter(
-          (o) => o.side === u.side && o.hp > 0 && o.card.id === "bira-varili"
-        );
-        if (activeAuraBarrels.length > 0) {
-          const hasSuperBoost = activeAuraBarrels.some((b) => (b.barrelAuraBoostTimeLeft || 0) > 0);
-          const mult = hasSuperBoost ? 2.5 : 1.75;
-          dmg1 *= mult;
-          dmg2 *= mult;
-          dmg3 *= mult;
-        }
+          // Apply Bira Varili damage aura boosts
+          const activeAuraBarrels = state.units.filter(
+            (o) => o.side === u.side && o.hp > 0 && o.card.id === "bira-varili"
+          );
+          if (activeAuraBarrels.length > 0) {
+            const hasSuperBoost = activeAuraBarrels.some((b) => (b.barrelAuraBoostTimeLeft || 0) > 0);
+            const mult = hasSuperBoost ? 2.5 : 1.75;
+            dmg1 *= mult;
+            dmg2 *= mult;
+            dmg3 *= mult;
+          }
 
-        let fired = false;
-        if (u.drag1CdLeft === undefined || u.drag1CdLeft <= 0) {
-          u.drag1CdLeft = 1.6;
-          fired = true;
+          // Launch Head 1 (Fire)
           state.projectiles.push({
             uid: nextUid(),
             side: u.side,
@@ -1118,18 +1117,15 @@ export function tickBattle(state: BattleState, dt: number) {
             toCol: best.col,
             toRow: best.row,
             t: 0,
-            duration: Math.max(0.3, bestD * 0.1),
+            duration: Math.max(0.25, bestD * 0.08),
             kind: "fire",
             attackerUid: u.uid,
             damage: dmg1,
             aoeRange: 1.5,
             targetUid: best.uid,
           });
-        }
 
-        if (u.drag2CdLeft === undefined || u.drag2CdLeft <= 0) {
-          u.drag2CdLeft = 1.8;
-          fired = true;
+          // Launch Head 2 (Ice / Freezing)
           state.projectiles.push({
             uid: nextUid(),
             side: u.side,
@@ -1138,18 +1134,15 @@ export function tickBattle(state: BattleState, dt: number) {
             toCol: best.col,
             toRow: best.row,
             t: 0,
-            duration: Math.max(0.3, bestD * 0.1),
+            duration: Math.max(0.3, bestD * 0.09),
             kind: "ice",
             attackerUid: u.uid,
             damage: dmg2,
             aoeRange: 1.5,
             targetUid: best.uid,
           });
-        }
 
-        if (u.drag3CdLeft === undefined || u.drag3CdLeft <= 0) {
-          u.drag3CdLeft = 2.0;
-          fired = true;
+          // Launch Head 3 (Burning Fire)
           state.projectiles.push({
             uid: nextUid(),
             side: u.side,
@@ -1158,7 +1151,7 @@ export function tickBattle(state: BattleState, dt: number) {
             toCol: best.col,
             toRow: best.row,
             t: 0,
-            duration: Math.max(0.3, bestD * 0.1),
+            duration: Math.max(0.35, bestD * 0.1),
             kind: "fire",
             attackerUid: u.uid,
             damage: dmg3,
@@ -1166,9 +1159,7 @@ export function tickBattle(state: BattleState, dt: number) {
             targetUid: best.uid,
             ucBasliYakici: true,
           });
-        }
-        
-        if (fired) {
+
           const hasSafKuvv = (u.side === "player" && state.charmSafKuvvetTimeLeft && state.charmSafKuvvetTimeLeft > 0) ||
                              (u.side === "bot" && state.botCharmSafKuvvetTimeLeft && state.botCharmSafKuvvetTimeLeft > 0);
           u.cdLeft = hasSafKuvv ? u.card.cd * 0.75 : u.card.cd;
@@ -1446,10 +1437,8 @@ export function applyCombatDamage(state: BattleState, defender: Unit, dmg: numbe
     for (const tank of alliedTanks) {
       const distTankDef = Math.hypot(tank.col - defender.col, tank.row - defender.row);
       const isBehindTank = (
-        (attacker.row <= tank.row && defender.row > tank.row - 0.2) ||
-        (attacker.row >= tank.row && defender.row < tank.row + 0.2) ||
-        (defender.side === "player" && defender.row > tank.row - 0.2) ||
-        (defender.side === "bot" && defender.row < tank.row + 0.2)
+        (attacker.row < tank.row && defender.row > tank.row + 0.2) ||
+        (attacker.row > tank.row && defender.row < tank.row - 0.2)
       ) && distTankDef <= 2.2;
 
       if (isBehindTank) {
