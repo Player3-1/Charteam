@@ -563,7 +563,7 @@ export function BattleScreen({
         }
       });
     } else if (charmId === "mutlak-guc") {
-      s.botCharmSafKuvvetTimeLeft = 4.0;
+      s.botCharmSafKuvvetTimeLeft = 3.0;
       s.units.forEach(u => {
         if (u.side === "bot" && u.hp > 0) {
           u.hp = Math.max(1, Math.round(u.hp * 0.75));
@@ -611,7 +611,7 @@ export function BattleScreen({
       // 4x4 area: within 2 tiles col and row
       s.units.forEach(u => {
         if (u.hp > 0 && Math.abs(u.col - oppCol) <= 2 && Math.abs(u.row - oppRow) <= 2) {
-          applyCombatDamage(s, u, 150, undefined, undefined, true);
+          applyCombatDamage(s, u, 150, undefined, undefined, true, "bomba");
         }
       });
     }
@@ -645,6 +645,7 @@ export function BattleScreen({
       } else if (charmId === "bomba") {
         if (s.time >= 3.0 && playerUnits.length >= 1) shouldTrigger = true;
       } else if (charmId === "kuvvet") {
+        if (s.botCharmSafKuvvetTimeLeft && s.botCharmSafKuvvetTimeLeft > 0) continue;
         const inCombat = botUnits.some(b => playerUnits.some(p => Math.hypot(b.col - p.col, b.row - p.row) <= 4.0));
         if (inCombat || s.time >= 4.0) shouldTrigger = true;
       } else if (charmId === "kan-banyosu") {
@@ -654,6 +655,7 @@ export function BattleScreen({
         const injured = botUnits.some(u => u.hp < u.maxHp * 0.65);
         if (injured || s.time >= 8.0) shouldTrigger = true;
       } else if (charmId === "mutlak-guc") {
+        if (s.botCharmKuvvetTimeLeft && s.botCharmKuvvetTimeLeft > 0) continue;
         if (s.time >= 4.0) shouldTrigger = true;
       }
 
@@ -668,13 +670,20 @@ export function BattleScreen({
   const handleUseCharm = (charmId: string) => {
     if (usedCharms.includes(charmId)) return;
 
+    const s = stateRef.current;
+    if (charmId === "kuvvet" && s.charmSafKuvvetTimeLeft && s.charmSafKuvvetTimeLeft > 0) {
+      return; // Saf Kuvvet aktifken Kuvvet kullanılamaz
+    }
+    if (charmId === "mutlak-guc" && s.charmKuvvetTimeLeft && s.charmKuvvetTimeLeft > 0) {
+      return; // Kuvvet aktifken Saf Kuvvet kullanılamaz
+    }
+
     if (charmId === "kutsanmislik" || charmId === "bomba") {
       setTargetingCharm(charmId === targetingCharm ? null : charmId);
       return;
     }
 
     setUsedCharms(prev => [...prev, charmId]);
-    const s = stateRef.current;
     if (charmId === "kuvvet") {
       s.charmKuvvetTimeLeft = 8.0; // 8 seconds 2x power
     } else if (charmId === "hiz") {
@@ -688,7 +697,7 @@ export function BattleScreen({
         }
       });
     } else if (charmId === "mutlak-guc") {
-      s.charmSafKuvvetTimeLeft = 4.0;
+      s.charmSafKuvvetTimeLeft = 3.0; // 3 seconds 3x power
       s.units.forEach(u => {
         if (u.side === "player" && u.hp > 0) {
           u.hp = Math.max(1, Math.round(u.hp * 0.75));
@@ -734,7 +743,7 @@ export function BattleScreen({
       // "o bombanın 4x4 alanındaki herşey 150 hasar alır."
       s.units.forEach(u => {
         if (u.hp > 0 && Math.abs(u.col - col) <= 2 && Math.abs(u.row - row) <= 2) {
-          applyCombatDamage(s, u, 150, undefined, undefined, true);
+          applyCombatDamage(s, u, 150, undefined, undefined, true, "bomba");
         }
       });
 
@@ -1259,7 +1268,7 @@ export function BattleScreen({
             <span className="text-3xl">✨</span>
             <div className="text-left">
               <div className="text-xs font-black uppercase text-amber-200">Kutsanmışlık</div>
-              <div className="text-[11px] text-amber-300">Sahadaki dost kartına tıkla (2.5x Can)</div>
+              <div className="text-[11px] text-amber-300">Sahadaki dost kartına tıkla (1.5x Can)</div>
             </div>
             <button
               onClick={() => setTargetingCharm(null)}
@@ -1354,7 +1363,7 @@ export function BattleScreen({
             <span className="text-4xl">✨</span>
             <h2 className="text-2xl font-black text-amber-300 mt-1">Kutsanacak Kartını Seç</h2>
             <p className="text-xs text-slate-300 mt-1">
-              Seçtiğin kart 2.5x dayanıklılık (can) kazanır ve etrafında sarı halkalar çıkar.
+              Seçtiğin kart 1.5x dayanıklılık (can) kazanır ve etrafında sarı halkalar çıkar.
             </p>
           </div>
           <div className="flex flex-wrap gap-3 justify-center max-w-md max-h-[50vh] overflow-y-auto p-1">
@@ -1371,7 +1380,7 @@ export function BattleScreen({
                   <span className="text-xs text-white font-bold mt-1.5">{u.card.name}</span>
                   <span className="text-[10px] text-emerald-400 font-mono mt-0.5">{Math.round(u.hp)} / {u.maxHp} HP</span>
                   <span className="text-[10px] text-amber-300 font-bold mt-1 bg-amber-500/20 px-2 py-0.5 rounded-full border border-amber-500/40">
-                    ➔ {Math.round(u.maxHp * 2.5)} HP
+                    ➔ {Math.round(u.maxHp * 1.5)} HP
                   </span>
                 </button>
               ));
@@ -1417,23 +1426,35 @@ export function BattleScreen({
                       activeText = `${s.charmKanBanyosuTimeLeft.toFixed(1)}s (Can Çalma)`;
                     } else if (charm.id === "mutlak-guc" && s.charmSafKuvvetTimeLeft && s.charmSafKuvvetTimeLeft > 0) {
                       isActive = true;
-                      activeText = `${s.charmSafKuvvetTimeLeft.toFixed(1)}s (4x Güç)`;
+                      activeText = `${s.charmSafKuvvetTimeLeft.toFixed(1)}s (3x Güç)`;
+                    }
+
+                    let isBlocked = false;
+                    let blockReason = "";
+                    if (charm.id === "kuvvet" && s.charmSafKuvvetTimeLeft && s.charmSafKuvvetTimeLeft > 0) {
+                      isBlocked = true;
+                      blockReason = "Saf Kuvvet Aktif";
+                    } else if (charm.id === "mutlak-guc" && s.charmKuvvetTimeLeft && s.charmKuvvetTimeLeft > 0) {
+                      isBlocked = true;
+                      blockReason = "Kuvvet Aktif";
                     }
 
                     return (
                       <button
                         key={charm.id}
-                        disabled={isUsed && !isActive}
+                        disabled={(isUsed && !isActive) || isBlocked}
                         onClick={() => handleUseCharm(charm.id)}
                         className={cn(
                           "panel-3d flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-md",
                           isActive
                             ? "bg-amber-500/30 border-2 border-amber-400 text-amber-200 animate-pulse ring-2 ring-amber-400/50"
-                            : isUsed
-                              ? "opacity-35 grayscale border-slate-700 bg-slate-900/60 cursor-not-allowed"
-                              : isTargeting
-                                ? "ring-2 ring-amber-400 bg-amber-900/60 border border-amber-300 text-amber-100 scale-105"
-                                : "bg-indigo-950/80 hover:bg-indigo-900/80 border border-indigo-500/50 text-white"
+                            : isBlocked
+                              ? "opacity-40 grayscale border-slate-700 bg-slate-900/60 cursor-not-allowed"
+                              : isUsed
+                                ? "opacity-35 grayscale border-slate-700 bg-slate-900/60 cursor-not-allowed"
+                                : isTargeting
+                                  ? "ring-2 ring-amber-400 bg-amber-900/60 border border-amber-300 text-amber-100 scale-105"
+                                  : "bg-indigo-950/80 hover:bg-indigo-900/80 border border-indigo-500/50 text-white"
                         )}
                       >
                         <span className="text-xl drop-shadow">{charm.emoji}</span>
@@ -1441,6 +1462,8 @@ export function BattleScreen({
                           <span className="leading-tight">{charm.name}</span>
                           {isActive ? (
                             <span className="text-[9px] font-mono text-amber-300 leading-none mt-0.5">{activeText}</span>
+                          ) : isBlocked ? (
+                            <span className="text-[9px] text-amber-400 leading-none mt-0.5">⚠️ {blockReason}</span>
                           ) : isUsed ? (
                             <span className="text-[9px] text-slate-400 leading-none mt-0.5">Kullanıldı</span>
                           ) : (

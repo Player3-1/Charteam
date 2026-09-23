@@ -1418,7 +1418,15 @@ export function tickBattle(state: BattleState, dt: number) {
 }
 
 /** Handles applying damage, considering invulnerabilities and defensive stances */
-export function applyCombatDamage(state: BattleState, defender: Unit, dmg: number, attacker?: Unit, isProjectile?: boolean, isAoe: boolean = false) {
+export function applyCombatDamage(
+  state: BattleState,
+  defender: Unit,
+  dmg: number,
+  attacker?: Unit,
+  isProjectile?: boolean,
+  isAoe: boolean = false,
+  source?: string
+) {
   // Check if targetable (cannot take damage if underground or emerging)
   if (!isUnitTargetable(defender)) {
     return; // takes 0 damage
@@ -1430,8 +1438,10 @@ export function applyCombatDamage(state: BattleState, defender: Unit, dmg: numbe
     return;
   }
 
-  // Tank AoE shielding: If damage is AoE/splash, check if defender is behind a friendly tank
-  if (isAoe && attacker) {
+  const isBombaOrCig = source === "bomba" || source === "cig" || attacker?.card?.id === "cig";
+
+  // Tank AoE shielding: If damage is AoE/splash, check if defender is behind a friendly tank (bypassed by full-field cataclysms like Bomba/Çığ)
+  if (isAoe && attacker && !isBombaOrCig) {
     const TANK_IDS = ["dev-sinek", "balik", "dev", "zirhli", "lav-kopegi", "golem", "fil"];
     const alliedTanks = state.units.filter(u => u.side === defender.side && u.hp > 0 && TANK_IDS.includes(u.card.id) && u.uid !== defender.uid);
     for (const tank of alliedTanks) {
@@ -1492,22 +1502,20 @@ export function applyCombatDamage(state: BattleState, defender: Unit, dmg: numbe
     finalDmg *= 2.0;
   }
 
-  // Charm: Kuvvet - basıldığı an tüm kartların gücü 5 saniyeliğine 2 katına çıkar
-  const hasKuvvet = attacker && (
-    (attacker.side === "player" && state.charmKuvvetTimeLeft !== undefined && state.charmKuvvetTimeLeft > 0) ||
-    (attacker.side === "bot" && state.botCharmKuvvetTimeLeft !== undefined && state.botCharmKuvvetTimeLeft > 0)
-  );
-  if (hasKuvvet) {
-    finalDmg *= 2.0;
-  }
-
-  // Charm: Saf Kuvvet - 4 saniyeliğine 4x güç
+  // Charm: Kuvvet & Saf Kuvvet (Saf Kuvvet 3x, Kuvvet 2x - cannot stack together)
   const hasSafKuvvDmg = attacker && (
     (attacker.side === "player" && state.charmSafKuvvetTimeLeft !== undefined && state.charmSafKuvvetTimeLeft > 0) ||
     (attacker.side === "bot" && state.botCharmSafKuvvetTimeLeft !== undefined && state.botCharmSafKuvvetTimeLeft > 0)
   );
+  const hasKuvvet = attacker && (
+    (attacker.side === "player" && state.charmKuvvetTimeLeft !== undefined && state.charmKuvvetTimeLeft > 0) ||
+    (attacker.side === "bot" && state.botCharmKuvvetTimeLeft !== undefined && state.botCharmKuvvetTimeLeft > 0)
+  );
+
   if (hasSafKuvvDmg) {
-    finalDmg *= 4.0;
+    finalDmg *= 3.0; // 3x güç
+  } else if (hasKuvvet) {
+    finalDmg *= 2.0; // 2x güç
   }
 
   // Charm: Mutlak Güç - Her 3 saniyede bir karakterlerin hasarı 1.1x artar (maks 3x)
@@ -1516,8 +1524,17 @@ export function applyCombatDamage(state: BattleState, defender: Unit, dmg: numbe
     finalDmg *= mutlakMult;
   }
 
-  // Custom balance: AoE cards take 6 hits to kill Tribe and 3 hits for Bird Army
-  if (isAoe) {
+  // Custom balance: Kuş Ordusu ve alan hasarı alan kartlar (Kabile, Kuş Ordusu, vb.) bomba charmından ve çığdan tek yesin
+  const isSwarmOrAoeVulnerable =
+    defender.card.id.startsWith("kus-ordusu") ||
+    defender.card.id.startsWith("kabile") ||
+    defender.card.id.startsWith("karinca-");
+
+  if (isBombaOrCig) {
+    if (isSwarmOrAoeVulnerable) {
+      finalDmg = Math.max(finalDmg, defender.hp);
+    }
+  } else if (isAoe) {
     if (defender.card.id.startsWith("kabile")) {
       finalDmg = Math.min(finalDmg, defender.maxHp / 5.9);
     } else if (defender.card.id.startsWith("kus-ordusu")) {
@@ -1894,7 +1911,7 @@ export function triggerUnitAbility(unit: Unit, state: BattleState) {
         const colDiff = Math.abs(targetUnit.col - unit.col);
         const rowDiff = Math.abs(targetUnit.row - unit.row);
         if (colDiff <= 2.5 && rowDiff <= 2.5) {
-          applyCombatDamage(state, targetUnit, 145, unit, false, true);
+          applyCombatDamage(state, targetUnit, 145, unit, false, true, "cig");
         }
       }
     });

@@ -1545,11 +1545,17 @@ function CardsTab({
                   const isCurrent = selectedCharms[activeCharmSlot] === charm.id;
                   const otherSlot = activeCharmSlot === 0 ? 1 : 0;
                   const isOther = selectedCharms[otherSlot] === charm.id;
+                  const isConflictWithOther = 
+                    (charm.id === "kuvvet" && selectedCharms[otherSlot] === "mutlak-guc") ||
+                    (charm.id === "mutlak-guc" && selectedCharms[otherSlot] === "kuvvet");
 
                   return (
                     <div
                       key={charm.id}
                       onClick={() => {
+                        if (isConflictWithOther) {
+                          setCharmSlot(otherSlot, "");
+                        }
                         setCharmSlot(activeCharmSlot, charm.id);
                         setActiveCharmSlot(null);
                       }}
@@ -1577,6 +1583,11 @@ function CardsTab({
                               Slotta
                             </span>
                           )}
+                          {isConflictWithOther && (
+                            <span className="text-[8px] px-1 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold">
+                              ⚠️ Çakışır
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs sm:text-sm font-black text-white font-display leading-tight">{charm.name}</div>
                         <p className="text-[10px] text-amber-200/80 leading-snug line-clamp-3 mt-1 min-h-[2.4rem]">
@@ -1590,10 +1601,12 @@ function CardsTab({
                           "mt-3 w-full py-2 rounded-xl font-display text-xs font-black transition-all shadow-sm flex items-center justify-center gap-1",
                           isCurrent
                             ? "bg-emerald-600 text-white border border-emerald-400"
-                            : "bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 hover:brightness-110 active:scale-95"
+                            : isConflictWithOther
+                              ? "bg-gradient-to-r from-amber-600 to-amber-700 text-white hover:brightness-110 active:scale-95"
+                              : "bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 hover:brightness-110 active:scale-95"
                         )}
                       >
-                        {isCurrent ? "✓ Seçili" : "✨ Kuşan"}
+                        {isCurrent ? "✓ Seçili" : isConflictWithOther ? "⚡ Değiştir ve Kuşan" : "✨ Kuşan"}
                       </button>
                     </div>
                   );

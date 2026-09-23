@@ -11,7 +11,7 @@ export const CHARMS: CharmDef[] = [
     id: "kuvvet",
     name: "Kuvvet",
     emoji: "💪",
-    description: "Basıldığı an tüm kartların gücü 8 saniyeliğine 2 katına çıkar.",
+    description: "Basıldığı an tüm kartların gücü 8 saniyeliğine 2 katına çıkar. (Saf Kuvvet ile aynı anda kullanılamaz)",
     cost: 0,
   },
   {
@@ -39,7 +39,7 @@ export const CHARMS: CharmDef[] = [
     id: "mutlak-guc",
     name: "Saf Kuvvet",
     emoji: "⚡",
-    description: "Basıldığında tüm kartların gücü 4 saniyeliğine 4x artar, vurma süreleri %25 kısalır, ancak canlarının da %25'ini kaybederler.",
+    description: "Basıldığında tüm kartların gücü 3 saniyeliğine 3x artar, vurma süreleri %25 kısalır, ancak canlarının da %25'ini kaybederler. (Kuvvet ile aynı anda kullanılamaz)",
     cost: 88000,
   },
   {

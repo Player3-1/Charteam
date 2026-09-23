@@ -507,7 +507,7 @@ export function ArenaView({
                   <div className="absolute inset-0 -m-3 rounded-full border-2 border-yellow-300 shadow-[0_0_16px_rgba(250,204,21,0.9)] animate-pulse pointer-events-none z-20" />
                   <div className="absolute inset-0 -m-1.5 rounded-full border-2 border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.8)] animate-spin pointer-events-none border-dashed z-20" style={{ animationDuration: "5s" }} />
                   <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[8px] font-black text-amber-300 bg-slate-950/95 border border-amber-400/90 px-1 py-0.2 rounded shadow whitespace-nowrap z-20">
-                    ✨ Kutsanmış (2.5x)
+                    ✨ Kutsanmış (1.5x)
                   </div>
                 </>
               )}
