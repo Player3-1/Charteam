@@ -752,8 +752,8 @@ export function tickBattle(state: BattleState, dt: number) {
     // Barrel lifespan & burst timer
     if (u.card.id === "bira-varili") {
       u.barrelAge = (u.barrelAge || 0) + dt;
-      if (u.barrelAge >= 25) {
-        u.hp = 0; // expires after 25 seconds
+      if (u.barrelAge >= 30) {
+        u.hp = 0; // expires after 30 seconds
         continue;
       }
       if (u.barrelAuraBoostTimeLeft !== undefined && u.barrelAuraBoostTimeLeft > 0) {
@@ -1654,7 +1654,7 @@ export function getAbilityStoneCost(cardId: string): number {
     case "lav-kopegi": return 1;
     case "samuray": return 1;
     case "vampir": return 1;
-    case "lanet": return 4;
+    case "lanet": return 0;
     default: return 0;
   }
 }
