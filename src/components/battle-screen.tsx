@@ -478,7 +478,7 @@ export function BattleScreen({
   const [isReady, setIsReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
 
-  const BOT_CHARM_POOL = ["kuvvet", "hiz", "saglik", "kan-banyosu", "mutlak-guc", "kutsanmislik", "bomba"];
+  const BOT_CHARM_POOL = ["kuvvet", "hiz", "saglik", "kan-banyosu", "mutlak-guc", "kutsanmislik", "bomba", "yavaslik", "ates", "su"];
   const botCharmsRef = useRef<string[]>([]);
   const botUsedCharmsRef = useRef<Set<string>>(new Set());
 
@@ -614,6 +614,12 @@ export function BattleScreen({
           applyCombatDamage(s, u, 150, undefined, undefined, true, "bomba");
         }
       });
+    } else if (charmId === "yavaslik") {
+      s.botCharmYavaslikTimeLeft = 6.0;
+    } else if (charmId === "ates") {
+      s.botCharmAtesTimeLeft = 8.0;
+    } else if (charmId === "su") {
+      s.botCharmSuTimeLeft = 8.0;
     }
     rerender();
   };
@@ -657,6 +663,14 @@ export function BattleScreen({
       } else if (charmId === "mutlak-guc") {
         if (s.botCharmKuvvetTimeLeft && s.botCharmKuvvetTimeLeft > 0) continue;
         if (s.time >= 4.0) shouldTrigger = true;
+      } else if (charmId === "yavaslik") {
+        if (s.time >= 2.5 && playerUnits.length >= 1) shouldTrigger = true;
+      } else if (charmId === "ates") {
+        if (s.botCharmSuTimeLeft && s.botCharmSuTimeLeft > 0) continue;
+        if (botUnits.length >= 2 && s.time >= 4.0) shouldTrigger = true;
+      } else if (charmId === "su") {
+        if (s.botCharmAtesTimeLeft && s.botCharmAtesTimeLeft > 0) continue;
+        if (botUnits.some(u => u.hp < u.maxHp * 0.7)) shouldTrigger = true;
       }
 
       if (shouldTrigger) {
@@ -676,6 +690,12 @@ export function BattleScreen({
     }
     if (charmId === "mutlak-guc" && s.charmKuvvetTimeLeft && s.charmKuvvetTimeLeft > 0) {
       return; // Kuvvet aktifken Saf Kuvvet kullanılamaz
+    }
+    if (charmId === "ates" && s.charmSuTimeLeft && s.charmSuTimeLeft > 0) {
+      return; // Su aktifken Ateş kullanılamaz
+    }
+    if (charmId === "su" && s.charmAtesTimeLeft && s.charmAtesTimeLeft > 0) {
+      return; // Ateş aktifken Su kullanılamaz
     }
 
     if (charmId === "kutsanmislik" || charmId === "bomba") {
@@ -703,6 +723,12 @@ export function BattleScreen({
           u.hp = Math.max(1, Math.round(u.hp * 0.75));
         }
       });
+    } else if (charmId === "yavaslik") {
+      s.charmYavaslikTimeLeft = 6.0;
+    } else if (charmId === "ates") {
+      s.charmAtesTimeLeft = 8.0;
+    } else if (charmId === "su") {
+      s.charmSuTimeLeft = 8.0;
     }
     rerender();
     if (battleId) {
@@ -1056,13 +1082,18 @@ export function BattleScreen({
     const card = playerCards[selected];
     if (!card || placedIds.has(card.id)) return;
     
+    const targetCol = col;
+    const targetRow = row;
+
     // Prevent stacking cards
-    if (stateRef.current.units.some(u => Math.round(u.col) === col && Math.round(u.row) === row)) {
+    const isOccupied = stateRef.current.units.some(u => Math.round(u.col) === targetCol && Math.round(u.row) === targetRow);
+
+    if (isOccupied) {
       return; 
     }
 
     const lvl = playerCardLevels[card.id] ?? 1;
-    spawnUnit(stateRef.current, card, "player", col, row, lvl);
+    spawnUnit(stateRef.current, card, "player", targetCol, targetRow, lvl);
     const next = new Set(placedIds);
     next.add(card.id);
     setPlacedIds(next);
@@ -1427,6 +1458,15 @@ export function BattleScreen({
                     } else if (charm.id === "mutlak-guc" && s.charmSafKuvvetTimeLeft && s.charmSafKuvvetTimeLeft > 0) {
                       isActive = true;
                       activeText = `${s.charmSafKuvvetTimeLeft.toFixed(1)}s (3x Güç)`;
+                    } else if (charm.id === "yavaslik" && s.charmYavaslikTimeLeft && s.charmYavaslikTimeLeft > 0) {
+                      isActive = true;
+                      activeText = `${s.charmYavaslikTimeLeft.toFixed(1)}s (%50 Yavaş)`;
+                    } else if (charm.id === "ates" && s.charmAtesTimeLeft && s.charmAtesTimeLeft > 0) {
+                      isActive = true;
+                      activeText = `${s.charmAtesTimeLeft.toFixed(1)}s (3x Güç)`;
+                    } else if (charm.id === "su" && s.charmSuTimeLeft && s.charmSuTimeLeft > 0) {
+                      isActive = true;
+                      activeText = `${s.charmSuTimeLeft.toFixed(1)}s (3x Zırh)`;
                     }
 
                     let isBlocked = false;
@@ -1437,6 +1477,12 @@ export function BattleScreen({
                     } else if (charm.id === "mutlak-guc" && s.charmKuvvetTimeLeft && s.charmKuvvetTimeLeft > 0) {
                       isBlocked = true;
                       blockReason = "Kuvvet Aktif";
+                    } else if (charm.id === "ates" && s.charmSuTimeLeft && s.charmSuTimeLeft > 0) {
+                      isBlocked = true;
+                      blockReason = "Su Aktif";
+                    } else if (charm.id === "su" && s.charmAtesTimeLeft && s.charmAtesTimeLeft > 0) {
+                      isBlocked = true;
+                      blockReason = "Ateş Aktif";
                     }
 
                     return (

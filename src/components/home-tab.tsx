@@ -86,7 +86,7 @@ import { PROFILE_COLORS, PROFILE_FONTS, PROFILE_AVATARS } from "@/lib/profile-cu
 type Tab = "battle" | "cards" | "chests" | "meta" | "arenas" | "top3";
 
 export function Home({ user }: { user: UserData }) {
-  const { state, hydrated, claimChestRewards, spendGold, setDeckSlot, setActiveDeck, applyMatchReward, buyEmoji, buyCharm, buyLevelCoins, setCharmSlot, setEmojiSlot, setTrophies, setGold, updateResources, resetRankedStars, claimProgressionReward, cheatUnlockAll, updateProfileCustomization, importDeck, upgradeCardLevel, upgradeCardLevelWithGold, claimRankedReward, claimRankReward } = usePlayer(user.username);
+  const { state, hydrated, claimChestRewards, spendGold, setDeckSlot, setActiveDeck, applyMatchReward, buyEmoji, buyCharm, buyLevelCoins, setCharmSlot, setEmojiSlot, setTrophies, setGold, updateResources, resetRankedStars, claimProgressionReward, updateProfileCustomization, importDeck, upgradeCardLevel, upgradeCardLevelWithGold, claimRankedReward, claimRankReward } = usePlayer(user.username);
   const { incomingDuels, outgoingDuels, sendDuelRequest, acceptDuel, declineDuel, cancelDuel } = useDuels(user.username);
   const [inBattle, setInBattle] = useState(false);
 
@@ -709,7 +709,7 @@ export function Home({ user }: { user: UserData }) {
               {/* AVATAR SELECTOR (ALWAYS FREE) */}
               <div className="space-y-2 mb-5 shrink-0">
                 <label className="text-xs font-bold text-amber-400 uppercase tracking-wider">🎭 Profil Resmi Seç (Ücretsiz)</label>
-                <div className="grid grid-cols-6 gap-1.5 p-2 bg-slate-950/40 rounded-xl border border-slate-800/80">
+                <div className="grid grid-cols-6 gap-1.5 p-2 bg-slate-950/40 rounded-xl border border-slate-800/80 max-h-60 overflow-y-auto">
                   {PROFILE_AVATARS.map((av) => (
                     <button
                       key={av.name}
@@ -1025,7 +1025,7 @@ function CardsTab({
 
   const handleCollectionCardClick = (cardId: string) => {
     const card = CARDS.find((c) => c.id === cardId);
-    if (!card) return;
+    if (!card || (collection[cardId] ?? 0) <= 0) return;
     
     // Check if adding this will exceed legendary limit
     if (card.rarity === "legendary") {
@@ -1547,7 +1547,9 @@ function CardsTab({
                   const isOther = selectedCharms[otherSlot] === charm.id;
                   const isConflictWithOther = 
                     (charm.id === "kuvvet" && selectedCharms[otherSlot] === "mutlak-guc") ||
-                    (charm.id === "mutlak-guc" && selectedCharms[otherSlot] === "kuvvet");
+                    (charm.id === "mutlak-guc" && selectedCharms[otherSlot] === "kuvvet") ||
+                    (charm.id === "ates" && selectedCharms[otherSlot] === "su") ||
+                    (charm.id === "su" && selectedCharms[otherSlot] === "ates");
 
                   return (
                     <div
@@ -1705,10 +1707,6 @@ function BattleTab({
       case 12: return { emoji: "🐲❄️🏔️", desc: "Ejderhaların koruduğu dondurucu vadi" };
       case 13: return { emoji: "🏰🦇🧛", desc: "Karanlık şato ve zombilerin diyarı" };
       case 14: return { emoji: "🔮🧙‍♂️✨", desc: "Büyülü ve sihirli gizemli arena" };
-      case 15: return { emoji: "🐭💀🪦", desc: "Çürümüş diyarlar ve dev fareler" };
-      case 16: return { emoji: "☢️🐍☣️", desc: "Toksik zehirle kaplı radyoaktif arena" };
-      case 17: return { emoji: "🕷️🍄🌺", desc: "Egzotik tarantulalar ve kan mantarları" };
-      case 18: return { emoji: "🌌🔮✨", desc: "Mistik ve kozmik şampiyonlar arenası" };
       default: return { emoji: "⚔️🏆🌟", desc: "Efsanevi Savaş Alanı" };
     }
   };

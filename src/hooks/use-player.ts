@@ -3,7 +3,7 @@ import { CARDS } from "@/lib/cards";
 import { db, handleFirestoreError, OperationType } from "@/firebase";
 import { doc, onSnapshot, setDoc, updateDoc } from "firebase/firestore";
 import { UserData } from "@/types";
-import { MAX_TROPHIES, arenaForTrophies } from "@/lib/arenas";
+import { MAX_TROPHIES, arenaForTrophies, getArenaForCard } from "@/lib/arenas";
 
 const STARTER_DECK: UserData["deck"] = ["mizrakli", "kilicli", "okcu", "dev"];
 const CURRENT_RANK_SEASON = 3;
@@ -64,6 +64,26 @@ export function usePlayer(username: string) {
             collection[cardId] = 1;
           }
         }
+        let needsSync = false;
+
+        // Sanitize: Remove any deleted cards or cards unlocked via cheat above player's arena
+        const validCardIds = new Set(CARDS.map(c => c.id));
+        const userTrophies = Math.max(data.maxTrophies ?? 0, data.trophies ?? 0);
+        for (const cardId of Object.keys(collection)) {
+          if (!validCardIds.has(cardId)) {
+            delete collection[cardId];
+            needsSync = true;
+            continue;
+          }
+          // Close "all cards open" cheat: lock cards belonging to arenas higher than player's trophies
+          const arena = getArenaForCard(cardId);
+          if (arena && arena.min > userTrophies) {
+            delete collection[cardId];
+            needsSync = true;
+          }
+        }
+
+        const currentUnlockedCharms = [...(data.unlockedCharms ?? ["kuvvet", "saglik"])];
 
         const isDgoa = username.toLowerCase() === "dgoa";
         const isOldSeason = (data.rankSeason ?? 1) < CURRENT_RANK_SEASON;
@@ -75,13 +95,25 @@ export function usePlayer(username: string) {
         const currentRankedMatchesPlayed = isOldSeason ? 0 : (data.rankedMatchesPlayed ?? 0);
         const currentClaimedTiers = isOldSeason ? [] : (data.claimedRankTiers ?? []);
 
+        // Sanitize decks to ensure only valid owned cards exist in active or stored decks
+        const cleanDeck = ((data.deck ?? STARTER_DECK).map(id => (validCardIds.has(id) && (collection[id] ?? 0) > 0) ? id : STARTER_DECK[0])) as UserData["deck"];
+        if (JSON.stringify(cleanDeck) !== JSON.stringify(data.deck)) {
+          needsSync = true;
+        }
+
+        const rawDecks = data.decks ?? Object.fromEntries(Array(5).fill(null).map((_, i) => [i.toString(), [...STARTER_DECK]]));
+        const cleanedDecks: Record<string, UserData["deck"]> = {};
+        for (const [k, d] of Object.entries(rawDecks)) {
+          cleanedDecks[k] = ((d as string[]).map(id => (validCardIds.has(id) && (collection[id] ?? 0) > 0) ? id : STARTER_DECK[0])) as UserData["deck"];
+        }
+
         const nextState: UserData = { 
           ...data, 
           collection,
           cardLevels: (data.cardLevels ?? {}),
           cardProgress: (data.cardProgress ?? {}),
-          deck: data.deck ?? STARTER_DECK,
-          decks: data.decks ?? Object.fromEntries(Array(5).fill(null).map((_, i) => [i.toString(), [...STARTER_DECK]])),
+          deck: cleanDeck,
+          decks: cleanedDecks,
           activeDeckIndex: data.activeDeckIndex ?? 0,
           wins: wins,
           losses: data.losses ?? 0,
@@ -90,6 +122,8 @@ export function usePlayer(username: string) {
           rankSeason: CURRENT_RANK_SEASON,
           unlockedEmojis: (data.unlockedEmojis && data.unlockedEmojis.length > 0) ? data.unlockedEmojis : ["👍", "😂", "😡", "😱"],
           selectedEmojis: (data.selectedEmojis && data.selectedEmojis.length > 0) ? data.selectedEmojis : ["👍", "😂", "😡", "😱"],
+          unlockedCharms: currentUnlockedCharms,
+          selectedCharms: data.selectedCharms && data.selectedCharms.length > 0 ? data.selectedCharms : ["kuvvet", "saglik"],
           claimedMilestones: data.claimedMilestones ?? [],
           avatar: data.avatar ?? "",
           profileStyleUnlocked: data.profileStyleUnlocked ?? false,
@@ -99,6 +133,15 @@ export function usePlayer(username: string) {
           claimedRankedRewards: isOldSeason ? [] : (data.claimedRankedRewards ?? []),
           claimedRankTiers: currentClaimedTiers,
         };
+
+        if (needsSync) {
+          updateDoc(userRef, {
+            collection,
+            deck: cleanDeck,
+            decks: cleanedDecks,
+            unlockedCharms: currentUnlockedCharms,
+          }).catch(() => {});
+        }
 
         if (isOldSeason) {
           updateDoc(userRef, {
@@ -366,6 +409,9 @@ export function usePlayer(username: string) {
 
   const setDeckSlot = useCallback(async (slot: number, cardId: string) => {
     if (!state) return;
+    if (cardId !== "" && (state.collection[cardId] ?? 0) <= 0) {
+      return;
+    }
     const activeDeckIndex = state.activeDeckIndex ?? 0;
     const decks = { ...(state.decks ?? { "0": state.deck }) };
     const deck = [...(decks[activeDeckIndex.toString()] || state.deck)] as UserData["deck"];
@@ -502,10 +548,6 @@ export function usePlayer(username: string) {
     await updateFirestore(newState);
   }, [state, updateFirestore]);
 
-  const cheatUnlockAll = useCallback(async () => {
-    alert("Hile sistemi kapatılmıştır.");
-  }, []);
-
   const updateProfileCustomization = useCallback(async (customization: { avatar?: string, profileStyleUnlocked?: boolean, profileColor?: string, profileFont?: string }) => {
     if (!state) return;
     const newState = {
@@ -518,6 +560,10 @@ export function usePlayer(username: string) {
 
   const importDeck = useCallback(async (cardIds: string[]) => {
     if (!state || cardIds.length !== 4) return;
+    const validCardIds = new Set(CARDS.map(c => c.id));
+    if (!cardIds.every(id => validCardIds.has(id) && (state.collection[id] ?? 0) > 0)) {
+      return;
+    }
     const activeDeckIndex = state.activeDeckIndex ?? 0;
     const decks = { ...(state.decks ?? { "0": state.deck }) };
     const deck = [...cardIds] as UserData["deck"];
@@ -581,5 +627,5 @@ export function usePlayer(username: string) {
     await updateFirestore(newState);
   }, [state, updateFirestore]);
 
-  return { state, hydrated, addCards, claimChestRewards, spendGold, setDeckSlot, setActiveDeck, applyMatchReward, setEmojiSlot, setCharmSlot, buyEmoji, buyCharm, buyLevelCoins, setTrophies, setGold, updateResources, resetRankedStars, claimProgressionReward, cheatUnlockAll, updateProfileCustomization, importDeck, upgradeCardLevel, upgradeCardLevelWithGold, claimRankedReward, claimRankReward };
+  return { state, hydrated, addCards, claimChestRewards, spendGold, setDeckSlot, setActiveDeck, applyMatchReward, setEmojiSlot, setCharmSlot, buyEmoji, buyCharm, buyLevelCoins, setTrophies, setGold, updateResources, resetRankedStars, claimProgressionReward, updateProfileCustomization, importDeck, upgradeCardLevel, upgradeCardLevelWithGold, claimRankedReward, claimRankReward };
 }

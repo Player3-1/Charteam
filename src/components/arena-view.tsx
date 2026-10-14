@@ -75,7 +75,7 @@ function projectileEmoji(p: Projectile): ReactNode {
     case "stone": return "🪨";
     case "bullet":
       return (
-        <span className="inline-block w-2.5 h-2.5 rounded-full bg-gradient-to-r from-amber-300 to-yellow-400 border border-yellow-100 shadow-[0_0_8px_rgba(250,204,21,1)]" />
+        <span className="inline-block w-3.5 h-3.5 rounded-full bg-gradient-to-r from-amber-200 via-amber-400 to-yellow-500 border border-yellow-100 shadow-[0_0_12px_rgba(250,204,21,1)]" />
       );
     case "bomb": return "💣";
     case "fire": return "🔥";
@@ -447,6 +447,12 @@ export function ArenaView({
 
         const isSmall = u.card.id.startsWith("kus-ordusu") || u.card.id.startsWith("karinca") || u.card.id.startsWith("kabile");
         const isLanetli = state.lanetTimeLeft !== undefined && state.lanetTimeLeft > 0 && u.side !== state.lanetSide;
+        const isSlowedByCharm = (u.side === "bot" && (state.charmYavaslikTimeLeft ?? 0) > 0) ||
+                                (u.side === "player" && (state.botCharmYavaslikTimeLeft ?? 0) > 0);
+        const hasAtesBuff = (u.side === "player" && (state.charmAtesTimeLeft ?? 0) > 0) ||
+                            (u.side === "bot" && (state.botCharmAtesTimeLeft ?? 0) > 0);
+        const hasSuBuff = (u.side === "player" && (state.charmSuTimeLeft ?? 0) > 0) ||
+                          (u.side === "bot" && (state.botCharmSuTimeLeft ?? 0) > 0);
         
         const isBuffedByBarrel = state.units.some(
           (o) => o.side === u.side && o.hp > 0 && o.card.id === "bira-varili"
@@ -587,6 +593,33 @@ export function ArenaView({
                 </div>
               )}
 
+              {/* Yavaşlık Charm debuff label */}
+              {isSlowedByCharm && (
+                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none z-20">
+                  <div className="text-indigo-200 font-mono font-black text-[8px] bg-indigo-950/90 border border-indigo-500/70 px-1 py-0.2 rounded shadow whitespace-nowrap animate-pulse">
+                    ⏳ %50 Yavaş
+                  </div>
+                </div>
+              )}
+
+              {/* Ateş Charm buff label */}
+              {hasAtesBuff && (
+                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none z-20">
+                  <div className="text-orange-200 font-mono font-black text-[8px] bg-orange-950/90 border border-orange-500/70 px-1 py-0.2 rounded shadow whitespace-nowrap animate-pulse">
+                    🔥 3x Güç
+                  </div>
+                </div>
+              )}
+
+              {/* Su Charm buff label */}
+              {hasSuBuff && (
+                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none z-20">
+                  <div className="text-cyan-200 font-mono font-black text-[8px] bg-cyan-950/90 border border-cyan-500/70 px-1 py-0.2 rounded shadow whitespace-nowrap animate-pulse">
+                    💧 3x Zırh
+                  </div>
+                </div>
+              )}
+
               {/* Kan Mantarı 50% damage reduction aura on friendly team */}
               {hasKanMantariShield && u.card.id !== "kan-mantari" && (
                 <div className="absolute inset-0 -m-1 rounded-full border-2 border-rose-400 bg-rose-500/10 shadow-[0_0_10px_2px_rgba(244,63,94,0.5)] animate-pulse" />
@@ -624,7 +657,10 @@ export function ArenaView({
               <span className={cn(
                 "grid place-items-center rounded-full drop-shadow-[0_2px_3px_rgba(0,0,0,0.8)]",
                 isSmall ? "h-6.5 w-6.5 text-[15px]" : "h-9 w-9 text-2xl",
-                isBuffedByBarrel && "ring-2 ring-yellow-400 bg-yellow-500/20"
+                isBuffedByBarrel && "ring-2 ring-yellow-400 bg-yellow-500/20",
+                hasAtesBuff && "ring-2 ring-orange-500 shadow-[0_0_12px_rgba(249,115,22,0.6)] animate-pulse",
+                hasSuBuff && "ring-2 ring-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.6)] animate-pulse",
+                isSlowedByCharm && "ring-2 ring-indigo-400 opacity-80"
               )}>
                 {u.card.emoji}
               </span>
@@ -652,37 +688,21 @@ export function ArenaView({
               </div>
             )}
 
-            {/* Attack cooldown / Slingshot Setup timer (Kurulma Süresi Rozeti ve Çubuğu) */}
-            {!isEmerging && u.setupTimeLeft !== undefined && u.setupTimeLeft > 0 ? (
-              <div className="absolute -bottom-3.5 left-1/2 -translate-x-1/2 flex flex-col items-center justify-center pointer-events-none z-30 whitespace-nowrap">
-                <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[6.5px] font-mono font-black leading-none shadow-md border bg-amber-950/95 text-amber-300 border-amber-400 animate-pulse">
-                  <span className="text-[7px]">🔧</span>
-                  <span>KURULUYOR: {u.setupTimeLeft.toFixed(1)}s</span>
-                </div>
-                <div className="w-9 h-1 bg-slate-950 rounded-full border border-amber-400/80 overflow-hidden mt-0.5">
-                  <div
-                    className="h-full bg-gradient-to-r from-amber-500 to-yellow-300 transition-all duration-75"
-                    style={{
-                      width: `${Math.max(0, Math.min(100, (1 - u.setupTimeLeft / (u.setupDuration || 4)) * 100))}%`
-                    }}
-                  />
-                </div>
-              </div>
-            ) : (
-              !isEmerging && u.card.cd > 0 && (
-                <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none z-20 whitespace-nowrap">
-                  <div className={cn(
-                    "flex items-center gap-0.5 px-1 py-0.1 rounded-full text-[6.5px] font-mono font-bold leading-none shadow-xs border",
-                    u.cdLeft > 0.05 
-                      ? "bg-slate-950/85 text-amber-300 border-amber-500/40" 
-                      : "bg-emerald-950/85 text-emerald-300 border-emerald-500/50 animate-pulse"
-                  )}>
+            {/* Attack cooldown */}
+            {!isEmerging && u.card.cd > 0 && (
+              <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none z-20 whitespace-nowrap">
+                <div className={cn(
+                  "flex items-center gap-0.5 px-1 py-0.1 rounded-full text-[6.5px] font-mono font-bold leading-none shadow-xs border",
+                  u.cdLeft > 0.05 
+                    ? "bg-slate-950/85 text-amber-300 border-amber-500/40" 
+                    : "bg-emerald-950/85 text-emerald-300 border-emerald-500/50 animate-pulse"
+                )}>
                     <span className="text-[6px]">⚔️</span>
                     <span>{u.cdLeft > 0.05 ? `${u.cdLeft.toFixed(1)}s` : "OK"}</span>
                   </div>
                 </div>
               )
-            )}
+            }
           </div>
         );
       })}

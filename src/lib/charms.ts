@@ -55,5 +55,26 @@ export const CHARMS: CharmDef[] = [
     emoji: "💣",
     description: "İstediğin yere bomba bırakırsın ve o bombanın 4x4 alanındaki herşey 150 hasar alır.",
     cost: 50000,
+  },
+  {
+    id: "yavaslik",
+    name: "Yavaşlık",
+    emoji: "⏳",
+    description: "Rakibin kartları 6 saniyeliğine hem vurma süresi hem hareket bakımından %50 yavaşlar.",
+    cost: 65000,
+  },
+  {
+    id: "ates",
+    name: "Ateş",
+    emoji: "🔥",
+    description: "8 saniyeliğine kartların 3x daha fazla hasar vurur ama karşılığında 1.5x daha fazla hasar yer. (Su charmı ile birlikte kullanılamaz)",
+    cost: 85000,
+  },
+  {
+    id: "su",
+    name: "Su",
+    emoji: "💧",
+    description: "8 saniyeliğine kartların 3x daha az hasar yer (%67 hasar azaltma) ama karşılığında 1.5x daha az hasar vurur. (Ateş charmı ile birlikte kullanılamaz)",
+    cost: 85000,
   }
 ];

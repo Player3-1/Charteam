@@ -53,6 +53,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onLogin }) => {
           username: sanitizedUsername, 
           deck: ["mizrakli", "kilicli", "okcu", "dev"],
           collection: { "mizrakli": 1, "kilicli": 1, "okcu": 1, "dev": 1 },
+          unlockedCharms: ["kuvvet", "saglik"],
           trophies: 0,
           wins: 0,
           losses: 0,
