@@ -148,7 +148,7 @@ export const ARENAS: Arena[] = [
     id: 14,
     name: "Sihirli Arena",
     min: 4500,
-    max: 5000,
+    max: 7000,
     biome: "legendary",
     unlocks: ["buyucu", "lanet"],
     bg: "linear-gradient(180deg, #8b5cf6 0%, #4c1d95 100%)",
@@ -156,7 +156,7 @@ export const ARENAS: Arena[] = [
   }
 ];
 
-export const MAX_TROPHIES = 5000;
+export const MAX_TROPHIES = 7000;
 
 export function arenaForTrophies(trophies: number): Arena {
   const t = Math.max(0, Math.min(MAX_TROPHIES, trophies));
